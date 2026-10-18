@@ -1,0 +1,27 @@
+{
+  "date": "2026-10-18T07:08:32.794Z",
+  "platform": "darwin",
+  "cpu": "Apple M3",
+  "memory_GB": 24,
+  "journal_rows": 1000000,
+  "products": 50000,
+  "db_MB": 192.73,
+  "fixture_seconds": 36.47,
+  "product_lookup": {
+    "p50_ms": 7.44,
+    "p95_ms": 7.97
+  },
+  "product_cursor_page": {
+    "p50_ms": 0.39,
+    "p95_ms": 0.45
+  },
+  "monthly_totals": {
+    "p50_ms": 206.48,
+    "p95_ms": 225.69
+  },
+  "database": "Temporary synthetic fixture removed after measurement to recover disk space",
+  "monthly_totals_after_daily_summaries": {
+    "p50_ms": 0.097,
+    "p95_ms": 0.256
+  }
+}

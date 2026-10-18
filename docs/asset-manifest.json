@@ -1,0 +1,35 @@
+{
+  "method": "built-in image_gen",
+  "purpose": "Unbranded illustrative demo catalog images, bundled for offline use",
+  "assets": [
+    {
+      "path": "public/assets/laptop.png",
+      "prompt": "Square studio product photograph of a silver modern laptop, open three-quarter front view, charcoal screen with subtle lime reflection, pale neutral gray background, centered with clean margins, no text or logos."
+    },
+    {
+      "path": "public/assets/phone.png",
+      "prompt": "Square studio catalog photograph of an unbranded titanium smartphone, back and front angled together, dark charcoal back and pale blue screen, centered with generous margins on a pale neutral gray seamless background, soft studio light and subtle shadow, no logos, text, watermark, or props."
+    },
+    {
+      "path": "public/assets/headphones.png",
+      "prompt": "Square studio catalog photograph of matte black over-ear headphones with rounded earcups and soft highlights, centered on a very pale neutral gray background with generous margins. Soft diffused lighting, subtle shadow, clear silhouette for a 34\u201344px electronics inventory thumbnail. No logos, text, watermark, hands, packaging, or extra objects."
+    },
+    {
+      "path": "public/assets/storage.png",
+      "prompt": "Square studio photograph of an unbranded black M.2 NVMe SSD, three-quarter angle, visible chips and gold connector, centered on pale neutral gray with soft lighting; no text or logos."
+    },
+    {
+      "path": "public/assets/tablet.png",
+      "prompt": "Square studio catalog photograph of a silver thin tablet with a dark charcoal and pale blue screen, slight three-quarter front view, centered with generous margins on pale neutral gray seamless background, soft realistic studio light and subtle shadow, no logos, text, watermark, or props."
+    },
+    {
+      "path": "public/assets/adapter.png",
+      "prompt": "Square studio catalog photograph of a small black USB-C 65W power adapter with two round wall prongs and a USB-C cable loosely beside it. Centered on a seamless very pale neutral gray background with generous margins, soft neutral diffused studio lighting and subtle shadows. No logos, text, watermark, hands, packaging, or extra objects."
+    }
+  ],
+  "icons": {
+    "source": "@phosphor-icons/react",
+    "appIcon": "Handbag fill icon rendered with @resvg/resvg-js",
+    "font": "Plus Jakarta Sans Variable bundled through Fontsource"
+  }
+}

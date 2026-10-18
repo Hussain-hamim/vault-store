@@ -1,0 +1,16 @@
+{
+  "verified_at": "2026-10-18T07:46:36.572806+00:00",
+  "automated_tests": {
+    "passed": 32,
+    "failed": 0
+  },
+  "typescript_and_production_build": "passed",
+  "source_backend_under_electron_runtime": {
+    "status": "passed",
+    "node": "24.22.0",
+    "sqlite": "3.53.4"
+  },
+  "visual_verification": "stopped at user request; no further visual checks",
+  "desktop_installers": "earlier 0.1.0 installers unchanged; source update requires rebuilding packages",
+  "live_native_store": "not modified"
+}

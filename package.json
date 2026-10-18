@@ -1,0 +1,82 @@
+{
+  "name": "vault-store",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "electron/main.cjs",
+  "description": "Offline electronics store inventory and accounting",
+  "author": "Vault Store",
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "dev:ui": "vite --host 127.0.0.1 --port 4173",
+    "desktop": "electron .",
+    "build": "tsc --noEmit && vite build && node scripts/prepare-sites-build.mjs",
+    "test": "node --test tests/store.test.mjs tests/preload.test.mjs",
+    "test:sites": "node --test tests/sites-worker.test.mjs",
+    "package:mac": "npm run build && electron-builder --mac --dir",
+    "package:win": "npm run build && electron-builder --win nsis",
+    "backup": "node server/backup-cli.mjs",
+    "benchmark": "node scripts/benchmark.mjs",
+    "package:mac:dmg": "npm run build && electron-builder --mac dmg"
+  },
+  "dependencies": {
+    "@fontsource-variable/plus-jakarta-sans": "^5.2.8",
+    "@phosphor-icons/react": "^2.1.10",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "recharts": "^3.3.0",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@resvg/resvg-js": "^2.6.2",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "5.0.4",
+    "electron": "44.9.0",
+    "electron-builder": "^26.0.12",
+    "prettier": "^3.9.10",
+    "typescript": "^5.9.3",
+    "vite": "6.4.2"
+  },
+  "build": {
+    "appId": "com.vault.store",
+    "productName": "Vault Store",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/client/**/*",
+      "electron/**/*",
+      "server/**/*",
+      "package.json",
+      "node_modules/zod/**/*"
+    ],
+    "asarUnpack": [
+      "server/**/*",
+      "node_modules/zod/**/*"
+    ],
+    "mac": {
+      "category": "public.app-category.business",
+      "target": [
+        "dmg"
+      ],
+      "identity": "-",
+      "hardenedRuntime": false,
+      "notarize": false,
+      "icon": "build/icon.icns",
+      "timestamp": null
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "signAndEditExecutable": false,
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "icon": "build/icon.png"
+  }
+}

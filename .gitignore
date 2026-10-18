@@ -1,0 +1,27 @@
+node_modules/
+dist/
+release/
+.local/
+.vite/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.backup.lock
+.DS_Store
+
+# Local configuration and recovery data
+.env
+.env.*
+!.env.example
+*.db
+*.db-wal
+*.db-shm
+*.sqlite-journal
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+*.log
+
+# Local design references and session screenshots
+docs/qa/
+design-qa.md

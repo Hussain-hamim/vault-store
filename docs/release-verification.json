@@ -1,0 +1,21 @@
+{
+  "verified_at": "2026-10-18T07:39:32.031834+00:00",
+  "core_tests": 24,
+  "typescript_and_frontend_build": "passed",
+  "packaged_macos_worker_smoke": "passed",
+  "macos_signature": "ad hoc; strict verification passed",
+  "windows_runtime_test": "pending on Windows hardware",
+  "public_distribution_signing_and_notarization": "pending",
+  "artifacts": [
+    {
+      "path": "release/final/Vault Store-0.1.0-arm64.dmg",
+      "bytes": 146900944,
+      "sha256": "e084e5fe27530654966d32ecf06829553d7f502bd0164135ee665d3ab5641a26"
+    },
+    {
+      "path": "release/Vault Store Setup 0.1.0.exe",
+      "bytes": 127492814,
+      "sha256": "55ee25d421ca2f43083cf40cf297868eee67fb5a66130d60058f725527d3d9d3"
+    }
+  ]
+}
