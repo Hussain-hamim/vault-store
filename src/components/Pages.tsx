@@ -606,15 +606,17 @@ export function PeoplePage({
     setLedgerAfter("");
     setLedgerHistory([]);
   }
+  const balanceTone = (balance: number) =>
+    balance > 0 ? "owed" : balance < 0 ? "credit" : "settled";
   return (
-    <div className="page-content">
+    <div className={`page-content people-page people-${kind}`}>
       <PageIntro
         eyebrow="People & balances"
         title={kind === "customer" ? "Customers" : "Suppliers"}
         description={
           kind === "customer"
-            ? "From walk-in sales to regular customers. Every balance has a history."
-            : "Your purchasing partners, payments and outstanding balances."
+            ? "Who bought from you, what they still owe, and their full ledger."
+            : "Who you buy from, what you still owe, and payment history."
         }
         action={
           <button className="button button-dark" onClick={() => open(kind)}>
@@ -623,7 +625,7 @@ export function PeoplePage({
           </button>
         }
       />
-      <div className="metrics-row">
+      <div className="metrics-row people-metrics">
         <Metric
           label={
             kind === "customer"
@@ -643,91 +645,108 @@ export function PeoplePage({
         <Metric label="Currency" value="AFN" detail="Afghan afghani · No tax" />
       </div>
       <div className={`people-layout ${selected ? "has-detail" : ""}`}>
-        <section className="panel">
-          <div className="list-toolbar">
-            <Search
-              value={q}
-              onChange={(v) => {
-                setQ(v);
-                setAfter("");
-              }}
-              placeholder={`Search ${kind}s by name…`}
-            />
-            <ExportButton
-              onClick={() => {
-                exportCSV(
-                  `vault-${kind}s`,
-                  data?.rows.map((p) => ({
-                    name: p.name,
-                    phone: p.phone,
-                    email: p.email,
-                    balance_AF: p.balance / 100,
-                  })) || [],
-                );
-                toast("Contacts exported.");
-              }}
-            />
+        <section className="panel people-list">
+          <div className="people-list-sticky">
+            <div className="list-toolbar">
+              <Search
+                value={q}
+                onChange={(v) => {
+                  setQ(v);
+                  setAfter("");
+                  setHistory([]);
+                }}
+                placeholder={`Search ${kind}s by name…`}
+              />
+              <ExportButton
+                onClick={() => {
+                  exportCSV(
+                    `vault-${kind}s`,
+                    data?.rows.map((p) => ({
+                      name: p.name,
+                      phone: p.phone,
+                      email: p.email,
+                      balance_AF: p.balance / 100,
+                    })) || [],
+                  );
+                  toast("Contacts exported.");
+                }}
+              />
+            </div>
+            <div className="people-list-cols" role="row">
+              <span>{kind === "customer" ? "Customer" : "Supplier"}</span>
+              <span>Phone</span>
+              <span>Status</span>
+              <span>Outstanding</span>
+              <span aria-hidden="true" />
+            </div>
           </div>
           <ErrorMessage error={error} />
           {!data ? (
             <Loading />
           ) : (
             <>
-              <div className="table-wrap">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>{kind === "customer" ? "Customer" : "Supplier"}</th>
-                      <th>Phone</th>
-                      <th>Outstanding</th>
-                      <th />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.rows.map((p) => (
-                      <tr
-                        key={p.id}
-                        className={selected === p.id ? "selected-row" : ""}
-                        onClick={() => selectParty(p.id)}
-                      >
-                        <td>
-                          <span className="customer-name">
-                            <span className="customer-initial large">
-                              {p.name.slice(0, 1)}
-                            </span>
-                            <span>
-                              <strong>{p.name}</strong>
-                              <small>
-                                {p.walk_in
-                                  ? "Walk-in account"
-                                  : p.email || kind}
-                              </small>
-                            </span>
-                          </span>
-                        </td>
-                        <td>{p.phone || "—"}</td>
-                        <td>
-                          <span
-                            className={`money ${p.balance > 0 ? "text-red" : "text-green"}`}
-                          >
-                            {af(p.balance)}
-                          </span>
-                        </td>
-                        <td>
-                          <ArrowUpRightIcon size={15} />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="people-list-scroll" role="list">
+                {data.rows.map((p) => {
+                  const tone = balanceTone(p.balance);
+                  return (
+                    <button
+                      type="button"
+                      key={p.id}
+                      role="listitem"
+                      className={`people-row balance-${tone}${selected === p.id ? " selected" : ""}${p.walk_in ? " walk-in" : ""}`}
+                      onClick={() => selectParty(p.id)}
+                    >
+                      <div className="people-row-identity">
+                        <span className="people-row-avatar">
+                          {p.name.slice(0, 1).toUpperCase()}
+                        </span>
+                        <span className="people-row-copy">
+                          <strong>{p.name}</strong>
+                          <small>
+                            {p.walk_in
+                              ? "Walk-in account"
+                              : p.email ||
+                                (kind === "customer"
+                                  ? "Customer account"
+                                  : "Supplier account")}
+                          </small>
+                        </span>
+                      </div>
+                      <div className="people-row-meta">
+                        <span className="people-row-phone">
+                          {p.phone || "No phone"}
+                        </span>
+                      </div>
+                      <div className="people-row-meta">
+                        <span className={`people-status status-${tone}`}>
+                          {tone === "owed"
+                            ? kind === "customer"
+                              ? "Owes you"
+                              : "You owe"
+                            : tone === "credit"
+                              ? "Credit"
+                              : "Settled"}
+                        </span>
+                      </div>
+                      <div className="people-row-meta people-row-balance">
+                        <strong className={`money balance-${tone}`}>
+                          {af(p.balance)}
+                        </strong>
+                      </div>
+                      <div className="people-row-go" aria-hidden="true">
+                        <ArrowUpRightIcon size={16} />
+                      </div>
+                    </button>
+                  );
+                })}
+                {!data.rows.length && (
+                  <Empty
+                    title={`No ${kind}s found`}
+                    text="Add a contact or try a different search."
+                  />
+                )}
               </div>
-              {!data.rows.length && (
-                <Empty
-                  title={`No ${kind}s found`}
-                  text="Add a contact or try a different search."
-                />
-              )}
-              <div className="pagination">
+              <div className="pagination people-list-pager">
                 <span>Up to 100 contacts per page</span>
                 <button
                   className="button"
@@ -754,7 +773,7 @@ export function PeoplePage({
           )}
         </section>
         {selected && (
-          <section className="panel contact-detail">
+          <section className="panel contact-detail people-detail">
             <div className="panel-heading">
               <h3>Contact & ledger</h3>
               <button className="text-button" onClick={() => setSelected(null)}>
@@ -765,7 +784,7 @@ export function PeoplePage({
             {detail?.party ? (
               <>
                 <div className="contact-summary">
-                  <span className="customer-initial avatar-lg">
+                  <span className="customer-initial avatar-lg people-detail-avatar">
                     {detail.party.name.slice(0, 1)}
                   </span>
                   <h2>{detail.party.name}</h2>
@@ -779,7 +798,9 @@ export function PeoplePage({
                       Enter opening balance
                     </button>
                   )}
-                  <div className="contact-balance">
+                  <div
+                    className={`contact-balance balance-${balanceTone(detail.party.balance)}`}
+                  >
                     <span>Outstanding balance</span>
                     <strong
                       className={
