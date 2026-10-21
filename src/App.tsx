@@ -75,7 +75,10 @@ export function App() {
     [page, setPage] = useState("Inventory"),
     [saleTab, setSaleTab] = useState("bill"),
     [saleEditId, setSaleEditId] = useState<string | undefined>(),
+    [purchaseTab, setPurchaseTab] = useState("bill"),
+    [purchaseEditId, setPurchaseEditId] = useState<string | undefined>(),
     [billEpoch, setBillEpoch] = useState(0),
+    [purchaseEpoch, setPurchaseEpoch] = useState(0),
     [modal, setModal] = useState<{ name: string; data?: any } | null>(null),
     [refresh, setRefresh] = useState(0),
     [message, setMessage] = useState(""),
@@ -151,6 +154,16 @@ export function App() {
       if (name !== "saleHistory") {
         setSaleEditId(name === "saleEdit" ? data.id : undefined);
         setBillEpoch((v) => v + 1);
+      }
+      return;
+    }
+    if (["purchase", "purchaseEdit", "purchaseHistory"].includes(name)) {
+      setModal(null);
+      setPage("Purchases");
+      setPurchaseTab(name === "purchaseHistory" ? "history" : "bill");
+      if (name !== "purchaseHistory") {
+        setPurchaseEditId(name === "purchaseEdit" ? data.id : undefined);
+        setPurchaseEpoch((v) => v + 1);
       }
       return;
     }
@@ -538,7 +551,64 @@ export function App() {
               </div>
             </div>
           ) : page === "Purchases" ? (
-            <DocumentsPage {...props} kind="purchase" />
+            <div className="sales-workspace">
+              <div
+                className="sales-tabs"
+                role="tablist"
+                aria-label="Purchases workspace"
+              >
+                <button
+                  role="tab"
+                  id="purchase-bill-tab"
+                  aria-controls="purchase-bill-panel"
+                  aria-selected={purchaseTab === "bill"}
+                  onClick={() => setPurchaseTab("bill")}
+                >
+                  {purchaseEditId ? "Edit purchase" : "New purchase"}
+                </button>
+                <button
+                  role="tab"
+                  id="purchase-history-tab"
+                  aria-controls="purchase-history-panel"
+                  aria-selected={purchaseTab === "history"}
+                  onClick={() => setPurchaseTab("history")}
+                >
+                  Purchase history
+                </button>
+              </div>
+              <div
+                role="tabpanel"
+                id="purchase-bill-panel"
+                aria-labelledby="purchase-bill-tab"
+                hidden={purchaseTab !== "bill"}
+              >
+                <TradeForm
+                  key={purchaseEpoch}
+                  kind="purchase"
+                  inline
+                  documentId={purchaseEditId}
+                  close={() => {
+                    setPurchaseTab("history");
+                    setPurchaseEditId(undefined);
+                    setPurchaseEpoch((v) => v + 1);
+                  }}
+                  done={(s) => {
+                    toast(s);
+                    setPurchaseTab("history");
+                    setPurchaseEditId(undefined);
+                    setPurchaseEpoch((v) => v + 1);
+                  }}
+                />
+              </div>
+              <div
+                role="tabpanel"
+                id="purchase-history-panel"
+                aria-labelledby="purchase-history-tab"
+                hidden={purchaseTab !== "history"}
+              >
+                <DocumentsPage {...props} kind="purchase" />
+              </div>
+            </div>
           ) : page === "Customers" ? (
             <PeoplePage {...props} kind="customer" />
           ) : page === "Suppliers" ? (
@@ -577,13 +647,6 @@ export function App() {
       {modal?.name === "product" && (
         <ProductForm product={modal.data} close={close} done={done} />
       )}
-      {["purchase"].includes(modal?.name || "") && (
-        <TradeForm
-          kind={modal!.name as "sale" | "purchase"}
-          close={close}
-          done={done}
-        />
-      )}
       {["customer", "supplier"].includes(modal?.name || "") && (
         <PartyForm
           kind={modal!.name as "customer" | "supplier"}
@@ -595,7 +658,7 @@ export function App() {
       {modal?.name === "payment" && (
         <PaymentForm party={modal.data} close={close} done={done} />
       )}
-      {modal?.name === "saleDelete" && (
+      {["saleDelete", "purchaseDelete"].includes(modal?.name || "") && (
         <DeleteInvoiceDialog
           documentId={modal.data.id}
           close={close}
@@ -608,8 +671,18 @@ export function App() {
           user={user}
           close={close}
           done={done}
-          edit={() => open("saleEdit", modal.data)}
-          remove={() => open("saleDelete", modal.data)}
+          edit={() =>
+            open(
+              modal.data.kind === "purchase" ? "purchaseEdit" : "saleEdit",
+              modal.data,
+            )
+          }
+          remove={() =>
+            open(
+              modal.data.kind === "purchase" ? "purchaseDelete" : "saleDelete",
+              modal.data,
+            )
+          }
         />
       )}
       {modal?.name === "productDetail" && (

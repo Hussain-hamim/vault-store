@@ -982,6 +982,103 @@ test("invoice editing preserves cost after a catalog SKU change", async (t) => {
   summariesMatch(f.s);
 });
 
+test("purchase invoices can be edited while unsold stock is still on hand", (t) => {
+  const f = fixture(t);
+  const doc = f.s.postTrade(f.u, {
+    kind: "purchase",
+    party_id: f.supplier,
+    paid: 0,
+    fx_rate: 180000,
+    request_key: key(),
+    lines: [
+      {
+        product_id: f.product,
+        quantity: 4,
+        cost_aed: 1000,
+        fx_rate: 180000,
+        price: 18000,
+        discount: 0,
+      },
+    ],
+  });
+  assert.equal(f.s.one("SELECT stock FROM products WHERE id=?", f.product).stock, 4);
+  assert.equal(doc.total, 72000);
+  const edited = f.s.mutatePurchase(
+    f.u,
+    {
+      id: doc.id,
+      revision: 0,
+      request_key: key(),
+      party_id: f.supplier,
+      paid: 20000,
+      fx_rate: 200000,
+      date: doc.date,
+      lines: [
+        {
+          product_id: f.product,
+          quantity: 3,
+          cost_aed: 1000,
+          fx_rate: 200000,
+          price: 20000,
+          discount: 0,
+        },
+      ],
+    },
+    "edit",
+  );
+  const updated = f.s.getDocument(edited.id);
+  assert.equal(updated.revision, 1);
+  assert.equal(updated.total, 60000);
+  assert.equal(updated.paid, 20000);
+  assert.equal(updated.fx_rate, 200000);
+  assert.equal(updated.lines[0].quantity, 3);
+  assert.equal(updated.lines[0].cost_aed, 1000);
+  assert.equal(f.s.one("SELECT stock FROM products WHERE id=?", f.product).stock, 3);
+  assert.equal(
+    f.s.one(
+      "SELECT unit_cost FROM batches WHERE product_id=? AND remaining>0",
+      f.product,
+    ).unit_cost,
+    20000,
+  );
+  assert.equal(f.s.partyBalance(f.supplier).balance, 40000);
+  // After selling any of the purchase, editing is blocked.
+  f.s.postTrade(f.u, {
+    kind: "sale",
+    party_id: f.customer,
+    paid: 100000,
+    request_key: key(),
+    lines: [{ product_id: f.product, quantity: 1, price: 100000 }],
+  });
+  assert.throws(
+    () =>
+      f.s.mutatePurchase(
+        f.u,
+        {
+          id: doc.id,
+          revision: 1,
+          request_key: key(),
+          party_id: f.supplier,
+          paid: 0,
+          fx_rate: 200000,
+          lines: [
+            {
+              product_id: f.product,
+              quantity: 2,
+              cost_aed: 1000,
+              fx_rate: 200000,
+              price: 20000,
+              discount: 0,
+            },
+          ],
+        },
+        "edit",
+      ),
+    /already been sold/,
+  );
+  balanced(f.s);
+});
+
 test("FIFO keeps separate purchase costs and profit uses batches sold, not catalog cost", (t) => {
   const f = fixture(t);
   const p = f.s.createProduct(f.u, {

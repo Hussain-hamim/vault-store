@@ -453,7 +453,7 @@ export function DocumentsPage({
                         </Badge>
                       </td>
                       <td>
-                        {kind === "sale" ? (
+                        {["sale", "purchase"].includes(kind) ? (
                           <div
                             className="invoice-row-actions"
                             onClick={(e) => e.stopPropagation()}
@@ -468,13 +468,27 @@ export function DocumentsPage({
                               <>
                                 <button
                                   className="text-button"
-                                  onClick={() => open("saleEdit", d)}
+                                  onClick={() =>
+                                    open(
+                                      kind === "purchase"
+                                        ? "purchaseEdit"
+                                        : "saleEdit",
+                                      d,
+                                    )
+                                  }
                                 >
                                   Edit
                                 </button>
                                 <button
                                   className="text-button danger-text"
-                                  onClick={() => open("saleDelete", d)}
+                                  onClick={() =>
+                                    open(
+                                      kind === "purchase"
+                                        ? "purchaseDelete"
+                                        : "saleDelete",
+                                      d,
+                                    )
+                                  }
                                 >
                                   Hard delete
                                 </button>

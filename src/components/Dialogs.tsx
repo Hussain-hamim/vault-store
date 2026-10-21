@@ -819,20 +819,25 @@ export function TradeForm({
             : {}),
         };
       });
-      await api(documentId ? "saleEdit" : kind, {
-        ...(documentId ? { id: documentId, revision: initial.revision } : {}),
-        party_id: party,
-        lines: payload,
-        paid: paid === "" ? total : toMoney(paid),
-        date: f.get("date"),
-        due_date: f.get("due_date") || null,
-        note: f.get("note"),
-        ...(purchase ? { fx_rate: rate } : {}),
-        request_key: key.current,
-      });
+      await api(
+        documentId ? (purchase ? "purchaseEdit" : "saleEdit") : kind,
+        {
+          ...(documentId ? { id: documentId, revision: initial.revision } : {}),
+          party_id: party,
+          lines: payload,
+          paid: paid === "" ? total : toMoney(paid),
+          date: f.get("date"),
+          due_date: f.get("due_date") || null,
+          note: f.get("note"),
+          ...(purchase ? { fx_rate: rate } : {}),
+          request_key: key.current,
+        },
+      );
       done(
         purchase
-          ? "Purchase received. Stock and supplier ledger updated."
+          ? documentId
+            ? "Purchase updated. Stock and supplier ledger recalculated."
+            : "Purchase received. Stock and supplier ledger updated."
           : documentId
             ? "Invoice updated. Stock, payment and profit recalculated."
             : "Sale posted. Invoice, stock and ledger saved.",
@@ -848,7 +853,9 @@ export function TradeForm({
     <Frame
       title={
         purchase
-          ? "Receive a purchase"
+          ? initial
+            ? `Edit ${initial.number}`
+            : "Receive a purchase"
           : initial
             ? `Edit ${initial.number}`
             : "New bill"
@@ -1274,7 +1281,9 @@ export function TradeForm({
               {busy
                 ? "Posting…"
                 : purchase
-                  ? "Receive purchase"
+                  ? documentId
+                    ? "Save purchase changes"
+                    : "Receive purchase"
                   : documentId
                     ? "Save invoice changes"
                     : "Post sale"}
@@ -1815,16 +1824,17 @@ export function InvoiceDialog({
       )}
       <ErrorMessage error={!returning ? error : ""} />
       <div className="modal-actions invoice-actions">
-        {doc?.kind === "sale" && ["Owner", "Manager"].includes(user.role) && (
-          <>
-            <button className="button" onClick={edit}>
-              Edit invoice
-            </button>
-            <button className="button danger-text" onClick={remove}>
-              Hard delete
-            </button>
-          </>
-        )}
+        {["sale", "purchase"].includes(doc?.kind) &&
+          ["Owner", "Manager"].includes(user.role) && (
+            <>
+              <button className="button" onClick={edit}>
+                Edit invoice
+              </button>
+              <button className="button danger-text" onClick={remove}>
+                Hard delete
+              </button>
+            </>
+          )}
         {doc &&
           ["sale", "purchase"].includes(doc.kind) &&
           ["Owner", "Manager", "Accountant"].includes(user.role) && (
@@ -1889,6 +1899,7 @@ export function DeleteInvoiceDialog({
       active = false;
     };
   }, [documentId]);
+  const purchase = doc?.kind === "purchase";
   return (
     <Modal
       title="Hard delete invoice"
@@ -1901,14 +1912,16 @@ export function DeleteInvoiceDialog({
           setBusy(true);
           setError("");
           try {
-            await api("saleDelete", {
+            await api(purchase ? "purchaseDelete" : "saleDelete", {
               id: doc.id,
               revision: doc.revision,
               confirmation,
               request_key: key.current,
             });
             done(
-              "Invoice permanently deleted. Stock, cash and customer ledger updated.",
+              purchase
+                ? "Purchase permanently deleted. Stock and supplier ledger updated."
+                : "Invoice permanently deleted. Stock, cash and customer ledger updated.",
             );
           } catch (e: any) {
             setError(e.message);
@@ -1919,13 +1932,18 @@ export function DeleteInvoiceDialog({
       >
         <div className="form-body">
           <p>
-            This permanently removes the invoice and its accounting entries.
-            Sold items return to their original stock batches. An administrative
-            audit reference remains.
+            {purchase
+              ? "This permanently removes the purchase and its accounting entries. Received stock that is still unsold is removed from inventory."
+              : "This permanently removes the invoice and its accounting entries. Sold items return to their original stock batches."}{" "}
+            An administrative audit reference remains.
           </p>
           <p>
-            Invoices with linked returns or later payment receipts cannot be
+            Invoices with linked returns or later{" "}
+            {purchase ? "supplier payments" : "payment receipts"} cannot be
             deleted.
+            {purchase
+              ? " Purchases cannot be deleted after any of their stock has been sold."
+              : ""}
           </p>
           <Field
             label={`Type ${doc?.number || "the invoice number"} to confirm`}

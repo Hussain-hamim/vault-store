@@ -922,6 +922,152 @@ export class Store {
       return result;
     });
   }
+  mutatePurchase(user, input, action) {
+    if (
+      !user.permissions.includes("purchases") ||
+      !["Owner", "Manager"].includes(user.role)
+    )
+      throw new Error(
+        "Editing and deleting purchases requires an owner or manager with purchases permission.",
+      );
+    const d = z
+      .object({
+        id: z.string(),
+        revision: z.number().int().min(0),
+        request_key: z.string().min(8),
+        confirmation: z.string().optional(),
+      })
+      .parse(input);
+    return this.transaction(() => {
+      const prior = this.one(
+        "SELECT * FROM invoice_operations WHERE request_key=?",
+        d.request_key,
+      );
+      if (prior) {
+        if (prior.user_id !== user.id || prior.action !== action)
+          throw new Error("Request key already used.");
+        const result = JSON.parse(prior.result);
+        if (result.id !== d.id)
+          throw new Error("Request key already used for another invoice.");
+        return result;
+      }
+      const old = this.getDocument(d.id);
+      if (old.kind !== "purchase")
+        throw new Error("Only purchase invoices can be edited or deleted here.");
+      if (old.category === "Opening balance")
+        throw new Error("Opening balance purchases cannot be edited here.");
+      if (old.revision !== d.revision)
+        throw new Error("This invoice changed. Reload it before continuing.");
+      const closed = this.setting("closedThrough");
+      if (closed && old.date <= closed)
+        throw new Error("This accounting period is closed.");
+      if (
+        this.one("SELECT id FROM documents WHERE original_id=? LIMIT 1", old.id)
+      )
+        throw new Error(
+          "This invoice has linked returns. Use the return records to preserve its stock and accounting history; editing or hard deletion is blocked.",
+        );
+      if (
+        this.one(
+          "SELECT id FROM payment_allocations WHERE invoice_id=? LIMIT 1",
+          old.id,
+        )
+      )
+        throw new Error(
+          "This invoice has later supplier payments. Resolve those linked payments before editing or hard deletion.",
+        );
+      if (action === "delete" && d.confirmation !== old.number)
+        throw new Error(
+          "Type the exact invoice number to confirm hard deletion.",
+        );
+      // Reverse received stock only while every batch from this purchase is still intact.
+      for (const line of old.lines) {
+        const batches = this.all(
+          "SELECT * FROM batches WHERE line_id=? ORDER BY rowid",
+          line.id,
+        );
+        if (!batches.length)
+          throw new Error(
+            `Stock batches for ${line.name || "a product"} are missing.`,
+          );
+        const qty = batches.reduce((s, b) => s + b.quantity, 0);
+        const remaining = batches.reduce((s, b) => s + b.remaining, 0);
+        if (qty !== line.quantity || remaining !== qty)
+          throw new Error(
+            "Some of this purchase has already been sold. Return that stock first, or keep the original purchase unchanged.",
+          );
+        for (const b of batches) this.run("DELETE FROM batches WHERE id=?", b.id);
+        const stockUpdate = this.run(
+          "UPDATE products SET stock=stock-? WHERE id=? AND stock>=?",
+          line.quantity,
+          line.product_id,
+          line.quantity,
+        );
+        if (stockUpdate.changes !== 1)
+          throw new Error(
+            `Cannot reverse purchase stock for ${line.name || "a product"}.`,
+          );
+        this.run(
+          "DELETE FROM document_product_snapshots WHERE line_id=?",
+          line.id,
+        );
+      }
+      this.run("DELETE FROM journal WHERE document_id=?", old.id);
+      this.run("DELETE FROM movements WHERE document_id=?", old.id);
+      this.run("DELETE FROM invoice_revisions WHERE document_id=?", old.id);
+      this.run("DELETE FROM document_lines WHERE document_id=?", old.id);
+      this.run("DELETE FROM documents WHERE id=?", old.id);
+      let result = { id: old.id, number: old.number, deleted: true };
+      if (action === "edit") {
+        const updated = this.postTrade(
+          user,
+          { ...input, kind: "purchase", request_key: old.request_key },
+          {
+            id: old.id,
+            number: old.number,
+            created_at: old.created_at,
+            user_id: old.user_id,
+            editDate: old.date,
+          },
+        );
+        this.run(
+          "INSERT INTO invoice_revisions VALUES (?,?)",
+          old.id,
+          old.revision + 1,
+        );
+        result = {
+          id: updated.id,
+          number: updated.number,
+          revision: old.revision + 1,
+        };
+      }
+      this.audit(
+        user,
+        action === "edit"
+          ? "Edit purchase invoice"
+          : "Hard delete purchase invoice",
+        old.id,
+        {
+          number: old.number,
+          revision: old.revision,
+          ...(action === "edit"
+            ? {
+                previous_total: old.total,
+                total: this.getDocument(old.id).total,
+              }
+            : {}),
+        },
+      );
+      this.run(
+        "INSERT INTO invoice_operations VALUES (?,?,?,?)",
+        d.request_key,
+        user.id,
+        action,
+        JSON.stringify(result),
+      );
+      return result;
+    });
+  }
   getDocument(did) {
     const doc = this.one(
       "SELECT d.*,p.name party_name,u.name user_name,COALESCE((SELECT SUM(total) FROM documents r WHERE r.original_id=d.id),0) returned FROM documents d LEFT JOIN parties p ON p.id=d.party_id LEFT JOIN users u ON u.id=d.user_id WHERE d.id=?",
@@ -2035,6 +2181,10 @@ export class Store {
         return this.mutateSale(user, args, "delete");
       case "purchase":
         return this.postTrade(user, { ...args, kind: "purchase" });
+      case "purchaseEdit":
+        return this.mutatePurchase(user, args, "edit");
+      case "purchaseDelete":
+        return this.mutatePurchase(user, args, "delete");
       case "documents": {
         if (
           !["sale", "purchase"].includes(args.kind) &&
