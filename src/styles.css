@@ -1897,6 +1897,16 @@ button:active {
   line-height: 1.4;
   min-height: 38px;
 }
+/* Amounts should only change via typed digits — hide steppers and block scroll nudging. */
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
 .field input::placeholder,
 .field textarea::placeholder {
   color: #b2b2b6;
@@ -1915,6 +1925,25 @@ button:active {
 .field select[multiple] option {
   padding: 7px;
   border-radius: 3px;
+}
+.purchase-rate-bar {
+  display: grid;
+  grid-template-columns: minmax(220px, 320px) 1fr;
+  gap: 12px 18px;
+  align-items: end;
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border: 1px solid #e8ebe3;
+  background: #f7f8f2;
+}
+.purchase-rate-bar .field {
+  margin: 0;
+}
+.purchase-rate-note {
+  margin: 0 0 10px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #64646a;
 }
 .product-form-preview {
   display: flex;

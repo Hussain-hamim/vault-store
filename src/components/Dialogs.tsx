@@ -691,10 +691,6 @@ export function TradeForm({
   function add(p: Product) {
     if (lines.some((l) => l.product.id === p.id)) return;
     const costAedMajor = p.cost_aed ? moneyInput(p.cost_aed) : "";
-    const rateForLine =
-      fxRate.trim() || (p.fx_rate ? fxRateInput(p.fx_rate) : "");
-    if (purchase && p.fx_rate && !fxRate.trim())
-      setFxRate(fxRateInput(p.fx_rate));
     setLines((ls) =>
       ls.some((l) => l.product.id === p.id)
         ? ls
@@ -704,12 +700,7 @@ export function TradeForm({
               product: p,
               quantity: 1,
               price: purchase
-                ? afnPriceFromAed(costAedMajor, rateForLine) ||
-                  String(
-                    p.stock && p.cost
-                      ? Math.round(p.cost / p.stock) / 100
-                      : (p.unit_cost || 0) / 100,
-                  )
+                ? afnPriceFromAed(costAedMajor, fxRate) || ""
                 : String(p.price / 100),
               discount: "0",
               ...(purchase ? { costAed: costAedMajor } : {}),
@@ -830,6 +821,29 @@ export function TradeForm({
         <form onSubmit={submit}>
           <div className="form-body trade-body">
             <div className="trade-meta">
+              {purchase && (
+                <div className="purchase-rate-bar">
+                  <Field
+                    label="AED rate in Afghanis"
+                    hint="How many AFN for 1 AED today. Every product line uses this rate."
+                  >
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.0001"
+                      value={fxRate}
+                      onChange={(e) => applyFxRate(e.target.value)}
+                      placeholder="e.g. 18.50"
+                      required
+                    />
+                  </Field>
+                  <p className="purchase-rate-note">
+                    {fxRate.trim()
+                      ? `1 AED = ${fxRate} AFN · line AF costs update automatically`
+                      : "Set the rate first, then enter each product’s AED cost."}
+                  </p>
+                </div>
+              )}
               <div className="form-grid three">
                 <Field
                   label={purchase ? "Supplier" : "Customer"}
@@ -882,42 +896,6 @@ export function TradeForm({
                   />
                 </Field>
               </div>
-              {purchase && (
-                <div className="form-grid" style={{ marginTop: 12 }}>
-                  <Field
-                    label="Exchange rate (AFN per 1 AED)"
-                    hint="Dirham rate on this purchase day — used for every line."
-                  >
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.0001"
-                      value={fxRate}
-                      onChange={(e) => applyFxRate(e.target.value)}
-                      placeholder="e.g. 18.50"
-                      required
-                    />
-                  </Field>
-                  <Field label="Rate applied">
-                    <input
-                      value={
-                        (() => {
-                          try {
-                            return fxRate.trim()
-                              ? fxRateLabel(toFxRate(fxRate))
-                              : "";
-                          } catch {
-                            return "";
-                          }
-                        })()
-                      }
-                      readOnly
-                      tabIndex={-1}
-                      placeholder="Enter rate above"
-                    />
-                  </Field>
-                </div>
-              )}
               {!purchase && selectedParty?.walk_in && total - payment > 0 && (
                 <p className="credit-hint">
                   Walk-in customers must pay in full. Add or choose a named
@@ -1060,7 +1038,7 @@ export function TradeForm({
                           <TrashIcon size={17} />
                         </button>
                       </div>
-                      <div className={`form-grid ${purchase ? "" : "three"}`}>
+                      <div className="form-grid three">
                         <Field label="Quantity">
                           <input
                             aria-label={`${l.product.name} quantity`}
@@ -1076,7 +1054,7 @@ export function TradeForm({
                         </Field>
                         {purchase ? (
                           <>
-                            <Field label="Unit cost (AED)">
+                            <Field label="Cost (AED)">
                               <input
                                 type="number"
                                 min="0"
@@ -1089,10 +1067,7 @@ export function TradeForm({
                                 required
                               />
                             </Field>
-                            <Field
-                              label="Unit cost (AF)"
-                              hint="From AED × invoice rate"
-                            >
+                            <Field label="Cost (AF)">
                               <input
                                 type="number"
                                 min="0"
@@ -1100,37 +1075,60 @@ export function TradeForm({
                                 value={l.price}
                                 readOnly
                                 tabIndex={-1}
+                                placeholder={
+                                  fxRate.trim()
+                                    ? "Auto from rate"
+                                    : "Set AED rate above"
+                                }
                                 required
                               />
                             </Field>
                           </>
                         ) : (
-                          <Field label="Unit price (AF)">
+                          <>
+                            <Field label="Unit price (AF)">
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={l.price}
+                                onChange={(e) =>
+                                  update(i, "price", e.target.value)
+                                }
+                                required
+                              />
+                            </Field>
+                            <Field label="Line discount (AF)">
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={l.discount}
+                                onChange={(e) =>
+                                  update(i, "discount", e.target.value)
+                                }
+                                required
+                              />
+                            </Field>
+                          </>
+                        )}
+                      </div>
+                      {purchase && (
+                        <div className="form-grid" style={{ marginTop: 4 }}>
+                          <Field label="Line discount (AF)">
                             <input
                               type="number"
                               min="0"
                               step="0.01"
-                              value={l.price}
+                              value={l.discount}
                               onChange={(e) =>
-                                update(i, "price", e.target.value)
+                                update(i, "discount", e.target.value)
                               }
                               required
                             />
                           </Field>
-                        )}
-                        <Field label="Line discount (AF)">
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={l.discount}
-                            onChange={(e) =>
-                              update(i, "discount", e.target.value)
-                            }
-                            required
-                          />
-                        </Field>
-                      </div>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
