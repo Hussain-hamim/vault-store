@@ -11,7 +11,9 @@ const fs = require("node:fs");
 const { pathToFileURL } = require("node:url");
 let db, mainWindow;
 let serviceRoot;
+let reloadingWorker = false;
 const backupMode = process.argv.includes("--backup-mode");
+const uiOrigin = "http://127.0.0.1:4173";
 app.setName("Vault Store");
 if (!backupMode && !app.requestSingleInstanceLock()) {
   app.quit();
@@ -33,11 +35,63 @@ function trusted(event) {
         url.startsWith("http://127.0.0.1:4173/");
   if (!ok) throw new Error("Untrusted application frame.");
 }
-async function start() {
+async function createDatabaseWorker() {
   const { createWorker } = await import(
     pathToFileURL(path.join(serviceRoot, "client.mjs")).href
   );
-  db = createWorker(path.join(app.getPath("userData"), "vault.sqlite"));
+  return createWorker(path.join(app.getPath("userData"), "vault.sqlite"));
+}
+async function waitForDevUi(ms = 15000) {
+  const start = Date.now();
+  while (Date.now() - start < ms) {
+    try {
+      const res = await fetch(`${uiOrigin}/`);
+      if (res.ok) return;
+    } catch {}
+    await new Promise((r) => setTimeout(r, 400));
+  }
+  throw new Error(
+    "Vite is not running on 127.0.0.1:4173.\n\nKeep npm run dev running, then use npm run desktop:dev.",
+  );
+}
+async function reloadDatabaseWorker(reason = "server change") {
+  if (reloadingWorker || !db) return;
+  reloadingWorker = true;
+  console.log(`[vault-desktop] Reloading database worker (${reason})…`);
+  const previous = db;
+  try {
+    db = await createDatabaseWorker();
+    await previous.close();
+    if (mainWindow && !mainWindow.isDestroyed())
+      mainWindow.webContents.reloadIgnoringCache();
+  } catch (error) {
+    console.error("[vault-desktop] Worker reload failed:", error);
+    db = previous;
+  } finally {
+    reloadingWorker = false;
+  }
+}
+function watchServerForReload() {
+  if (app.isPackaged || process.env.VAULT_DESKTOP_STATIC) return;
+  let timer;
+  try {
+    fs.watch(serviceRoot, { recursive: true }, (_event, filename) => {
+      if (!filename || filename.endsWith(".sqlite") || filename.endsWith("~"))
+        return;
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        reloadDatabaseWorker(filename).catch((e) => console.error(e));
+      }, 350);
+    });
+    console.log(
+      "[vault-desktop] Watching server/ — edits reload the DB worker and window.",
+    );
+  } catch (error) {
+    console.warn("[vault-desktop] Could not watch server/:", error.message);
+  }
+}
+async function start() {
+  db = await createDatabaseWorker();
   if (backupMode) {
     try {
       await db.request("_automaticBackup");
@@ -120,10 +174,7 @@ async function start() {
       app.relaunch();
       app.exit(0);
     } catch (e) {
-      const { createWorker } = await import(
-        pathToFileURL(path.join(serviceRoot, "client.mjs")).href
-      );
-      db = createWorker(path.join(app.getPath("userData"), "vault.sqlite"));
+      db = await createDatabaseWorker();
       throw e;
     }
   });
@@ -200,6 +251,9 @@ async function start() {
         label: "View",
         submenu: [
           { role: "reload" },
+          { role: "forceReload" },
+          { role: "toggleDevTools" },
+          { type: "separator" },
           { role: "resetZoom" },
           { role: "zoomIn" },
           { role: "zoomOut" },
@@ -216,7 +270,13 @@ async function start() {
     await mainWindow.loadFile(
       path.join(app.getAppPath(), "dist/client/index.html"),
     );
-  else await mainWindow.loadURL("http://localhost:4173");
+  else {
+    await waitForDevUi();
+    await mainWindow.loadURL(`${uiOrigin}/?desktop=1`);
+    if (process.env.VAULT_DESKTOP_DEV === "1")
+      mainWindow.webContents.openDevTools({ mode: "detach" });
+    watchServerForReload();
+  }
   const timer = setInterval(
     () =>
       db

@@ -910,6 +910,7 @@ export function PartyForm({
 }: { kind: "customer" | "supplier" } & DialogProps) {
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
+  const key = useRef(requestKey());
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
@@ -921,7 +922,9 @@ export function PartyForm({
         phone: f.get("phone"),
         email: f.get("email"),
         address: f.get("address"),
-        credit_limit: toMoney(f.get("credit_limit") || "0"),
+        opening_balance: toMoney(f.get("opening_balance") || "0"),
+        opening_date: f.get("opening_date") || businessDate(),
+        request_key: key.current,
       });
       done(`${kind === "customer" ? "Customer" : "Supplier"} added.`, created);
     } catch (e: any) {
@@ -952,20 +955,39 @@ export function PartyForm({
           <Field label="Address">
             <textarea name="address" rows={2} />
           </Field>
-          {kind === "customer" && (
+          <div className="form-grid">
             <Field
-              label="Credit limit (AF)"
-              hint="0 means no configured limit. Walk-in sales still require full payment."
+              label={
+                kind === "customer"
+                  ? "Opening balance they owe you (AF)"
+                  : "Opening balance you owe them (AF)"
+              }
+              hint={
+                kind === "customer"
+                  ? "How much this customer already owes you. Leave 0 if none."
+                  : "How much you already owe this supplier. Leave 0 if none."
+              }
             >
               <input
-                name="credit_limit"
+                name="opening_balance"
                 type="number"
                 min="0"
                 step="0.01"
                 defaultValue="0"
               />
             </Field>
-          )}
+            <Field
+              label="Opening date"
+              hint="Used only when an opening balance is entered."
+            >
+              <input
+                name="opening_date"
+                type="date"
+                max={businessDate()}
+                defaultValue={businessDate()}
+              />
+            </Field>
+          </div>
           <ErrorMessage error={error} />
         </div>
         <div className="modal-actions">
@@ -1885,7 +1907,13 @@ export function OpeningBalanceForm({
     >
       <form onSubmit={submit}>
         <div className="form-body">
-          <Field label="Outstanding opening amount (AF)">
+          <Field
+            label={
+              party.kind === "customer"
+                ? "Amount this customer owes you (AF)"
+                : "Amount you owe this supplier (AF)"
+            }
+          >
             <input
               name="amount"
               type="number"
@@ -1904,7 +1932,7 @@ export function OpeningBalanceForm({
             />
           </Field>
           <p className="help-note">
-            This adds{" "}
+            This records{" "}
             {party.kind === "customer"
               ? "customer receivables"
               : "supplier payables"}{" "}

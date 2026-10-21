@@ -34,7 +34,6 @@ export type Party = {
   address: string;
   balance: number;
   walk_in: number;
-  credit_limit: number;
 };
 declare global {
   interface Window {

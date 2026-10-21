@@ -505,6 +505,24 @@ export function DocumentsPage({
     </div>
   );
 }
+function ledgerLabel(e: {
+  category?: string;
+  kind?: string;
+  note?: string;
+  number?: string;
+}) {
+  if (e.category === "Opening balance" || /opening balance/i.test(e.note || ""))
+    return "Opening balance";
+  const labels: Record<string, string> = {
+    sale: "Sale",
+    purchase: "Purchase",
+    receipt: "Payment received",
+    payment: "Payment made",
+    sale_return: "Sale return",
+    purchase_return: "Purchase return",
+  };
+  return labels[e.kind || ""] || e.kind || "Entry";
+}
 export function PeoplePage({
   kind,
   refresh,
@@ -515,7 +533,9 @@ export function PeoplePage({
   const [q, setQ] = useState(""),
     [selected, setSelected] = useState<string | null>(null),
     [after, setAfter] = useState(""),
-    [history, setHistory] = useState<string[]>([]);
+    [history, setHistory] = useState<string[]>([]),
+    [ledgerAfter, setLedgerAfter] = useState(""),
+    [ledgerHistory, setLedgerHistory] = useState<string[]>([]);
   const { data, error } = useLoad<{ rows: Party[]; next: string | null }>(
     "parties",
     { kind, q, after },
@@ -523,19 +543,23 @@ export function PeoplePage({
   );
   const { data: detail, error: detailError } = useLoad<any>(
     selected ? "partyDetail" : "status",
-    selected ? { id: selected } : {},
+    selected ? { id: selected, after: ledgerAfter, limit: 25 } : {},
     refresh,
   );
   const signed = (e: any) =>
     kind === "customer" ? e.debit - e.credit : e.credit - e.debit;
-  let running =
-    (detail?.party?.balance || 0) -
-    (detail?.entries || []).reduce((sum: number, e: any) => sum + signed(e), 0);
-  const ledgerRows = (detail?.entries || []).map((e: any) => ({
-    ...e,
-    running: (running += signed(e)),
-  }));
+  let running = detail?.page_start_balance ?? detail?.party?.balance ?? 0;
+  const ledgerRows = (detail?.entries || []).map((e: any) => {
+    const row = { ...e, running, label: ledgerLabel(e) };
+    running -= signed(e);
+    return row;
+  });
   const total = data?.rows.reduce((s, p) => s + p.balance, 0) || 0;
+  function selectParty(id: string) {
+    setSelected(id);
+    setLedgerAfter("");
+    setLedgerHistory([]);
+  }
   return (
     <div className="page-content">
       <PageIntro
@@ -592,7 +616,6 @@ export function PeoplePage({
                     phone: p.phone,
                     email: p.email,
                     balance_AF: p.balance / 100,
-                    credit_limit_AF: p.credit_limit / 100,
                   })) || [],
                 );
                 toast("Contacts exported.");
@@ -619,7 +642,7 @@ export function PeoplePage({
                       <tr
                         key={p.id}
                         className={selected === p.id ? "selected-row" : ""}
-                        onClick={() => setSelected(p.id)}
+                        onClick={() => selectParty(p.id)}
                       >
                         <td>
                           <span className="customer-name">
@@ -639,7 +662,7 @@ export function PeoplePage({
                         <td>{p.phone || "—"}</td>
                         <td>
                           <span
-                            className={p.balance > 0 ? "stock-low" : "muted"}
+                            className={`money ${p.balance > 0 ? "text-red" : "text-green"}`}
                           >
                             {af(p.balance)}
                           </span>
@@ -712,7 +735,13 @@ export function PeoplePage({
                   )}
                   <div className="contact-balance">
                     <span>Outstanding balance</span>
-                    <strong>{af(detail.party.balance)}</strong>
+                    <strong
+                      className={
+                        detail.party.balance > 0 ? "text-red" : "text-green"
+                      }
+                    >
+                      {af(detail.party.balance)}
+                    </strong>
                   </div>
                   {detail.party.balance > 0 &&
                     user.permissions.includes("finance") && (
@@ -729,6 +758,10 @@ export function PeoplePage({
                 </div>
                 <div className="contact-ledger">
                   <h3>Account ledger</h3>
+                  <p className="subtle ledger-hint">
+                    Newest activity first. Opening balances and payments appear
+                    here with the running outstanding.
+                  </p>
                   <table className="data-table">
                     <thead>
                       <tr>
@@ -742,27 +775,64 @@ export function PeoplePage({
                       {ledgerRows.map((e: any) => (
                         <tr
                           key={e.id}
-                          onClick={() => open("invoice", { id: e.document_id })}
+                          onClick={() =>
+                            open("invoice", { id: e.document_id })
+                          }
                         >
                           <td>
                             {e.date}
-                            <small className="block muted">{e.number}</small>
+                            <small className="block muted">
+                              {e.label}
+                              {e.number ? ` · ${e.number}` : ""}
+                            </small>
                           </td>
-                          <td>{af(e.debit)}</td>
-                          <td>{af(e.credit)}</td>
-                          <td>{af(e.running)}</td>
+                          <td
+                            className={`money ${e.debit ? (kind === "customer" ? "text-red" : "text-green") : "muted"}`}
+                          >
+                            {e.debit ? af(e.debit) : "—"}
+                          </td>
+                          <td
+                            className={`money ${e.credit ? (kind === "customer" ? "text-green" : "text-red") : "muted"}`}
+                          >
+                            {e.credit ? af(e.credit) : "—"}
+                          </td>
+                          <td
+                            className={`money ${e.running > 0 ? "text-red" : "text-green"}`}
+                          >
+                            {af(e.running)}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                   {!detail.entries.length && (
                     <p className="muted">
-                      No credit activity for this account.
+                      No ledger activity for this account yet.
                     </p>
                   )}
-                  <p className="subtle">
-                    Latest 500 ledger entries. Balance includes all entries.
-                  </p>
+                  <div className="pagination ledger-pagination">
+                    <span>25 entries per page</span>
+                    <button
+                      className="button"
+                      disabled={!ledgerHistory.length}
+                      onClick={() => {
+                        setLedgerAfter(ledgerHistory.at(-1) || "");
+                        setLedgerHistory((h) => h.slice(0, -1));
+                      }}
+                    >
+                      Newer
+                    </button>
+                    <button
+                      className="button"
+                      disabled={!detail.next}
+                      onClick={() => {
+                        setLedgerHistory((h) => [...h, ledgerAfter]);
+                        setLedgerAfter(detail.next || "");
+                      }}
+                    >
+                      Older
+                    </button>
+                  </div>
                 </div>
               </>
             ) : (

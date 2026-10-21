@@ -1495,7 +1495,13 @@ button:active {
   padding: 18px;
 }
 .contact-ledger h3 {
-  margin-bottom: 12px;
+  margin-bottom: 6px;
+}
+.contact-ledger .ledger-hint {
+  display: block;
+  margin: 0 0 12px;
+  color: #8a8a90;
+  font-size: 11px;
 }
 .contact-ledger td,
 .contact-ledger th {
@@ -1504,6 +1510,13 @@ button:active {
 .contact-ledger .subtle {
   display: block;
   margin-top: 12px;
+}
+.ledger-pagination {
+  margin-top: 14px;
+}
+.contact-balance strong.text-red,
+.contact-balance strong.text-green {
+  display: block;
 }
 .cash-reconciliation {
   display: flex;

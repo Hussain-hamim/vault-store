@@ -600,13 +600,6 @@ export class Store {
       if (d.paid > total) throw new Error("Payment exceeds invoice total.");
       if (party.walk_in && d.paid !== total)
         throw new Error("Walk-in sales must be paid in full.");
-      if (
-        d.kind === "sale" &&
-        party.credit_limit &&
-        this.partyBalance(party.id).balance + (total - d.paid) >
-          party.credit_limit
-      )
-        throw new Error("Customer credit limit exceeded.");
       if (d.due_date && d.due_date < (d.date || today()))
         throw new Error("Due date cannot be before the invoice date.");
       const doc = this.document(d.kind, user, { ...d, total, ...identity });
@@ -848,10 +841,14 @@ export class Store {
         phone: text.default(""),
         email: text.default(""),
         address: text.default(""),
-        credit_limit: money.default(0),
+        opening_balance: money.default(0),
+        opening_date: date.optional(),
+        request_key: z.string().min(8).optional(),
       })
       .parse(data);
     return this.transaction(() => {
+      if (d.opening_balance && user.role !== "Owner")
+        throw new Error("Only the owner can enter opening balances.");
       const pid = id();
       this.run(
         "INSERT INTO parties VALUES (?,?,?,?,?,?,?,?,?)",
@@ -861,10 +858,44 @@ export class Store {
         d.phone,
         d.email,
         d.address,
-        d.credit_limit,
+        0,
         0,
         now(),
       );
+      if (d.opening_balance) {
+        const requestKey = d.request_key || `party-opening-${pid}`;
+        const prev = this.existingRequest(user, requestKey, ["sale", "purchase"]);
+        if (!prev) {
+          const doc = this.document(
+            d.kind === "customer" ? "sale" : "purchase",
+            user,
+            {
+              party_id: pid,
+              total: d.opening_balance,
+              date: d.opening_date,
+              note: "Opening balance brought forward",
+              request_key: requestKey,
+              category: "Opening balance",
+            },
+          );
+          this.ledger(
+            doc,
+            d.kind === "customer"
+              ? [
+                  ["receivables", d.opening_balance, 0, pid],
+                  ["equity", 0, d.opening_balance],
+                ]
+              : [
+                  ["equity", d.opening_balance, 0],
+                  ["payables", 0, d.opening_balance, pid],
+                ],
+          );
+          this.audit(user, "Enter opening balance", doc.id, {
+            party: d.name,
+            amount: d.opening_balance,
+          });
+        }
+      }
       this.audit(user, "Create contact", pid, { name: d.name });
       return { id: pid };
     });
@@ -1911,15 +1942,57 @@ export class Store {
       case "partyCreate":
         return this.createParty(user, args);
       case "partyDetail": {
-        const party = this.partyBalance(args.id);
+        const d = z
+          .object({
+            id: z.string(),
+            after: z.string().default(""),
+            limit: z.number().int().min(1).max(100).default(25),
+          })
+          .parse(args);
+        const party = this.partyBalance(d.id);
         const account = party.kind === "customer" ? "receivables" : "payables";
-        return {
-          party,
-          entries: this.all(
-            "SELECT j.*,d.number,d.kind,d.note,d.due_date FROM journal j JOIN documents d ON d.id=j.document_id WHERE j.party_id=? AND j.account=? ORDER BY j.date DESC,j.rowid DESC LIMIT 500",
+        const signedSql =
+          party.kind === "customer" ? "debit-credit" : "credit-debit";
+        let clauses = ["j.party_id=?", "j.account=?"],
+          params = [party.id, account];
+        if (d.after) {
+          const cursor = JSON.parse(
+            Buffer.from(d.after, "base64url").toString("utf8"),
+          );
+          clauses.push("(j.date < ? OR (j.date = ? AND j.id < ?))");
+          params.push(cursor.date, cursor.date, cursor.id);
+        }
+        const rows = this.all(
+          `SELECT j.*,d.number,d.kind,d.note,d.due_date,d.category FROM journal j JOIN documents d ON d.id=j.document_id WHERE ${clauses.join(" AND ")} ORDER BY j.date DESC,j.id DESC LIMIT ?`,
+          ...params,
+          d.limit + 1,
+        );
+        const more = rows.length > d.limit;
+        rows.length = Math.min(rows.length, d.limit);
+        let page_start_balance = party.balance;
+        if (rows[0]) {
+          const newer = this.one(
+            `SELECT COALESCE(SUM(${signedSql}),0) n FROM journal WHERE party_id=? AND account=? AND (date > ? OR (date = ? AND id > ?))`,
             party.id,
             account,
-          ).reverse(),
+            rows[0].date,
+            rows[0].date,
+            rows[0].id,
+          ).n;
+          page_start_balance = party.balance - newer;
+        }
+        return {
+          party,
+          entries: rows,
+          page_start_balance,
+          next: more
+            ? Buffer.from(
+                JSON.stringify({
+                  date: rows.at(-1).date,
+                  id: rows.at(-1).id,
+                }),
+              ).toString("base64url")
+            : null,
           invoices: this.all(
             "SELECT d.*,COALESCE((SELECT SUM(total) FROM documents r WHERE r.original_id=d.id),0) returned FROM documents d WHERE party_id=? AND kind IN ('sale','purchase') ORDER BY date DESC LIMIT 100",
             party.id,
@@ -2199,7 +2272,6 @@ export class Store {
       kind: "customer",
       name: "Ahmad Zia",
       phone: "+93 700 234 567",
-      credit_limit: 100_000_000,
     }).id;
     this.createParty(user, {
       kind: "customer",
@@ -2210,7 +2282,6 @@ export class Store {
       kind: "customer",
       name: "Omid Technologies",
       phone: "+93 780 345 678",
-      credit_limit: 20_000_000,
     });
     const supplier = this.createParty(user, {
       kind: "supplier",
