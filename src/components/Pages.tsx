@@ -103,12 +103,23 @@ export function ProductsPage({
     { q, category, filter, after },
     refresh,
   );
+  const showCost = user.permissions.includes("view_costs");
+  const categoryClass = (c: string) =>
+    ({
+      Computers: "cat-computers",
+      Mobiles: "cat-mobiles",
+      Tablets: "cat-tablets",
+      Storage: "cat-storage",
+      Accessories: "cat-accessories",
+    })[c] || "cat-default";
+  const stockTone = (p: Product) =>
+    p.stock === 0 ? "red" : p.stock <= p.reorder_level ? "yellow" : "green";
   return (
-    <div className="page-content">
+    <div className="page-content inventory-page">
       <PageIntro
         eyebrow="Your catalog"
-        title="Every product. One place."
-        description="Manage models, specifications and stock levels."
+        title="Inventory"
+        description="Browse stock by product, with cost and selling price at a glance."
         action={
           <button
             className="button button-dark"
@@ -119,84 +130,98 @@ export function ProductsPage({
           </button>
         }
       />
-      <section className="panel">
-        <div className="list-toolbar">
-          <Search
-            value={q}
-            onChange={(v) => {
-              setQ(v);
-              setAfter("");
-              setHistory([]);
-            }}
-          />
-          <div className="toolbar-right">
-            <select
-              aria-label="Product category"
-              value={category}
-              onChange={(e) => {
-                setCategory(e.target.value);
+      <section
+        className={`panel inventory-list${showCost ? " with-cost" : ""}`}
+      >
+        <div className="inventory-list-sticky">
+          <div className="list-toolbar">
+            <Search
+              value={q}
+              onChange={(v) => {
+                setQ(v);
                 setAfter("");
                 setHistory([]);
-              }}
-            >
-              {[
-                "All products",
-                "Computers",
-                "Mobiles",
-                "Tablets",
-                "Storage",
-                "Accessories",
-              ].map((c) => (
-                <option key={c}>{c}</option>
-              ))}
-            </select>
-            <select
-              aria-label="Stock filter"
-              value={filter}
-              onChange={(e) => {
-                setFilter(e.target.value);
-                setAfter("");
-                setHistory([]);
-              }}
-            >
-              <option value="all">All stock levels</option>
-              <option value="low">Low stock</option>
-            </select>
-            <ExportButton
-              onClick={() => {
-                exportCSV(
-                  "vault-products",
-                  data?.rows.map(
-                    ({
-                      name,
-                      sku,
-                      brand,
-                      model,
-                      category,
-                      stock,
-                      price,
-                      cost,
-                      unit_cost,
-                    }) => ({
-                      name,
-                      sku,
-                      brand,
-                      model,
-                      category,
-                      stock,
-                      price_AF: price / 100,
-                      ...(cost !== undefined
-                        ? {
-                            unit_cost_AF:
-                              (stock ? cost / stock : unit_cost || 0) / 100,
-                          }
-                        : {}),
-                    }),
-                  ) || [],
-                );
-                toast("Current product page exported.");
               }}
             />
+            <div className="toolbar-right">
+              <select
+                aria-label="Product category"
+                value={category}
+                onChange={(e) => {
+                  setCategory(e.target.value);
+                  setAfter("");
+                  setHistory([]);
+                }}
+              >
+                {[
+                  "All products",
+                  "Computers",
+                  "Mobiles",
+                  "Tablets",
+                  "Storage",
+                  "Accessories",
+                ].map((c) => (
+                  <option key={c}>{c}</option>
+                ))}
+              </select>
+              <select
+                aria-label="Stock filter"
+                value={filter}
+                onChange={(e) => {
+                  setFilter(e.target.value);
+                  setAfter("");
+                  setHistory([]);
+                }}
+              >
+                <option value="all">All stock levels</option>
+                <option value="low">Low stock</option>
+              </select>
+              <ExportButton
+                onClick={() => {
+                  exportCSV(
+                    "vault-products",
+                    data?.rows.map(
+                      ({
+                        name,
+                        sku,
+                        brand,
+                        model,
+                        category,
+                        stock,
+                        price,
+                        cost,
+                        unit_cost,
+                      }) => ({
+                        name,
+                        sku,
+                        brand,
+                        model,
+                        category,
+                        stock,
+                        price_AF: price / 100,
+                        ...(cost !== undefined
+                          ? {
+                              unit_cost_AF:
+                                (stock ? cost / stock : unit_cost || 0) / 100,
+                            }
+                          : {}),
+                      }),
+                    ) || [],
+                  );
+                  toast("Current product page exported.");
+                }}
+              />
+            </div>
+          </div>
+          <div className="inventory-list-cols" role="row">
+            <span>Product</span>
+            <span>Category</span>
+            <span>Company</span>
+            <span>Model</span>
+            <span>Qty</span>
+            {showCost && <span>Unit cost</span>}
+            <span>Selling price</span>
+            <span aria-hidden="true" />
           </div>
         </div>
         <ErrorMessage error={error} />
@@ -204,90 +229,75 @@ export function ProductsPage({
           <Loading />
         ) : (
           <>
-            <div className="table-wrap">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Product</th>
-                    <th>Category</th>
-                    <th>Company</th>
-                    <th>Model</th>
-                    <th>Qty</th>
-                    {user.permissions.includes("view_costs") && (
-                      <th>Unit cost</th>
-                    )}
-                    <th>Selling price</th>
-                    <th />
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.rows.map((p) => (
-                    <tr key={p.id} onClick={() => open("productDetail", p)}>
-                      <td>
-                        <ProductName product={p} />
-                      </td>
-                      <td>
+            <div className="inventory-list-scroll" role="list">
+              {data.rows.map((p) => {
+                const tone = stockTone(p);
+                const unitCost = p.stock
+                  ? (p.cost || 0) / p.stock
+                  : p.unit_cost || 0;
+                return (
+                  <button
+                    type="button"
+                    key={p.id}
+                    role="listitem"
+                    className={`inventory-row ${categoryClass(p.category)} stock-${tone}`}
+                    onClick={() => open("productDetail", p)}
+                  >
+                    <div className="inventory-row-product">
+                      <span className="inventory-row-image">
+                        {p.image ? (
+                          <img src={p.image} alt="" />
+                        ) : (
+                          <PackageIcon size={22} />
+                        )}
+                      </span>
+                      <span className="inventory-row-copy">
+                        <strong>{p.name}</strong>
+                        <small>{p.sku}</small>
+                      </span>
+                    </div>
+                    <div className="inventory-row-meta">
+                      <span className="inventory-chip category-chip">
                         {p.category}
                         {p.category === "Accessories" && p.attributes?.Type
                           ? ` · ${p.attributes.Type}`
                           : ""}
-                      </td>
-                      <td>{p.brand}</td>
-                      <td>{p.model}</td>
-                      <td>
-                        <Badge
-                          tone={
-                            p.stock === 0
-                              ? "red"
-                              : p.stock <= p.reorder_level
-                                ? "yellow"
-                                : "green"
-                          }
-                        >
-                          {p.stock} units
-                        </Badge>
-                      </td>
-                      {user.permissions.includes("view_costs") && (
-                        <td>
-                          <strong>
-                            {af(
-                              p.stock
-                                ? (p.cost || 0) / p.stock
-                                : p.unit_cost || 0,
-                              2,
-                            )}
-                          </strong>
-                          <small className="block muted">
-                            {p.stock
-                              ? "Avg. cost of units still on hand (FIFO)"
-                              : "Last purchase cost"}
-                          </small>
-                          {!!p.cost_aed && (
-                            <small className="block muted">
-                              Last buy AED {(p.cost_aed / 100).toFixed(2)}
-                              {p.fx_rate
-                                ? ` · ${(p.fx_rate / 10000).toLocaleString("en-US", { maximumFractionDigits: 4 })} rate → ${af(p.unit_cost || 0, 2)}`
-                                : ""}
-                            </small>
-                          )}
-                        </td>
-                      )}
-                      <td>{af(p.price, 2)}</td>
-                      <td>
-                        <ArrowUpRightIcon size={15} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                      </span>
+                    </div>
+                    <div className="inventory-row-meta">
+                      <span className="inventory-row-value">{p.brand || "—"}</span>
+                    </div>
+                    <div className="inventory-row-meta">
+                      <span className="inventory-row-value">{p.model || "—"}</span>
+                    </div>
+                    <div className="inventory-row-meta">
+                      <Badge tone={tone}>{p.stock} units</Badge>
+                    </div>
+                    {showCost && (
+                      <div className="inventory-row-meta inventory-row-cost">
+                        <strong>{af(unitCost, 2)}</strong>
+                        <small>
+                          {p.stock ? "FIFO avg on hand" : "Last buy"}
+                        </small>
+                      </div>
+                    )}
+                    <div className="inventory-row-meta inventory-row-price">
+                      <strong>{af(p.price, 2)}</strong>
+                    </div>
+                    <div className="inventory-row-go" aria-hidden="true">
+                      <ArrowUpRightIcon size={16} />
+                    </div>
+                  </button>
+                );
+              })}
+              {!data.rows.length && (
+                <Empty
+                  title="No matching products"
+                  text="Try a different search, or add a new product."
+                />
+              )}
             </div>
-            {!data.rows.length && (
-              <Empty
-                title="No matching products"
-                text="Try a different search, or add a new product."
-              />
-            )}
-            <div className="pagination">
+            <div className="pagination inventory-list-pager">
               <span>{data.rows.length} products on this page</span>
               <button
                 className="button"

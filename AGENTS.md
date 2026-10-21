@@ -11,7 +11,7 @@ Build app UI in `src/`. Keep `.openai/hosting.json`, `worker/index.js`, `scripts
 Desktop testing: keep `npm run dev` running, then use `npm run desktop:dev` (not a long-lived `npm run desktop` from before server edits). Unpackaged Electron loads the Vite UI and watches `server/` so ledger/API changes reload the DB worker without signing the user out (sessions are stored in SQLite). Desktop uses its own SQLite under Electron userData (not the browser demo DB).
 
 ## Store workflow decisions
-- Inventory opens the product table with company, model, quantity, unit cost and selling price.
+- Inventory opens a colored card-style product list (category accent borders, stock badges) with a sticky search/header while the rows scroll; columns show company, model, quantity, unit cost and selling price.
 - New products support unit cost and opening stock in the same form; unit cost and selling price sit side by side. Minimum price and shelf location are not collected on the product form for now.
 - Stock is bought from Dubai in AED and sold in Afghanistan in AFN. Product and purchase forms record unit cost in AED plus the AFN-per-AED exchange rate at that time; AFN unit cost is calculated and stored for inventory/ledgers.
 - Inventory costing is FIFO: each purchase keeps its own cost batch (AED + rate + AFN). Sales consume the oldest remaining batch first; profit uses those batch costs, not the catalog’s latest unit cost. Sale returns restore cost to the original batches in the same order.
