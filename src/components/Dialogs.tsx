@@ -574,10 +574,12 @@ export function TradeForm({
   done,
   inline = false,
   documentId,
+  seedProduct,
 }: {
   kind: "sale" | "purchase";
   inline?: boolean;
   documentId?: string;
+  seedProduct?: Product;
 } & DialogProps) {
   const PAGE = 8;
   const [q, setQ] = useState(""),
@@ -741,6 +743,12 @@ export function TradeForm({
     );
     if (q) setQ("");
   }
+  useEffect(() => {
+    if (!seedProduct || documentId) return;
+    add(seedProduct);
+    // Seed once when the bill opens from global search / product detail.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seedProduct?.id, documentId]);
   const update = (i: number, key: keyof CartLine, v: any) =>
     setLines((ls) =>
       ls.map((l, j) => {
@@ -1961,7 +1969,13 @@ export function ProductDetail({
   close,
   done,
   edit,
-}: { product: Product; user: User; edit: () => void } & DialogProps) {
+  sell,
+}: {
+  product: Product;
+  user: User;
+  edit: () => void;
+  sell?: () => void;
+} & DialogProps) {
   const [data, setData] = useState<any>(null),
     [error, setError] = useState(""),
     [adjust, setAdjust] = useState(false),
@@ -2124,12 +2138,218 @@ export function ProductDetail({
         <ErrorMessage error={!adjust ? error : ""} />
       </div>
       <div className="modal-actions">
-        <button className="button" onClick={edit}>
-          Edit product
+        {sell && user.permissions.includes("sales") && (
+          <button className="button button-dark" onClick={sell}>
+            Sell this product <ArrowRightIcon size={15} />
+          </button>
+        )}
+        {user.permissions.includes("inventory") && (
+          <button className="button" onClick={edit}>
+            Edit product
+          </button>
+        )}
+        {user.permissions.includes("inventory") && (
+          <button className="button" onClick={() => setAdjust(!adjust)}>
+            {adjust ? "Cancel adjustment" : "Adjust stock"}
+          </button>
+        )}
+        <button className="button" onClick={close}>
+          Done
         </button>
-        <button className="button" onClick={() => setAdjust(!adjust)}>
-          {adjust ? "Cancel adjustment" : "Adjust stock"}
-        </button>
+      </div>
+    </Modal>
+  );
+}
+function partyLedgerLabel(e: {
+  category?: string;
+  kind?: string;
+  note?: string;
+}) {
+  if (e.category === "Opening balance" || /opening balance/i.test(e.note || ""))
+    return "Opening balance";
+  const labels: Record<string, string> = {
+    sale: "Sale",
+    purchase: "Purchase",
+    receipt: "Payment received",
+    payment: "Payment made",
+    sale_return: "Sale return",
+    purchase_return: "Purchase return",
+  };
+  return labels[e.kind || ""] || e.kind || "Entry";
+}
+export function PartyDetailDialog({
+  party,
+  user,
+  close,
+  open,
+  refresh = 0,
+}: {
+  party: Party;
+  user: User;
+  open: (name: string, data?: any) => void;
+  refresh?: number;
+} & Pick<DialogProps, "close">) {
+  const [ledgerAfter, setLedgerAfter] = useState("");
+  const [ledgerHistory, setLedgerHistory] = useState<string[]>([]);
+  const [detail, setDetail] = useState<any>(null);
+  const [error, setError] = useState("");
+  const kind = party.kind;
+  useEffect(() => {
+    let active = true;
+    setError("");
+    api("partyDetail", { id: party.id, after: ledgerAfter, limit: 25 })
+      .then((d) => {
+        if (active) setDetail(d);
+      })
+      .catch((e) => {
+        if (active) setError(e.message);
+      });
+    return () => {
+      active = false;
+    };
+  }, [party.id, ledgerAfter, refresh]);
+  const signed = (e: any) =>
+    kind === "customer" ? e.debit - e.credit : e.credit - e.debit;
+  let running = detail?.page_start_balance ?? detail?.party?.balance ?? 0;
+  const ledgerRows = (detail?.entries || []).map((e: any) => {
+    const row = { ...e, running, label: partyLedgerLabel(e) };
+    running -= signed(e);
+    return row;
+  });
+  const current = detail?.party || party;
+  return (
+    <Modal
+      title={current.name}
+      subtitle={
+        kind === "customer"
+          ? "Customer ledger, history and payments"
+          : "Supplier ledger, history and payments"
+      }
+      onClose={close}
+      wide
+    >
+      <div className="form-body party-detail-body">
+        <ErrorMessage error={error} />
+        <div className="contact-summary party-detail-summary">
+          <span className="customer-initial avatar-lg">
+            {current.name.slice(0, 1)}
+          </span>
+          <h2>{current.name}</h2>
+          <p>{current.phone || "No phone number"}</p>
+          <p>{current.address || current.email || "No address saved"}</p>
+          {user.role === "Owner" && !current.walk_in && (
+            <button
+              className="text-button"
+              onClick={() => open("openingBalance", current)}
+            >
+              Enter opening balance
+            </button>
+          )}
+          <div className="contact-balance">
+            <span>Outstanding balance</span>
+            <strong
+              className={
+                (current.balance || 0) > 0 ? "text-red" : "text-green"
+              }
+            >
+              {af(current.balance || 0)}
+            </strong>
+          </div>
+          {(current.balance || 0) > 0 &&
+            user.permissions.includes("finance") && (
+              <button
+                className="button button-dark full"
+                onClick={() => open("payment", current)}
+              >
+                {kind === "customer" ? "Receive payment" : "Pay supplier"}
+                <ArrowRightIcon size={15} />
+              </button>
+            )}
+        </div>
+        <div className="contact-ledger">
+          <h3>Account ledger</h3>
+          <p className="subtle ledger-hint">
+            Newest activity first. Opening balances and payments appear here
+            with the running outstanding.
+          </p>
+          {!detail ? (
+            <p className="muted">Loading ledger…</p>
+          ) : (
+            <>
+              <div className="table-wrap">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Date / reference</th>
+                      <th>Debit</th>
+                      <th>Credit</th>
+                      <th>Balance</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ledgerRows.map((e: any) => (
+                      <tr
+                        key={e.id}
+                        onClick={() => open("invoice", { id: e.document_id })}
+                      >
+                        <td>
+                          {e.date}
+                          <small className="block muted">
+                            {e.label}
+                            {e.number ? ` · ${e.number}` : ""}
+                          </small>
+                        </td>
+                        <td
+                          className={`money ${e.debit ? (kind === "customer" ? "text-red" : "text-green") : "muted"}`}
+                        >
+                          {e.debit ? af(e.debit) : "—"}
+                        </td>
+                        <td
+                          className={`money ${e.credit ? (kind === "customer" ? "text-green" : "text-red") : "muted"}`}
+                        >
+                          {e.credit ? af(e.credit) : "—"}
+                        </td>
+                        <td
+                          className={`money ${e.running > 0 ? "text-red" : "text-green"}`}
+                        >
+                          {af(e.running)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {!detail.entries.length && (
+                <p className="muted">No ledger activity for this account yet.</p>
+              )}
+              <div className="pagination ledger-pagination">
+                <span>25 entries per page</span>
+                <button
+                  className="button"
+                  disabled={!ledgerHistory.length}
+                  onClick={() => {
+                    setLedgerAfter(ledgerHistory.at(-1) || "");
+                    setLedgerHistory((h) => h.slice(0, -1));
+                  }}
+                >
+                  Newer
+                </button>
+                <button
+                  className="button"
+                  disabled={!detail.next}
+                  onClick={() => {
+                    setLedgerHistory((h) => [...h, ledgerAfter]);
+                    setLedgerAfter(detail.next || "");
+                  }}
+                >
+                  Older
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+      <div className="modal-actions">
         <button className="button button-dark" onClick={close}>
           Done
         </button>
@@ -2272,6 +2492,7 @@ export function OwnerMovement({ close, done }: DialogProps) {
         direction: f.get("direction"),
         amount: toMoney(f.get("amount")),
         note: f.get("note"),
+        date: f.get("date"),
         request_key: key.current,
       });
       done("Owner cash movement recorded.");
@@ -2291,8 +2512,8 @@ export function OwnerMovement({ close, done }: DialogProps) {
         <div className="form-body">
           <Field label="Movement">
             <select name="direction">
-              <option value="deposit">Capital deposit</option>
-              <option value="withdrawal">Owner withdrawal</option>
+              <option value="deposit">Invest cash in the business</option>
+              <option value="withdrawal">Withdraw capital</option>
             </select>
           </Field>
           <Field label="Amount (AF)">
@@ -2304,8 +2525,22 @@ export function OwnerMovement({ close, done }: DialogProps) {
               required
             />
           </Field>
+          <Field label="Date">
+            <input
+              name="date"
+              type="date"
+              required
+              defaultValue={businessDate()}
+              max={businessDate()}
+            />
+          </Field>
           <Field label="Reason">
-            <input name="note" minLength={2} required />
+            <input
+              name="note"
+              minLength={2}
+              required
+              placeholder="External investment, personal cash, bank transfer…"
+            />
           </Field>
           <ErrorMessage error={error} />
         </div>

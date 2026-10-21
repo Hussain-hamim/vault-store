@@ -11,6 +11,7 @@ import {
   ChartBarIcon,
   BookOpenTextIcon,
   ReceiptIcon,
+  BankIcon,
   HardDrivesIcon,
   GearSixIcon,
   QuestionIcon,
@@ -27,13 +28,14 @@ import {
   ShieldCheckIcon,
   CommandIcon,
 } from "@phosphor-icons/react";
-import { api, setToken, User } from "./api";
+import { api, setToken, Product, User } from "./api";
 import { Dashboard } from "./components/Dashboard";
 import {
   ProductsPage,
   DocumentsPage,
   PeoplePage,
   DayBookPage,
+  CapitalPage,
   ReportsPage,
   BackupsPage,
   SettingsPage,
@@ -47,12 +49,22 @@ import {
   PaymentForm,
   InvoiceDialog,
   ProductDetail,
+  PartyDetailDialog,
   UserForm,
   OwnerMovement,
   OpeningBalanceForm,
   DeleteInvoiceDialog,
 } from "./components/Dialogs";
+import {
+  GlobalSearch,
+  GlobalSearchHit,
+} from "./components/GlobalSearch";
 import { Modal, ErrorMessage, Field } from "./components/ui";
+type AppModal = {
+  name: string;
+  data?: any;
+  returnTo?: { name: string; data?: any };
+};
 const nav = [
   { name: "Dashboard", icon: SquaresFourIcon, permission: "" },
   { name: "Inventory", icon: PackageIcon, permission: "inventory" },
@@ -64,6 +76,7 @@ const nav = [
 ];
 const general = [
   { name: "Daily book", icon: BookOpenTextIcon, permission: "finance" },
+  { name: "Capital", icon: BankIcon, permission: "finance" },
   { name: "Expenses", icon: ReceiptIcon, permission: "finance" },
   { name: "Backups", icon: HardDrivesIcon, permission: "backups" },
   { name: "Settings", icon: GearSixIcon, permission: "settings" },
@@ -78,14 +91,16 @@ export function App() {
     [purchaseEditId, setPurchaseEditId] = useState<string | undefined>(),
     [billEpoch, setBillEpoch] = useState(0),
     [purchaseEpoch, setPurchaseEpoch] = useState(0),
-    [modal, setModal] = useState<{ name: string; data?: any } | null>(null),
+    [modal, setModal] = useState<AppModal | null>(null),
     [refresh, setRefresh] = useState(0),
     [message, setMessage] = useState(""),
     [fatal, setFatal] = useState(""),
     [search, setSearch] = useState(""),
     [categoryFilter, setCategoryFilter] = useState("All products"),
     [collapsed, setCollapsed] = useState(false),
-    [profile, setProfile] = useState(false);
+    [profile, setProfile] = useState(false),
+    [globalOpen, setGlobalOpen] = useState(false),
+    [saleSeed, setSaleSeed] = useState<Product | undefined>();
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
@@ -131,7 +146,10 @@ export function App() {
     window.addEventListener("vault-session-expired", expired);
     return () => window.removeEventListener("vault-session-expired", expired);
   }, []);
-  const close = useCallback(() => setModal(null), []);
+  const close = useCallback(
+    () => setModal((m) => (m?.returnTo ? { ...m.returnTo } : null)),
+    [],
+  );
   const toast = useCallback((s: string) => {
     setMessage(s);
     if (timer.current) clearTimeout(timer.current);
@@ -140,7 +158,7 @@ export function App() {
   }, []);
   const done = useCallback(
     (s: string) => {
-      setModal(null);
+      setModal((m) => (m?.returnTo ? { ...m.returnTo } : null));
       toast(s);
     },
     [toast],
@@ -148,16 +166,21 @@ export function App() {
   const open = useCallback((name: string, data?: any) => {
     if (["sale", "saleEdit", "saleHistory"].includes(name)) {
       setModal(null);
+      setGlobalOpen(false);
       setPage("Sales");
       setSaleTab(name === "saleHistory" ? "history" : "bill");
       if (name !== "saleHistory") {
-        setSaleEditId(name === "saleEdit" ? data.id : undefined);
+        setSaleEditId(name === "saleEdit" ? data?.id : undefined);
+        setSaleSeed(
+          name === "sale" && data?.product ? data.product : undefined,
+        );
         setBillEpoch((v) => v + 1);
       }
       return;
     }
     if (["purchase", "purchaseEdit", "purchaseHistory"].includes(name)) {
       setModal(null);
+      setGlobalOpen(false);
       setPage("Purchases");
       setPurchaseTab(name === "purchaseHistory" ? "history" : "bill");
       if (name !== "purchaseHistory") {
@@ -172,7 +195,19 @@ export function App() {
       setCategoryFilter(data);
       return;
     }
-    setModal({ name, data });
+    setModal((current) => {
+      const stackFrom =
+        current &&
+        ["partyDetail", "productDetail"].includes(current.name) &&
+        ["payment", "invoice", "openingBalance", "product"].includes(name);
+      return {
+        name,
+        data,
+        returnTo: stackFrom
+          ? { name: current.name, data: current.data }
+          : undefined,
+      };
+    });
   }, []);
   const navigate = useCallback((name: string) => {
     setPage(name);
@@ -181,13 +216,32 @@ export function App() {
     setSearch("");
     setProfile(false);
   }, []);
+  const pickGlobalHit = useCallback(
+    (hit: GlobalSearchHit) => {
+      setGlobalOpen(false);
+      if (hit.type === "product" && hit.product) {
+        open("productDetail", hit.product);
+        return;
+      }
+      if (hit.party) open("partyDetail", hit.party);
+    },
+    [open],
+  );
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") {
+        e.preventDefault();
+        setGlobalOpen(true);
+        return;
+      }
       if ((e.metaKey || e.ctrlKey) && e.key === "k" && page === "Dashboard") {
         e.preventDefault();
         searchRef.current?.focus();
       }
-      if (e.key === "Escape") setProfile(false);
+      if (e.key === "Escape") {
+        setProfile(false);
+        setGlobalOpen(false);
+      }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
@@ -487,15 +541,18 @@ export function App() {
                   kind="sale"
                   inline
                   documentId={saleEditId}
+                  seedProduct={saleSeed}
                   close={() => {
                     setSaleTab("history");
                     setSaleEditId(undefined);
+                    setSaleSeed(undefined);
                     setBillEpoch((v) => v + 1);
                   }}
                   done={(s) => {
                     toast(s);
                     setSaleTab("history");
                     setSaleEditId(undefined);
+                    setSaleSeed(undefined);
                     setBillEpoch((v) => v + 1);
                   }}
                 />
@@ -574,6 +631,8 @@ export function App() {
             <PeoplePage {...props} kind="supplier" />
           ) : page === "Daily book" ? (
             <DayBookPage {...props} />
+          ) : page === "Capital" ? (
+            <CapitalPage {...props} />
           ) : page === "Expenses" ? (
             <DocumentsPage {...props} kind="expense" />
           ) : page === "Reports" ? (
@@ -647,10 +706,26 @@ export function App() {
       {modal?.name === "productDetail" && (
         <ProductDetail
           edit={() => open("product", modal.data)}
+          sell={() => open("sale", { product: modal.data })}
           product={modal.data}
           user={user}
           close={close}
           done={done}
+        />
+      )}
+      {modal?.name === "partyDetail" && (
+        <PartyDetailDialog
+          party={modal.data}
+          user={user}
+          close={close}
+          open={open}
+          refresh={refresh}
+        />
+      )}
+      {globalOpen && (
+        <GlobalSearch
+          onClose={() => setGlobalOpen(false)}
+          onSelect={pickGlobalHit}
         />
       )}
       {modal?.name === "user" && (

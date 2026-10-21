@@ -1186,3 +1186,57 @@ test("FIFO keeps separate purchase costs and profit uses batches sold, not catal
   );
   balanced(f.s);
 });
+test("capital report tracks invested capital and monthly net worth", async (t) => {
+  const f = fixture(t);
+  purchase(f, 5, 50000);
+  sale(f, 2, 200000);
+  await f.s.dispatch(
+    "ownerMovement",
+    {
+      direction: "deposit",
+      amount: 250000,
+      note: "Extra cash from home",
+      request_key: key(),
+    },
+    f.token,
+  );
+  const report = await f.s.dispatch("capitalReport", {}, f.token);
+  assert.ok(report.current.net_worth > 0);
+  assert.ok(report.current.capital >= 250000);
+  assert.ok(report.months.length >= 1);
+  assert.ok(report.months.some((m) => m.invested >= 250000));
+  assert.ok(report.movements.some((m) => m.invested >= 250000));
+  const before = report.current.cash;
+  await f.s.dispatch(
+    "ownerMovement",
+    {
+      direction: "withdrawal",
+      amount: 50000,
+      note: "Owner draw",
+      request_key: key(),
+    },
+    f.token,
+  );
+  const after = await f.s.dispatch("capitalReport", {}, f.token);
+  assert.equal(after.current.cash, before - 50000);
+  balanced(f.s);
+});
+test("global search finds products, customers and suppliers", async (t) => {
+  const f = fixture(t);
+  const empty = await f.s.dispatch("globalSearch", { q: "" }, f.token);
+  assert.equal(empty.results.length, 0);
+  const hits = await f.s.dispatch("globalSearch", { q: "Test" }, f.token);
+  const types = new Set(hits.results.map((r) => r.type));
+  assert.ok(types.has("product"));
+  assert.ok(types.has("customer"));
+  assert.ok(types.has("supplier"));
+  assert.ok(hits.results.some((r) => r.id === f.product && r.product));
+  assert.ok(hits.results.some((r) => r.id === f.customer && r.party));
+  const skuHit = await f.s.dispatch(
+    "globalSearch",
+    { q: "SSD-01" },
+    f.token,
+  );
+  assert.equal(skuHit.results[0]?.type, "product");
+  assert.equal(skuHit.results[0]?.id, f.product);
+});

@@ -1686,6 +1686,102 @@ export class Store {
     );
     return { totals, days, trial, best, expenses };
   }
+  monthEnd(ym) {
+    const [y, m] = ym.split("-").map(Number);
+    return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
+  }
+  nextMonth(ym) {
+    const [y, m] = ym.split("-").map(Number);
+    return m === 12
+      ? `${y + 1}-01`
+      : `${y}-${String(m + 1).padStart(2, "0")}`;
+  }
+  wealthSnapshot(asOf) {
+    const rows = this.all(
+      "SELECT account,SUM(debit-credit) balance FROM daily_totals WHERE date<=? GROUP BY account",
+      asOf,
+    );
+    const bal = (a) => rows.find((r) => r.account === a)?.balance || 0;
+    const cash = bal("cash"),
+      receivables = bal("receivables"),
+      inventory = bal("inventory"),
+      payables = -bal("payables"),
+      capital = -bal("equity"),
+      earnings = -[
+        "sales",
+        "cost_of_goods",
+        "expenses",
+        "other_income",
+      ].reduce((s, a) => s + bal(a), 0),
+      assets = cash + receivables + inventory,
+      liabilities = payables,
+      net_worth = assets - liabilities;
+    return {
+      as_of: asOf,
+      cash,
+      receivables,
+      inventory,
+      payables,
+      assets,
+      liabilities,
+      capital,
+      earnings,
+      net_worth,
+    };
+  }
+  capitalReport(args = {}) {
+    const asOf = date.parse(args.to || today());
+    const first =
+      this.one("SELECT MIN(date) d FROM journal WHERE date<=?", asOf)?.d ||
+      asOf;
+    const current = this.wealthSnapshot(asOf);
+    const months = [];
+    let ym = first.slice(0, 7);
+    const lastYm = asOf.slice(0, 7);
+    while (ym <= lastYm) {
+      const start = `${ym}-01`;
+      const endRaw = this.monthEnd(ym);
+      const end = endRaw > asOf ? asOf : endRaw;
+      const prevEnd =
+        start > first
+          ? new Date(Date.parse(start + "T00:00:00Z") - 86400000)
+              .toISOString()
+              .slice(0, 10)
+          : null;
+      const snap = this.wealthSnapshot(end);
+      const prev = prevEnd ? this.wealthSnapshot(prevEnd) : null;
+      // Only owner cash investments/withdrawals — not inventory openings or stock adjusts.
+      const equityFlow = this.one(
+        `SELECT COALESCE(SUM(CASE WHEN j.credit>j.debit THEN j.credit-j.debit ELSE 0 END),0) invested,COALESCE(SUM(CASE WHEN j.debit>j.credit THEN j.debit-j.credit ELSE 0 END),0) withdrawn FROM journal j JOIN documents d ON d.id=j.document_id WHERE j.account='equity' AND d.kind='owner' AND j.date BETWEEN ? AND ?`,
+        start,
+        end,
+      );
+      const profit = this.totals({ from: start, to: end });
+      months.push({
+        month: ym,
+        invested: equityFlow.invested,
+        withdrawn: equityFlow.withdrawn,
+        profit: profit.net,
+        cash: snap.cash,
+        capital: snap.capital,
+        earnings: snap.earnings,
+        net_worth: snap.net_worth,
+        change: snap.net_worth - (prev?.net_worth || 0),
+      });
+      ym = this.nextMonth(ym);
+    }
+    months.reverse();
+    const limited = months.slice(0, 36);
+    const movements = limited
+      .filter((m) => m.invested || m.withdrawn)
+      .map((m) => ({
+        month: m.month,
+        invested: m.invested,
+        withdrawn: m.withdrawn,
+        net: m.invested - m.withdrawn,
+      }));
+    return { current, months: limited, movements };
+  }
   dayBook(input = {}) {
     const day = date.parse(input.date || today());
     const opening = this.one(
@@ -1970,7 +2066,6 @@ export class Store {
       productUpdate: "inventory",
       inventoryReports: "reports",
       openingBalance: "finance",
-      productDetail: "inventory",
       adjust: "inventory",
       sale: "sales",
       purchase: "purchases",
@@ -2142,7 +2237,93 @@ export class Store {
       case "deviceCatalog":
       case "devices":
         return [];
+      case "globalSearch": {
+        const d = z
+          .object({
+            q: z.string().max(100).default(""),
+            limit: z.number().int().min(1).max(20).default(8),
+          })
+          .parse(args);
+        const q = d.q.trim();
+        if (!q) return { results: [] };
+        const like = q.replace(/[\\%_]/g, "\\$&");
+        const prefix = like + "%";
+        const contains = "%" + like + "%";
+        const results = [];
+        const canProducts = user.permissions.some((p) =>
+          ["inventory", "sales", "purchases"].includes(p),
+        );
+        const canPeople = user.permissions.includes("people");
+        if (canProducts) {
+          const products = this.all(
+            `SELECT p.* FROM products p WHERE p.active=1 AND (p.name LIKE ? ESCAPE '\\' OR p.sku LIKE ? ESCAPE '\\' OR p.brand LIKE ? ESCAPE '\\' OR p.model LIKE ? ESCAPE '\\' OR p.barcode=?) ORDER BY p.name LIMIT ?`,
+            contains,
+            prefix,
+            contains,
+            contains,
+            q,
+            d.limit,
+          );
+          for (const p of products) {
+            p.attributes = JSON.parse(p.attributes);
+            if (
+              !user.permissions.includes("view_costs") &&
+              !user.permissions.includes("purchases")
+            )
+              delete p.unit_cost;
+            results.push({
+              type: "product",
+              id: p.id,
+              title: p.name,
+              subtitle: [p.brand, p.model, p.sku].filter(Boolean).join(" · "),
+              meta: `${p.stock} in stock · ${p.category}`,
+              product: p,
+            });
+          }
+        }
+        if (canPeople) {
+          for (const kind of ["customer", "supplier"]) {
+            const account =
+              kind === "customer" ? "receivables" : "payables";
+            const signed =
+              kind === "customer" ? "debit-credit" : "credit-debit";
+            const parties = this.all(
+              `SELECT p.*,COALESCE((SELECT SUM(${signed}) FROM party_totals j WHERE j.party_id=p.id AND j.account=?),0) balance FROM parties p WHERE p.kind=? AND (p.name LIKE ? ESCAPE '\\' OR p.phone LIKE ? ESCAPE '\\' OR IFNULL(p.email,'') LIKE ? ESCAPE '\\') ORDER BY p.name LIMIT ?`,
+              account,
+              kind,
+              contains,
+              prefix,
+              contains,
+              d.limit,
+            );
+            for (const party of parties) {
+              results.push({
+                type: kind,
+                id: party.id,
+                title: party.name,
+                subtitle: party.phone || party.email || kind,
+                meta: party.balance,
+                party,
+              });
+            }
+          }
+        }
+        results.sort((a, b) => {
+          const rank = { product: 0, customer: 1, supplier: 2 };
+          return (
+            (rank[a.type] ?? 9) - (rank[b.type] ?? 9) ||
+            a.title.localeCompare(b.title)
+          );
+        });
+        return { results: results.slice(0, d.limit * 2) };
+      }
       case "productDetail": {
+        if (
+          !user.permissions.some((p) =>
+            ["inventory", "sales", "purchases"].includes(p),
+          )
+        )
+          throw new Error("Permission required: inventory or sales");
         const p = this.one("SELECT * FROM products WHERE id=?", args.id);
         if (!p) throw new Error("Product not found.");
         const movements = this.all(
@@ -2476,12 +2657,22 @@ export class Store {
         this.audit(user, "Close accounting period", day);
         return { ok: true };
       }
+      case "capitalReport": {
+        if (
+          !user.permissions.some((p) =>
+            ["finance", "reports", "view_costs"].includes(p),
+          )
+        )
+          throw new Error("Permission required: finance or reports");
+        return this.capitalReport(args);
+      }
       case "ownerMovement": {
         const d = z
           .object({
             direction: z.enum(["deposit", "withdrawal"]),
             amount: money.refine((n) => n > 0),
             note: text.min(2),
+            date: date.optional(),
             request_key: z.string().min(8),
           })
           .parse(args);
@@ -2493,6 +2684,7 @@ export class Store {
             paid: d.amount,
             note: d.note,
             request_key: d.request_key,
+            ...(d.date ? { date: d.date } : {}),
           });
           this.ledger(
             doc,

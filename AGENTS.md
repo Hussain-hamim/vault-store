@@ -27,3 +27,4 @@ Desktop testing: keep `npm run dev` running, then use `npm run desktop:dev` (not
 - Adding a customer or supplier uses opening balance (what they owe you / what you owe them) instead of credit limit; owner-only when the amount is greater than zero.
 - Customer/supplier ledgers show opening balances and payments newest-first with running outstanding, red/green amounts, and pagination; list Outstanding reflects that balance.
 - Invoice mutations must update stock and ledgers atomically and enforce access rights and closed periods.
+- Capital screen tracks owner capital and net worth month by month; owners invest or withdraw external cash there (updates cash + equity, not profit). Reports also include a Capital & net worth tab.

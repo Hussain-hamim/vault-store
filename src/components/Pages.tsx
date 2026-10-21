@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   PlusIcon,
   ArrowUpRightIcon,
@@ -23,6 +23,8 @@ import {
   exportCSV,
   businessDate,
   getToken,
+  requestKey,
+  toMoney,
   Product,
   Party,
   User,
@@ -878,6 +880,326 @@ export function PeoplePage({
     </div>
   );
 }
+function monthLabel(ym: string) {
+  const [y, m] = ym.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, 1)).toLocaleString("en", {
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+export function CapitalPage({ refresh, open, toast, user }: PageProps) {
+  const [data, setData] = useState<any>(null),
+    [error, setError] = useState(""),
+    [formError, setFormError] = useState(""),
+    [busy, setBusy] = useState(false),
+    [direction, setDirection] = useState<"deposit" | "withdrawal">("deposit"),
+    [amount, setAmount] = useState(""),
+    [note, setNote] = useState(""),
+    [moveDate, setMoveDate] = useState(businessDate());
+  const key = useRef(requestKey());
+  useEffect(() => {
+    let active = true;
+    setError("");
+    api("capitalReport", {})
+      .then((d) => {
+        if (active) setData(d);
+      })
+      .catch((e) => {
+        if (active) setError(e.message);
+      });
+    return () => {
+      active = false;
+    };
+  }, [refresh]);
+  async function submit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const invested = direction === "deposit";
+    setBusy(true);
+    setFormError("");
+    try {
+      await api("ownerMovement", {
+        direction,
+        amount: toMoney(amount),
+        note,
+        date: moveDate,
+        request_key: key.current,
+      });
+      key.current = requestKey();
+      setAmount("");
+      setNote("");
+      setMoveDate(businessDate());
+      setDirection("deposit");
+      toast(
+        invested
+          ? "Capital invested in the business."
+          : "Capital withdrawal recorded.",
+      );
+    } catch (err: any) {
+      setFormError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  const c = data?.current;
+  return (
+    <div className="page-content">
+      <PageIntro
+        eyebrow="Owner capital"
+        title="Capital & net worth"
+        description="Track money you invest in the business, withdrawals, and how your net worth changes each month."
+        action={
+          user.permissions.includes("finance") ? undefined : (
+            <Badge tone="yellow">View only</Badge>
+          )
+        }
+      />
+      <ErrorMessage error={error} />
+      {!data || !c ? (
+        <Loading />
+      ) : (
+        <>
+          <div className="metrics-row four">
+            <Metric label="Net worth" value={af(c.net_worth)} dark />
+            <Metric label="Owner capital" value={af(c.capital)} />
+            <Metric label="Earnings kept" value={af(c.earnings)} />
+            <Metric label="Cash on hand" value={af(c.cash)} />
+          </div>
+          <div className="capital-layout">
+            {user.permissions.includes("finance") && (
+              <section className="panel">
+                <div className="panel-heading">
+                  <h3>Invest or withdraw</h3>
+                </div>
+                <form onSubmit={submit} className="capital-form">
+                  <Field label="What are you doing?">
+                    <select
+                      value={direction}
+                      onChange={(e) =>
+                        setDirection(e.target.value as "deposit" | "withdrawal")
+                      }
+                    >
+                      <option value="deposit">
+                        Put external cash into the business
+                      </option>
+                      <option value="withdrawal">
+                        Take capital out of the business
+                      </option>
+                    </select>
+                  </Field>
+                  <div className="form-grid">
+                    <Field label="Amount (AF)">
+                      <input
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        required
+                        placeholder="0.00"
+                        value={amount}
+                        onChange={(e) => setAmount(e.target.value)}
+                      />
+                    </Field>
+                    <Field label="Date">
+                      <input
+                        type="date"
+                        required
+                        value={moveDate}
+                        max={businessDate()}
+                        onChange={(e) => setMoveDate(e.target.value)}
+                      />
+                    </Field>
+                  </div>
+                  <Field label="Note">
+                    <input
+                      minLength={2}
+                      required
+                      placeholder="Bank transfer, personal cash, family investment…"
+                      value={note}
+                      onChange={(e) => setNote(e.target.value)}
+                    />
+                  </Field>
+                  <p className="help-note">
+                    This updates cash and owner capital. It does not count as
+                    sales profit or an expense.
+                  </p>
+                  <ErrorMessage error={formError} />
+                  <button className="button button-dark" disabled={busy}>
+                    {busy
+                      ? "Saving…"
+                      : direction === "deposit"
+                        ? "Record investment"
+                        : "Record withdrawal"}
+                  </button>
+                </form>
+              </section>
+            )}
+            <section className="panel">
+              <div className="panel-heading">
+                <h3>Where the money sits</h3>
+              </div>
+              <div className="profit-report capital-snapshot">
+                <div>
+                  <span>Cash</span>
+                  <strong>{af(c.cash, 2)}</strong>
+                </div>
+                <div>
+                  <span>Customer receivables</span>
+                  <strong>{af(c.receivables, 2)}</strong>
+                </div>
+                <div>
+                  <span>Inventory</span>
+                  <strong>{af(c.inventory, 2)}</strong>
+                </div>
+                <div className="subtotal">
+                  <span>Total assets</span>
+                  <strong>{af(c.assets, 2)}</strong>
+                </div>
+                <div>
+                  <span>Supplier payables</span>
+                  <strong>{af(c.payables, 2)}</strong>
+                </div>
+                <div className="total">
+                  <span>Net worth</span>
+                  <strong>{af(c.net_worth, 2)}</strong>
+                </div>
+                <p className="subtle">
+                  Net worth = assets − payables = owner capital + earnings kept
+                  in the business.
+                </p>
+              </div>
+            </section>
+          </div>
+          <section className="panel">
+            <div className="panel-heading padded">
+              <div>
+                <h3>Monthly capital & net worth</h3>
+                <p className="subtle">
+                  How invested capital and business value changed each month
+                </p>
+              </div>
+              <ExportButton
+                onClick={() => {
+                  exportCSV(
+                    "vault-capital-months",
+                    data.months.map((m: any) => ({
+                      month: m.month,
+                      invested_AF: m.invested / 100,
+                      withdrawn_AF: m.withdrawn / 100,
+                      profit_AF: m.profit / 100,
+                      capital_AF: m.capital / 100,
+                      earnings_AF: m.earnings / 100,
+                      net_worth_AF: m.net_worth / 100,
+                      change_AF: m.change / 100,
+                      cash_AF: m.cash / 100,
+                    })),
+                  );
+                  toast("Monthly capital report exported.");
+                }}
+              />
+            </div>
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Month</th>
+                    <th>Invested</th>
+                    <th>Withdrawn</th>
+                    <th>Profit</th>
+                    <th>Owner capital</th>
+                    <th>Net worth</th>
+                    <th>Change</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.months.map((m: any) => (
+                    <tr key={m.month}>
+                      <td>{monthLabel(m.month)}</td>
+                      <td className="money text-green">
+                        {m.invested ? af(m.invested) : "—"}
+                      </td>
+                      <td className="money text-red">
+                        {m.withdrawn ? af(m.withdrawn) : "—"}
+                      </td>
+                      <td
+                        className={`money ${m.profit >= 0 ? "text-green" : "text-red"}`}
+                      >
+                        {af(m.profit)}
+                      </td>
+                      <td>{af(m.capital)}</td>
+                      <td>
+                        <strong>{af(m.net_worth)}</strong>
+                      </td>
+                      <td
+                        className={`money ${m.change > 0 ? "text-green" : m.change < 0 ? "text-red" : ""}`}
+                      >
+                        {m.change > 0 ? "+" : ""}
+                        {af(m.change)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {!data.months.length && (
+              <Empty
+                title="No capital history yet"
+                text="Invest cash or post sales to start the monthly trail."
+              />
+            )}
+          </section>
+          <section className="panel">
+            <div className="panel-heading padded">
+              <div>
+                <h3>Monthly capital cash</h3>
+                <p className="subtle">
+                  External cash you put in or took out, totaled by month — not
+                  stock or opening inventory entries
+                </p>
+              </div>
+            </div>
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Month</th>
+                    <th>Invested</th>
+                    <th>Withdrawn</th>
+                    <th>Net capital</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.movements.map((m: any) => (
+                    <tr key={m.month}>
+                      <td>{monthLabel(m.month)}</td>
+                      <td className="money text-green">
+                        {m.invested ? af(m.invested) : "—"}
+                      </td>
+                      <td className="money text-red">
+                        {m.withdrawn ? af(m.withdrawn) : "—"}
+                      </td>
+                      <td
+                        className={`money ${m.net >= 0 ? "text-green" : "text-red"}`}
+                      >
+                        {m.net > 0 ? "+" : ""}
+                        {af(m.net)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {!data.movements.length && (
+              <Empty
+                title="No capital cash yet"
+                text="Use the form above to put external cash into the business."
+              />
+            )}
+          </section>
+        </>
+      )}
+    </div>
+  );
+}
 export function DayBookPage({ refresh, open, toast, user }: PageProps) {
   const [day, setDay] = useState(businessDate()),
     [counted, setCounted] = useState("");
@@ -1068,12 +1390,18 @@ export function ReportsPage({ refresh, open, toast }: PageProps) {
     "Product profitability",
     "Trial balance",
     "Balance sheet",
+    "Capital & net worth",
     "Expense breakdown",
     "Inventory valuation",
     "Stock aging",
     "Receivables",
     "Payables",
   ];
+  const { data: capitalReport, error: capitalError } = useLoad<any>(
+    tab === "Capital & net worth" ? "capitalReport" : "status",
+    tab === "Capital & net worth" ? { to } : {},
+    refresh,
+  );
   function exportReport() {
     let rows: any[] = [];
     if (["Inventory valuation", "Stock aging"].includes(tab)) {
@@ -1136,7 +1464,22 @@ export function ReportsPage({ refresh, open, toast }: PageProps) {
         category: r.category,
         amount_AF: r.amount / 100,
       }));
-    else
+    else if (tab === "Capital & net worth") {
+      exportCSV(
+        "vault-capital-net-worth",
+        capitalReport?.months.map((m: any) => ({
+          month: m.month,
+          invested_AF: m.invested / 100,
+          withdrawn_AF: m.withdrawn / 100,
+          profit_AF: m.profit / 100,
+          capital_AF: m.capital / 100,
+          net_worth_AF: m.net_worth / 100,
+          change_AF: m.change / 100,
+        })) || [],
+      );
+      toast("Capital report exported.");
+      return;
+    } else
       rows = data.trial.map((r: any) => ({
         account: accountName(r.account),
         debit_AF: r.debit / 100,
@@ -1198,7 +1541,9 @@ export function ReportsPage({ refresh, open, toast }: PageProps) {
               <div>
                 <h3>{tab}</h3>
                 <p className="subtle">
-                  {tab === "Balance sheet" || tab === "Trial balance"
+                  {tab === "Balance sheet" ||
+                  tab === "Trial balance" ||
+                  tab === "Capital & net worth"
                     ? `As of ${to}`
                     : `${from} — ${to}`}{" "}
                   · Afghan afghani
@@ -1508,6 +1853,79 @@ export function ReportsPage({ refresh, open, toast }: PageProps) {
                   );
                 })()}
               </div>
+            )}
+            {tab === "Capital & net worth" && (
+              <>
+                <ErrorMessage error={capitalError} />
+                {!capitalReport?.current ? (
+                  <Loading />
+                ) : (
+                  <>
+                    <div className="metrics-row four report-inline-metrics">
+                      <Metric
+                        label="Net worth"
+                        value={af(capitalReport.current.net_worth)}
+                        dark
+                      />
+                      <Metric
+                        label="Owner capital"
+                        value={af(capitalReport.current.capital)}
+                      />
+                      <Metric
+                        label="Earnings kept"
+                        value={af(capitalReport.current.earnings)}
+                      />
+                      <Metric
+                        label="Cash"
+                        value={af(capitalReport.current.cash)}
+                      />
+                    </div>
+                    <p className="table-note">
+                      Monthly change in capital invested and business net worth.
+                      Record investments on the Capital screen.
+                    </p>
+                    <div className="table-wrap">
+                      <table className="data-table">
+                        <thead>
+                          <tr>
+                            <th>Month</th>
+                            <th>Invested</th>
+                            <th>Withdrawn</th>
+                            <th>Profit</th>
+                            <th>Net worth</th>
+                            <th>Change</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {capitalReport.months.map((m: any) => (
+                            <tr key={m.month}>
+                              <td>{monthLabel(m.month)}</td>
+                              <td>{m.invested ? af(m.invested) : "—"}</td>
+                              <td>{m.withdrawn ? af(m.withdrawn) : "—"}</td>
+                              <td>{af(m.profit)}</td>
+                              <td>
+                                <strong>{af(m.net_worth)}</strong>
+                              </td>
+                              <td
+                                className={
+                                  m.change > 0
+                                    ? "text-green"
+                                    : m.change < 0
+                                      ? "text-red"
+                                      : ""
+                                }
+                              >
+                                {m.change > 0 ? "+" : ""}
+                                {af(m.change)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                )}
+              </>
             )}
             {tab === "Expense breakdown" && (
               <table className="data-table">
