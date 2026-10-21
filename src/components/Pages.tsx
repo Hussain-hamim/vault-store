@@ -256,16 +256,18 @@ export function ProductsPage({
                             )}
                           </strong>
                           <small className="block muted">
-                            {p.cost_aed
-                              ? `AED ${(p.cost_aed / 100).toFixed(2)} · ${
-                                  p.fx_rate
-                                    ? `${(p.fx_rate / 10000).toLocaleString("en-US", { maximumFractionDigits: 4 })} rate`
-                                    : "rate —"
-                                }`
-                              : p.stock
-                                ? "Average stock cost"
-                                : "Catalog cost"}
+                            {p.stock
+                              ? "Avg. cost of units still on hand (FIFO)"
+                              : "Last purchase cost"}
                           </small>
+                          {!!p.cost_aed && (
+                            <small className="block muted">
+                              Last buy AED {(p.cost_aed / 100).toFixed(2)}
+                              {p.fx_rate
+                                ? ` · ${(p.fx_rate / 10000).toLocaleString("en-US", { maximumFractionDigits: 4 })} rate → ${af(p.unit_cost || 0, 2)}`
+                                : ""}
+                            </small>
+                          )}
                         </td>
                       )}
                       <td>{af(p.price, 2)}</td>
