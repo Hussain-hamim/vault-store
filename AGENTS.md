@@ -19,6 +19,7 @@ Desktop testing: keep `npm run dev` running, then use `npm run desktop:dev` (not
 - When category is Accessories, the form also asks for accessory type (keyboard, plush, hard disk, headphones, and similar; Other for a custom type).
 - Each accessory type maps to its own catalog photo (charger, headphones, keyboard, etc.), previewed in the add/edit product form.
 - Purchase invoices contain multiple product lines; stock is quantity-only (no serial/IMEI tracking).
+- New Purchase can create a product that is not yet in inventory (New product), then receive it on the same bill with AED cost and the invoice exchange rate.
 - New Sale is a full-page bill editor, with a separate invoice-history section providing view, edit, hard-delete and download actions.
 - New Sale uses a two-column bill workspace: a fixed-height product catalog (search + scroll + Load more) beside the bill lines. Results show image, name, brand/model/SKU, specs and stock.
 - Cashiers can add a customer from the New Sale customer picker when leaving a balance unpaid; walk-in remains cash-only.

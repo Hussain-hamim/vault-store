@@ -132,11 +132,15 @@ export function ProductForm({
   close,
   done,
   product,
+  intent = "catalog",
 }: {
   close: () => void;
-  done: (message: string) => void;
+  done: (message: string, result?: unknown) => void;
   product?: Product;
+  /** From New Purchase: create catalog item with no stock; cost comes from the bill. */
+  intent?: "catalog" | "purchase";
 }) {
+  const forPurchase = intent === "purchase" && !product;
   const [category, setCategory] = useState(product?.category || "Computers"),
     [brandPick, setBrandPick] = useState(product?.brand || "Apple"),
     [brandOther, setBrandOther] = useState(""),
@@ -184,12 +188,18 @@ export function ProductForm({
             : accessoryPick.trim();
       if (category === "Accessories" && !resolvedAccessory)
         throw new Error("Choose which accessory this is.");
-      const cost_aed = costAed.trim() ? toMoney(costAed) : 0;
-      const fx_rate = fxRate.trim() ? toFxRate(fxRate) : 0;
-      if (!cost_aed || !fx_rate)
-        throw new Error(
-          "Enter the Dubai cost in AED and the AFN exchange rate at that time.",
-        );
+      let cost_aed = 0,
+        fx_rate = 0;
+      if (forPurchase) {
+        // Purchase bill records AED cost + rate; catalog starts at zero stock.
+      } else {
+        cost_aed = costAed.trim() ? toMoney(costAed) : 0;
+        fx_rate = fxRate.trim() ? toFxRate(fxRate) : 0;
+        if (!cost_aed || !fx_rate)
+          throw new Error(
+            "Enter the Dubai cost in AED and the AFN exchange rate at that time.",
+          );
+      }
       const attributes: Record<string, string> = {};
       for (const k of [
         "CPU",
@@ -207,7 +217,7 @@ export function ProductForm({
         if (v) attributes[k] = v;
       }
       if (resolvedAccessory) attributes.Type = resolvedAccessory;
-      await api(product ? "productUpdate" : "productCreate", {
+      const created = await api(product ? "productUpdate" : "productCreate", {
         id: product?.id,
         name: f.get("name"),
         brand: resolvedBrand,
@@ -226,14 +236,21 @@ export function ProductForm({
         fx_rate,
         unit_cost: afnFromAed(cost_aed, fx_rate),
         ...(!product
-          ? { opening_quantity: Number(f.get("opening_quantity") || 0) }
+          ? {
+              opening_quantity: forPurchase
+                ? 0
+                : Number(f.get("opening_quantity") || 0),
+            }
           : {}),
         image: productImage(category, resolvedAccessory),
       });
       done(
         product
           ? "Product details updated."
-          : "Product and opening stock saved.",
+          : forPurchase
+            ? "Product added to catalog. Set its AED cost on this purchase."
+            : "Product and opening stock saved.",
+        created,
       );
     } catch (e: any) {
       setError(e.message);
@@ -257,8 +274,18 @@ export function ProductForm({
   );
   return (
     <Modal
-      title={product ? "Edit product" : "Add new product"}
-      subtitle="Add product details, its cost and any stock already on your shelf."
+      title={
+        product
+          ? "Edit product"
+          : forPurchase
+            ? "New product for this purchase"
+            : "Add new product"
+      }
+      subtitle={
+        forPurchase
+          ? "Create the catalog item now. Stock and Dubai cost are recorded when you receive this purchase."
+          : "Add product details, its cost and any stock already on your shelf."
+      }
       onClose={close}
       wide
     >
@@ -379,45 +406,49 @@ export function ProductForm({
           </div>
           <div className="form-section-title">Pricing & stock rules</div>
           <div className="form-grid">
-            <Field
-              label="Unit cost (AED)"
-              hint="What you paid the Dubai supplier in dirhams."
-            >
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={costAed}
-                onChange={(e) => setCostAed(e.target.value)}
-                placeholder="0.00"
-                required
-              />
-            </Field>
-            <Field
-              label="Exchange rate (AFN per 1 AED)"
-              hint="The Afghani rate on the day you bought this stock."
-            >
-              <input
-                type="number"
-                min="0"
-                step="0.0001"
-                value={fxRate}
-                onChange={(e) => setFxRate(e.target.value)}
-                placeholder="e.g. 18.50"
-                required
-              />
-            </Field>
-            <Field
-              label="Unit cost (AF)"
-              hint="Calculated from AED × rate for inventory and profit."
-            >
-              <input
-                value={unitCostAfn ? moneyInput(unitCostAfn) : ""}
-                readOnly
-                tabIndex={-1}
-                placeholder="0.00"
-              />
-            </Field>
+            {!forPurchase && (
+              <>
+                <Field
+                  label="Unit cost (AED)"
+                  hint="What you paid the Dubai supplier in dirhams."
+                >
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={costAed}
+                    onChange={(e) => setCostAed(e.target.value)}
+                    placeholder="0.00"
+                    required
+                  />
+                </Field>
+                <Field
+                  label="Exchange rate (AFN per 1 AED)"
+                  hint="The Afghani rate on the day you bought this stock."
+                >
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.0001"
+                    value={fxRate}
+                    onChange={(e) => setFxRate(e.target.value)}
+                    placeholder="e.g. 18.50"
+                    required
+                  />
+                </Field>
+                <Field
+                  label="Unit cost (AF)"
+                  hint="Calculated from AED × rate for inventory and profit."
+                >
+                  <input
+                    value={unitCostAfn ? moneyInput(unitCostAfn) : ""}
+                    readOnly
+                    tabIndex={-1}
+                    placeholder="0.00"
+                  />
+                </Field>
+              </>
+            )}
             <Field label="Selling price (AF)">
               <input
                 name="price"
@@ -429,7 +460,7 @@ export function ProductForm({
                 required
               />
             </Field>
-            {!product && (
+            {!product && !forPurchase && (
               <Field
                 label="Opening stock quantity"
                 hint="Existing stock, not a new supplier purchase. Owner access is required for opening balances."
@@ -442,6 +473,14 @@ export function ProductForm({
                   defaultValue="0"
                   required
                 />
+              </Field>
+            )}
+            {forPurchase && (
+              <Field
+                label="Stock on this purchase"
+                hint="Quantity and AED cost are entered on the purchase bill after you save."
+              >
+                <input value="Starts at 0 — added when you receive the purchase" readOnly tabIndex={-1} />
               </Field>
             )}
             <Field label="Reorder level">
@@ -496,7 +535,13 @@ export function ProductForm({
             Cancel
           </button>
           <button className="button button-dark" disabled={busy}>
-            {busy ? "Saving…" : product ? "Save changes" : "Add product"}
+            {busy
+              ? "Saving…"
+              : product
+                ? "Save changes"
+                : forPurchase
+                  ? "Add to purchase"
+                  : "Add product"}
             <PlusIcon size={16} />
           </button>
         </div>
@@ -562,6 +607,7 @@ export function TradeForm({
     [initial, setInitial] = useState<any>(null),
     [loading, setLoading] = useState(!!documentId),
     [addingParty, setAddingParty] = useState(false),
+    [addingProduct, setAddingProduct] = useState(false),
     [searching, setSearching] = useState(true),
     [loadingMore, setLoadingMore] = useState(false);
   const key = useRef(requestKey());
@@ -908,12 +954,28 @@ export function TradeForm({
                 <div className="trade-panel-head">
                   <div>
                     <h3>Product catalog</h3>
-                    <p>Search or scroll the list, then add to the bill.</p>
+                    <p>
+                      {purchase
+                        ? "Search existing items, or add a new product for this purchase."
+                        : "Search or scroll the list, then add to the bill."}
+                    </p>
                   </div>
-                  <span className="subtle">
-                    {products.length}
-                    {next ? "+" : ""} shown
-                  </span>
+                  <div className="trade-catalog-actions">
+                    {purchase && (
+                      <button
+                        type="button"
+                        className="button"
+                        onClick={() => setAddingProduct(true)}
+                      >
+                        <PlusIcon size={15} />
+                        New product
+                      </button>
+                    )}
+                    <span className="subtle">
+                      {products.length}
+                      {next ? "+" : ""} shown
+                    </span>
+                  </div>
                 </div>
                 <Search
                   value={q}
@@ -1005,8 +1067,20 @@ export function TradeForm({
                       <p>
                         {q.trim()
                           ? "No matching products. Try another search."
-                          : "No products yet. Add products in Inventory first."}
+                          : purchase
+                            ? "No products yet. Use New product to add the first item for this purchase."
+                            : "No products yet. Add products in Inventory first."}
                       </p>
+                      {purchase && (
+                        <button
+                          type="button"
+                          className="button button-dark"
+                          onClick={() => setAddingProduct(true)}
+                        >
+                          <PlusIcon size={15} />
+                          New product
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1225,6 +1299,32 @@ export function TradeForm({
               if (created?.id) setParty(created.id);
             })
             .catch((e) => setError(e.message));
+        }}
+      />
+    )}
+    {addingProduct && purchase && (
+      <ProductForm
+        intent="purchase"
+        close={() => setAddingProduct(false)}
+        done={async (_message, result) => {
+          setAddingProduct(false);
+          const created = result as { id?: string } | undefined;
+          if (!created?.id) return;
+          try {
+            const d = await api<{ rows: Product[] }>("catalog", {
+              id: created.id,
+              limit: 1,
+            });
+            const p = d.rows[0];
+            if (!p) throw new Error("New product could not be loaded.");
+            setProducts((rows) =>
+              rows.some((r) => r.id === p.id) ? rows : [p, ...rows],
+            );
+            setQ("");
+            add(p);
+          } catch (e: any) {
+            setError(e.message);
+          }
         }}
       />
     )}

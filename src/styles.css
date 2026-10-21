@@ -1926,6 +1926,15 @@ input[type="number"]::-webkit-inner-spin-button {
   padding: 7px;
   border-radius: 3px;
 }
+.trade-catalog-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.product-browser-empty .button {
+  margin-top: 12px;
+}
 .purchase-rate-bar {
   display: grid;
   grid-template-columns: minmax(220px, 320px) 1fr;
