@@ -19,10 +19,10 @@ For the desktop shell, keep the development server running and run `npm run desk
 
 - Inventory opens the complete paginated product catalog with company, model, quantity, average cost of remaining stock and selling price. With no remaining stock it shows the catalog unit cost. Cost columns respect user permissions.
 - New products include a catalog unit cost and optional opening stock quantity. Opening stock posts against equity and requires owner access; it does not create supplier debt or reduce cash. Editing the catalog cost does not revalue previously received stock.
-- Product models and variants, brand/model/specifications, individual device tracking with optional serial numbers and dual IMEIs, pricing, stock locations and reorder thresholds.
-- Multi-product purchase receiving, supplier credit, cash/credit sales, partial payments, payment allocation to oldest invoices, customer and supplier profiles and ledgers. For tracked products, purchases can omit some or all serials; these devices retain unique internal identities and individual costs and are visibly labeled “Serial not recorded.”
-- Full-page New Bill workspace and separate Invoice History tab. Invoices support view, edit, hard delete, download, printing and returns. Units without recorded serials can be selected automatically when billing.
-- Exact-device sales and returns, original-cost reversal, partial quantity returns, purchase returns, stock adjustments and owner opening stock.
+- Product models and variants, brand/model/specifications, pricing, stock locations and reorder thresholds. Stock is quantity-tracked only.
+- Multi-product purchase receiving, supplier credit, cash/credit sales, partial payments, payment allocation to oldest invoices, customer and supplier profiles and ledgers.
+- Full-page New Bill workspace and separate Invoice History tab. Invoices support view, edit, hard delete, download, printing and returns.
+- Original-cost reversal, partial quantity returns, purchase returns, stock adjustments and owner opening stock.
 - Expenses, owner capital movements, opening customer/supplier debt, daily cashbook, gross and net profit, trial balance, balance sheet, inventory valuation, stock aging and current overdue balances.
 - Offline owner/staff accounts, custom module permissions, account disabling, audit records, closed accounting periods.
 - Desktop invoices download as PDF using the native save dialog. The browser development preview downloads a self-contained printable HTML invoice and also offers Print / save PDF. Page/report exports use CSV.
@@ -30,7 +30,7 @@ For the desktop shell, keep the development server running and run `npm run desk
 
 ## Data and accounting rules
 
-Money is stored as integer hundredths of AFN. Input permits at most two decimal places. Sales and purchase posting atomically commits the invoice, stock movement, batch allocation, journal and audit. Duplicate request keys return the existing transaction. Quantity stock uses FIFO; identified devices use their own batch cost. The ledger is double entry and every posting must balance. Owners and managers with sales permission can edit sale invoices or permanently delete them. Both operations restore the original cost allocations and update inventory, cash, debt and report summaries atomically; failed changes roll back completely. Edits preserve the invoice ID and number and enforce a revision check. Hard deletion requires typing the invoice number and retains an administrative audit reference. Closed-period invoices and invoices with linked returns or later payment receipts cannot be edited or deleted. Invoice product names, SKUs, and specifications are captured when lines are posted, so later catalog edits do not rewrite old invoices.
+Money is stored as integer hundredths of AFN. Input permits at most two decimal places. Sales and purchase posting atomically commits the invoice, stock movement, batch allocation, journal and audit. Duplicate request keys return the existing transaction. Stock uses FIFO costing. The ledger is double entry and every posting must balance. Owners and managers with sales permission can edit sale invoices or permanently delete them. Both operations restore the original cost allocations and update inventory, cash, debt and report summaries atomically; failed changes roll back completely. Edits preserve the invoice ID and number and enforce a revision check. Hard deletion requires typing the invoice number and retains an administrative audit reference. Closed-period invoices and invoices with linked returns or later payment receipts cannot be edited or deleted. Invoice product names, SKUs, and specifications are captured when lines are posted, so later catalog edits do not rewrite old invoices.
 
 Opening balances post against equity. Inventory purchases are assets, not expenses. Debt collections and supplier payments do not create profit. Sales returns reduce receivables first and refund the remainder. Purchase returns reduce payables first and recover previously paid amounts. Backdated stock movements preceding the latest movement for a product are rejected to preserve costing chronology.
 
@@ -59,7 +59,7 @@ npm run benchmark -- 1000000
 
 The benchmark is synthetic: one million journal rows, 50,000 products, and a limited date/account distribution. Measurements in `benchmark-results.json` are a baseline on the recorded Mac, not a claim that billions of arbitrary transactions are fast. Large datasets and the actual store PC require representative load tests, disk-capacity planning and backup-duration testing.
 
-Browser UI verification covers product creation, purchase receiving, partial-payment sale, invoice inspection, report tabs and navigation. The automated core tests cover balanced postings, FIFO, rounding, serial uniqueness, exact-device returns, rollback, permissions, opening balances, period locks, cursor pagination, backup verification, restore and retention.
+Browser UI verification covers product creation, purchase receiving, partial-payment sale, invoice inspection, report tabs and navigation. The automated core tests cover balanced postings, FIFO, rounding, returns, rollback, permissions, opening balances, period locks, cursor pagination, backup verification, restore and retention.
 
 ## Release requirements and current limits
 

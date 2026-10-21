@@ -188,7 +188,7 @@ test("partial discounts and returns preserve exact monetary totals", (t) => {
   assert.equal(f.s.totals().net, 0);
   balanced(f.s);
 });
-test("duplicate serials roll back receiving; devices cannot be sold twice", (t) => {
+test("overselling the same unit is blocked after stock is consumed", (t) => {
   const f = fixture(t);
   const p = f.s.createProduct(f.u, {
     name: "Phone",
@@ -197,50 +197,20 @@ test("duplicate serials roll back receiving; devices cannot be sold twice", (t) 
     sku: "PHONE",
     category: "Mobiles",
     price: 100000,
-    serialized: true,
   }).id;
-  assert.throws(
-    () =>
-      f.s.postTrade(f.u, {
-        kind: "purchase",
-        party_id: f.supplier,
-        paid: 0,
-        request_key: key(),
-        lines: [
-          {
-            product_id: p,
-            quantity: 2,
-            price: 80000,
-            serials: [{ serial: "SN1" }, { serial: "SN1" }],
-          },
-        ],
-      }),
-    /UNIQUE/,
-  );
-  assert.equal(f.s.one("SELECT stock FROM products WHERE id=?", p).stock, 0);
   f.s.postTrade(f.u, {
     kind: "purchase",
     party_id: f.supplier,
     paid: 0,
     request_key: key(),
-    lines: [
-      {
-        product_id: p,
-        quantity: 1,
-        price: 80000,
-        serials: [{ serial: "SN1", imei1: "123456789012345" }],
-      },
-    ],
+    lines: [{ product_id: p, quantity: 1, price: 80000 }],
   });
-  const device = f.s.one("SELECT id FROM devices WHERE product_id=?", p);
   f.s.postTrade(f.u, {
     kind: "sale",
     party_id: f.customer,
     paid: 100000,
     request_key: key(),
-    lines: [
-      { product_id: p, quantity: 1, price: 100000, device_ids: [device.id] },
-    ],
+    lines: [{ product_id: p, quantity: 1, price: 100000 }],
   });
   assert.throws(
     () =>
@@ -249,16 +219,9 @@ test("duplicate serials roll back receiving; devices cannot be sold twice", (t) 
         party_id: f.customer,
         paid: 100000,
         request_key: key(),
-        lines: [
-          {
-            product_id: p,
-            quantity: 1,
-            price: 100000,
-            device_ids: [device.id],
-          },
-        ],
+        lines: [{ product_id: p, quantity: 1, price: 100000 }],
       }),
-    /no longer available/,
+    /Insufficient stock/,
   );
   balanced(f.s);
 });
@@ -381,75 +344,39 @@ test("scheduler definitions quote paths safely for Windows and macOS", () => {
   assert.match(win.contents, /<StartWhenAvailable>true/);
   assert.match(win.contents, /--backup-mode/);
 });
-test("serialized returns restore only the selected physical device and its cost", (t) => {
+test("partial sale returns restore FIFO cost for the returned quantity", (t) => {
   const f = fixture(t);
   const p = f.s.createProduct(f.u, {
     name: "Phone",
     brand: "Apple",
     model: "15",
-    sku: "SERIAL-RETURN",
+    sku: "QTY-RETURN",
     category: "Mobiles",
     price: 100000,
-    serialized: true,
   }).id;
-  for (const [serial, cost] of [
-    ["PHONE-A", 60000],
-    ["PHONE-B", 80000],
-  ])
+  for (const cost of [60000, 80000])
     f.s.postTrade(f.u, {
       kind: "purchase",
       party_id: f.supplier,
       paid: 0,
       request_key: key(),
-      lines: [
-        { product_id: p, quantity: 1, price: cost, serials: [{ serial }] },
-      ],
+      lines: [{ product_id: p, quantity: 1, price: cost }],
     });
-  const devices = f.s.all(
-    "SELECT id,serial FROM devices WHERE product_id=? ORDER BY serial",
-    p,
-  );
   const doc = f.s.postTrade(f.u, {
     kind: "sale",
     party_id: f.customer,
     paid: 200000,
     request_key: key(),
-    lines: [
-      {
-        product_id: p,
-        quantity: 2,
-        price: 100000,
-        device_ids: devices.map((d) => d.id),
-      },
-    ],
+    lines: [{ product_id: p, quantity: 2, price: 100000 }],
   });
-  assert.throws(
-    () =>
-      f.s.returnTrade(f.u, {
-        original_id: doc.id,
-        lines: [{ line_id: doc.lines[0].id, quantity: 1 }],
-        note: "No serial selected",
-        request_key: key(),
-      }),
-    /exact devices/,
-  );
   const ret = f.s.returnTrade(f.u, {
     original_id: doc.id,
-    lines: [
-      { line_id: doc.lines[0].id, quantity: 1, device_ids: [devices[1].id] },
-    ],
-    note: "Return PHONE-B",
+    lines: [{ line_id: doc.lines[0].id, quantity: 1 }],
+    note: "Return one unit",
     request_key: key(),
   });
-  assert.equal(ret.cost, 80000);
-  assert.equal(
-    f.s.one("SELECT status FROM devices WHERE serial=?", "PHONE-A").status,
-    "sold",
-  );
-  assert.equal(
-    f.s.one("SELECT status FROM devices WHERE serial=?", "PHONE-B").status,
-    "in_stock",
-  );
+  assert.equal(ret.cost, 60000);
+  assert.equal(f.s.one("SELECT stock FROM products WHERE id=?", p).stock, 1);
   balanced(f.s);
 });
 test("purchase returns preserve discounted batch costs without penny loss", (t) => {
@@ -707,19 +634,11 @@ test("creating a product with opening quantity posts inventory and equity at the
     price: 150000,
     unit_cost: 90000,
     opening_quantity: 3,
-    serialized: true,
   });
   const row = f.s.listProducts({ q: "OPEN-PC" }, f.u).rows[0];
   assert.equal(row.stock, 3);
   assert.equal(row.cost, 270000);
   assert.equal(row.unit_cost, 90000);
-  assert.equal(
-    f.s.one(
-      "SELECT COUNT(*) n FROM devices WHERE product_id=? AND serial_missing=1",
-      p.id,
-    ).n,
-    3,
-  );
   assert.equal(f.s.totals().gross, 0);
   assert.equal(f.s.totals().net, 0);
   const before = f.s.one("SELECT COUNT(*) n FROM products").n;
@@ -743,16 +662,15 @@ test("creating a product with opening quantity posts inventory and equity at the
   assert.equal(f.s.one("SELECT COUNT(*) n FROM products").n, before);
   summariesMatch(f.s);
 });
-test("one purchase accepts multiple products and partial or absent serials without losing cost or return tracking", (t) => {
+test("one purchase accepts multiple products without losing cost or return tracking", (t) => {
   const f = fixture(t);
   const p = f.s.createProduct(f.u, {
-    name: "Optional serial phone",
+    name: "Second phone",
     brand: "Samsung",
     model: "S",
-    sku: "OPT-SN",
+    sku: "OPT-QTY",
     category: "Mobiles",
     price: 200000,
-    serialized: true,
   }).id;
   const doc = purchase(f, 2, 80000, {
     lines: [
@@ -762,19 +680,11 @@ test("one purchase accepts multiple products and partial or absent serials witho
         quantity: 3,
         price: 150000,
         discount: 1,
-        serials: [{ serial: "KNOWN-01" }],
       },
     ],
   });
   assert.equal(doc.lines.length, 2);
   assert.equal(doc.total, 609999);
-  assert.equal(
-    f.s.one(
-      "SELECT COUNT(*) n FROM devices WHERE product_id=? AND serial_missing=1",
-      p,
-    ).n,
-    2,
-  );
   const sold = f.s.postTrade(f.u, {
     kind: "sale",
     party_id: f.customer,
@@ -783,21 +693,9 @@ test("one purchase accepts multiple products and partial or absent serials witho
     lines: [{ product_id: p, quantity: 2, price: 200000 }],
   });
   assert.equal(sold.cost, 299999);
-  assert.equal(sold.lines[0].device_serials.length, 2);
-  assert.ok(
-    sold.lines[0].device_serials.every((d) =>
-      d.serial.startsWith("Serial not recorded"),
-    ),
-  );
   f.s.returnTrade(f.u, {
     original_id: sold.id,
-    lines: [
-      {
-        line_id: sold.lines[0].id,
-        quantity: 1,
-        device_ids: [sold.lines[0].return_devices[0].id],
-      },
-    ],
+    lines: [{ line_id: sold.lines[0].id, quantity: 1 }],
     note: "Test return",
     request_key: key(),
   });
@@ -869,7 +767,7 @@ test("editing a multi-product invoice preserves its identity and recalculates co
   assert.deepEqual(f.s.getDocument(old.id), before);
   summariesMatch(f.s);
 });
-test("hard delete removes an invoice and restores exact devices and financial totals, with confirmation and retry protection", (t) => {
+test("hard delete removes an invoice and restores stock and financial totals, with confirmation and retry protection", (t) => {
   const f = fixture(t);
   const p = f.s.createProduct(f.u, {
     name: "Delete test phone",
@@ -878,7 +776,6 @@ test("hard delete removes an invoice and restores exact devices and financial to
     sku: "DEL-PHONE",
     category: "Mobiles",
     price: 200000,
-    serialized: true,
     unit_cost: 100000,
     opening_quantity: 2,
   }).id;
@@ -903,13 +800,6 @@ test("hard delete removes an invoice and restores exact devices and financial to
   assert.equal(result.deleted, true);
   assert.throws(() => f.s.getDocument(doc.id), /not found/);
   assert.equal(f.s.one("SELECT stock FROM products WHERE id=?", p).stock, 2);
-  assert.equal(
-    f.s.one(
-      "SELECT COUNT(*) n FROM devices WHERE product_id=? AND status='in_stock'",
-      p,
-    ).n,
-    2,
-  );
   assert.equal(f.s.totals().gross, 0);
   assert.equal(f.s.partyBalance(f.customer).balance, 0);
   assert.equal(
@@ -1049,7 +939,7 @@ test("editing an older invoice keeps its date and never consumes stock acquired 
   assert.equal(f.s.getDocument(old.id).total, 120000);
   summariesMatch(f.s);
 });
-test("serialized invoice editing reuses the exact physical device and survives a catalog SKU change", async (t) => {
+test("invoice editing preserves cost after a catalog SKU change", async (t) => {
   const f = fixture(t);
   const p = f.s.createProduct(f.u, {
     name: "Tracked laptop",
@@ -1060,21 +950,14 @@ test("serialized invoice editing reuses the exact physical device and survives a
     price: 200000,
     unit_cost: 120000,
     opening_quantity: 2,
-    opening_serials: [{ serial: "PHYSICAL-001" }],
-    serialized: true,
   }).id;
-  const devices = await f.s.dispatch("deviceCatalog", { id: p }, f.token);
-  const physical = devices.find((d) => d.serial === "PHYSICAL-001");
   const old = f.s.postTrade(f.u, {
     kind: "sale",
     party_id: f.customer,
     paid: 0,
     request_key: key(),
-    lines: [
-      { product_id: p, quantity: 1, price: 200000, device_ids: [physical.id] },
-    ],
+    lines: [{ product_id: p, quantity: 1, price: 200000 }],
   });
-  assert.equal(old.lines[0].device_serials[0].id, physical.id);
   f.s.run("UPDATE products SET sku=? WHERE id=?", "TRACK-NEW", p);
   assert.equal(
     (await f.s.dispatch("catalog", { id: p }, f.token)).rows[0].sku,
@@ -1088,20 +971,13 @@ test("serialized invoice editing reuses the exact physical device and survives a
       request_key: key(),
       party_id: f.customer,
       paid: 50000,
-      lines: [
-        {
-          product_id: p,
-          quantity: 1,
-          price: 210000,
-          device_ids: [physical.id],
-        },
-      ],
+      lines: [{ product_id: p, quantity: 1, price: 210000 }],
     },
     f.token,
   );
   const updated = f.s.getDocument(old.id);
-  assert.equal(updated.lines[0].device_serials[0].id, physical.id);
   assert.equal(updated.cost, 120000);
+  assert.equal(updated.total, 210000);
   assert.equal(f.s.one("SELECT stock FROM products WHERE id=?", p).stock, 1);
   summariesMatch(f.s);
 });

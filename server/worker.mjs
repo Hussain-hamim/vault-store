@@ -69,7 +69,7 @@ parentPort.on("message", (m) => {
         m.id,
         null,
         e.message.includes("UNIQUE constraint failed")
-          ? "That SKU, barcode, serial number, IMEI or username already exists."
+          ? "That SKU, barcode or username already exists."
           : e.issues?.map((issue) => issue.message).join("; ") || e.message,
       );
     }

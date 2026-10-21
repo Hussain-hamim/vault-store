@@ -1,4 +1,4 @@
-import { DatabaseSync, backup } from "node:sqlite";
+import { DatabaseSync, backup } from "./sqlite.mjs";
 import {
   randomUUID,
   randomBytes,
@@ -115,35 +115,15 @@ const productSchema = z.object({
   condition: z.enum(["New", "Used", "Refurbished"]).default("New"),
   warranty: text.default(""),
   attributes: z.record(z.string(), z.string().max(200)).default({}),
-  serialized: z.boolean().default(false),
   image: text.default(""),
   unit_cost: money.optional(),
   opening_quantity: z.number().int().min(0).max(100000).default(0),
-  opening_serials: z
-    .array(
-      z.object({
-        serial: text.default(""),
-        imei1: text.default(""),
-        imei2: text.default(""),
-      }),
-    )
-    .default([]),
 });
 const lineSchema = z.object({
   product_id: z.string(),
   quantity: positive,
   price: money,
   discount: money.default(0),
-  device_ids: z.array(z.string()).default([]),
-  serials: z
-    .array(
-      z.object({
-        serial: text.default(""),
-        imei1: text.default(""),
-        imei2: text.default(""),
-      }),
-    )
-    .default([]),
 });
 const docSchema = z.object({
   kind: z.enum(["sale", "purchase"]),
@@ -236,6 +216,12 @@ export class Store {
           "INSERT OR IGNORE INTO document_product_snapshots SELECT l.id,p.name,p.sku,p.brand,p.model,p.attributes,p.image,p.serialized FROM document_lines l JOIN products p ON p.id=l.product_id;",
         );
         this.saveSetting("productSnapshotsReady", true);
+      });
+    if (!this.setting("quantityOnlyStock"))
+      this.transaction(() => {
+        this.db.exec("UPDATE products SET serialized=0");
+        this.db.exec("UPDATE document_product_snapshots SET serialized=0");
+        this.saveSetting("quantityOnlyStock", true);
       });
     if (demo && !this.one("SELECT id FROM users LIMIT 1")) this.seed();
   }
@@ -472,39 +458,17 @@ export class Store {
       doc.date,
     );
   }
-  receive(product, line, doc, serials = []) {
-    if (serials.length > line.quantity)
-      throw new Error(`Too many serial numbers for ${product.name}.`);
-    if (product.serialized)
-      serials = Array.from(
-        { length: line.quantity },
-        (_, i) => serials[i] || { serial: "", imei1: "", imei2: "" },
-      );
-    if (!product.serialized && serials.length)
-      throw new Error("This product is not serial tracked.");
-    const costs = Array.from(
-      { length: product.serialized ? line.quantity : 1 },
-      (_, i) => ({
-        qty: product.serialized ? 1 : line.quantity,
-        cost: product.serialized
-          ? Math.floor(line.cost / line.quantity) +
-            (i < line.cost % line.quantity ? 1 : 0)
-          : Math.floor(line.cost / line.quantity),
-      }),
-    );
-    if (!product.serialized) {
-      const base = Math.floor(line.cost / line.quantity),
-        remainder = line.cost % line.quantity;
-      costs.length = 0;
-      if (line.quantity - remainder)
-        costs.push({ qty: line.quantity - remainder, cost: base });
-      if (remainder) costs.push({ qty: remainder, cost: base + 1 });
-    }
-    costs.forEach((c, i) => {
-      const bid = id();
+  receive(product, line, doc) {
+    const base = Math.floor(line.cost / line.quantity),
+      remainder = line.cost % line.quantity,
+      costs = [];
+    if (line.quantity - remainder)
+      costs.push({ qty: line.quantity - remainder, cost: base });
+    if (remainder) costs.push({ qty: remainder, cost: base + 1 });
+    for (const c of costs) {
       this.run(
         "INSERT INTO batches VALUES (?,?,?,?,?,?,?)",
-        bid,
+        id(),
         product.id,
         line.id,
         c.qty,
@@ -512,38 +476,10 @@ export class Store {
         c.cost,
         doc.created_at || `${doc.date}T${now().slice(11)}`,
       );
-      if (product.serialized) {
-        const s = serials[i];
-        for (const imei of [s.imei1, s.imei2].filter(Boolean)) {
-          if (!/^\d{15}$/.test(imei))
-            throw new Error("IMEI must contain exactly 15 digits.");
-          if (
-            this.one(
-              "SELECT id FROM devices WHERE imei1=? OR imei2=?",
-              imei,
-              imei,
-            )
-          )
-            throw new Error("IMEI already exists.");
-        }
-        if (s.imei1 && s.imei1 === s.imei2)
-          throw new Error("IMEI 1 and IMEI 2 must differ.");
-        this.run(
-          "INSERT INTO devices(id,product_id,batch_id,serial,imei1,imei2,status,sale_line_id,serial_missing) VALUES (?,?,?,?,?,?,?,NULL,?)",
-          id(),
-          product.id,
-          bid,
-          s.serial || `UNRECORDED-${id()}`,
-          s.imei1 || "",
-          s.imei2 || "",
-          "in_stock",
-          Number(!s.serial),
-        );
-      }
-    });
+    }
     this.move(doc, product, line.quantity, line.cost);
   }
-  consume(product, line, doc, deviceIds = []) {
+  consume(product, line, doc) {
     const latest = this.one(
       "SELECT MAX(date) date FROM movements WHERE product_id=?",
       product.id,
@@ -552,39 +488,11 @@ export class Store {
       throw new Error(
         "Stock transactions must follow the most recent stock movement date for this product.",
       );
-
-    let batches;
-    if (product.serialized) {
-      if (!deviceIds.length)
-        deviceIds = this.all(
-          "SELECT d.id FROM devices d JOIN batches b ON b.id=d.batch_id WHERE d.product_id=? AND d.status='in_stock' AND d.serial_missing=1 AND SUBSTR(b.received_at,1,10)<=? ORDER BY b.received_at,b.rowid LIMIT ?",
-          product.id,
-          doc.date,
-          line.quantity,
-        ).map((d) => d.id);
-      if (
-        deviceIds.length !== line.quantity ||
-        new Set(deviceIds).size !== line.quantity
-      )
-        throw new Error(
-          `Select ${line.quantity} unique device(s) for ${product.name}.`,
-        );
-      batches = deviceIds.map((did) => {
-        const device = this.one(
-          "SELECT d.*,b.remaining,b.unit_cost FROM devices d JOIN batches b ON b.id=d.batch_id WHERE d.id=? AND d.product_id=? AND d.status='in_stock' AND SUBSTR(b.received_at,1,10)<=?",
-          did,
-          product.id,
-          doc.date,
-        );
-        if (!device) throw new Error("Device is no longer available.");
-        return { ...device, id: device.batch_id, device_id: did };
-      });
-    } else
-      batches = this.all(
-        "SELECT * FROM batches WHERE product_id=? AND remaining>0 AND SUBSTR(received_at,1,10)<=? ORDER BY received_at,rowid",
-        product.id,
-        doc.date,
-      );
+    const batches = this.all(
+      "SELECT * FROM batches WHERE product_id=? AND remaining>0 AND SUBSTR(received_at,1,10)<=? ORDER BY received_at,rowid",
+      product.id,
+      doc.date,
+    );
     let remaining = line.quantity,
       cost = 0;
     for (const b of batches) {
@@ -599,12 +507,6 @@ export class Store {
         q,
         q * b.unit_cost,
       );
-      if (b.device_id)
-        this.run(
-          "UPDATE devices SET status='sold',sale_line_id=? WHERE id=?",
-          line.id,
-          b.device_id,
-        );
       cost += q * b.unit_cost;
       remaining -= q;
     }
@@ -644,7 +546,7 @@ export class Store {
         d.condition,
         d.warranty,
         JSON.stringify(d.attributes),
-        Number(d.serialized),
+        0,
         d.image,
         now(),
       );
@@ -660,7 +562,6 @@ export class Store {
           product_id: pid,
           quantity: d.opening_quantity,
           cost: d.unit_cost,
-          serials: d.opening_serials,
           note: "Opening stock at product creation",
           opening: true,
           request_key: `product-opening-${pid}`,
@@ -741,13 +642,13 @@ export class Store {
           l.discount,
         );
         if (d.kind === "sale") {
-          line.cost = this.consume(p, line, doc, l.device_ids);
+          line.cost = this.consume(p, line, doc);
           this.run(
             "UPDATE document_lines SET cost=? WHERE id=?",
             line.cost,
             line.id,
           );
-        } else this.receive(p, line, doc, l.serials);
+        } else this.receive(p, line, doc);
         cost += line.cost;
       }
       this.run("UPDATE documents SET cost=? WHERE id=?", cost, doc.id);
@@ -917,41 +818,9 @@ export class Store {
     );
     if (!doc) throw new Error("Document not found.");
     doc.lines = this.all(
-      "SELECT l.*,COALESCE(s.name,p.name) name,COALESCE(s.sku,p.sku) sku,COALESCE(s.image,p.image) image,COALESCE(s.serialized,p.serialized) serialized,COALESCE((SELECT SUM(quantity) FROM document_lines r WHERE r.original_line_id=l.id),0) returned_quantity FROM document_lines l JOIN products p ON p.id=l.product_id LEFT JOIN document_product_snapshots s ON s.line_id=l.id WHERE document_id=?",
+      "SELECT l.*,COALESCE(s.name,p.name) name,COALESCE(s.sku,p.sku) sku,COALESCE(s.image,p.image) image,COALESCE((SELECT SUM(quantity) FROM document_lines r WHERE r.original_line_id=l.id),0) returned_quantity FROM document_lines l JOIN products p ON p.id=l.product_id LEFT JOIN document_product_snapshots s ON s.line_id=l.id WHERE document_id=?",
       did,
     );
-    for (const line of doc.lines) {
-      if (line.serialized) {
-        line.return_devices =
-          doc.kind === "sale"
-            ? this.all(
-                "SELECT d.id,CASE WHEN d.serial_missing=1 THEN 'Serial not recorded · '||substr(d.id,1,8) ELSE d.serial END serial,d.imei1 FROM devices d JOIN allocations a ON a.batch_id=d.batch_id WHERE a.line_id=? AND a.returned<a.quantity AND d.status='sold' AND d.sale_line_id=?",
-                line.id,
-                line.id,
-              )
-            : doc.kind === "purchase"
-              ? this.all(
-                  "SELECT d.id,CASE WHEN d.serial_missing=1 THEN 'Serial not recorded · '||substr(d.id,1,8) ELSE d.serial END serial,d.imei1 FROM devices d JOIN batches b ON b.id=d.batch_id WHERE b.line_id=? AND b.remaining>0 AND d.status='in_stock'",
-                  line.id,
-                )
-              : [];
-      }
-    }
-    for (const line of doc.lines) {
-      if (line.serialized)
-        line.device_serials =
-          doc.kind === "sale"
-            ? this.all(
-                "SELECT d.id,CASE WHEN d.serial_missing=1 THEN 'Serial not recorded · '||substr(d.id,1,8) ELSE d.serial END serial,d.imei1,d.imei2 FROM allocations a JOIN devices d ON d.batch_id=a.batch_id WHERE a.line_id=?",
-                line.id,
-              )
-            : doc.kind === "purchase"
-              ? this.all(
-                  "SELECT d.id,CASE WHEN d.serial_missing=1 THEN 'Serial not recorded · '||substr(d.id,1,8) ELSE d.serial END serial,d.imei1,d.imei2 FROM batches b JOIN devices d ON d.batch_id=b.id WHERE b.line_id=?",
-                  line.id,
-                )
-              : [];
-    }
     doc.revision =
       this.one(
         "SELECT revision FROM invoice_revisions WHERE document_id=?",
@@ -1112,7 +981,6 @@ export class Store {
             z.object({
               line_id: z.string(),
               quantity: positive,
-              device_ids: z.array(z.string()).default([]),
             }),
           )
           .min(1),
@@ -1145,39 +1013,13 @@ export class Store {
             (value * (ol.returned_quantity + l.quantity)) / ol.quantity,
           );
         let amount = after - before;
-        const product = this.one(
-          "SELECT serialized FROM products WHERE id=?",
-          ol.product_id,
-        );
-        if (product.serialized) {
-          if (
-            l.device_ids.length !== l.quantity ||
-            new Set(l.device_ids).size !== l.quantity
-          )
-            throw new Error("Select the exact devices being returned.");
-          const eligible = ol.return_devices || [];
-          if (l.device_ids.some((d) => !eligible.some((x) => x.id === d)))
-            throw new Error(
-              "A selected device cannot be returned from this invoice.",
-            );
-        }
         if (original.kind === "purchase") {
           let remaining = l.quantity;
           amount = 0;
-          let batches = this.all(
+          const batches = this.all(
             "SELECT b.* FROM batches b WHERE b.line_id=? AND b.remaining>0 ORDER BY b.id",
             ol.id,
           );
-          if (product.serialized)
-            batches = batches.filter((b) =>
-              l.device_ids.some((d) =>
-                this.one(
-                  "SELECT id FROM devices WHERE id=? AND batch_id=?",
-                  d,
-                  b.id,
-                ),
-              ),
-            );
           for (const b of batches) {
             const q = Math.min(remaining, b.remaining);
             amount += q * b.unit_cost;
@@ -1217,21 +1059,10 @@ export class Store {
         );
         if (kind === "sale_return") {
           let remaining = r.quantity;
-          let allocations = this.all(
+          const allocations = this.all(
             "SELECT a.*,b.unit_cost FROM allocations a JOIN batches b ON b.id=a.batch_id WHERE a.line_id=? AND a.returned<a.quantity",
             ol.id,
           );
-          if (p.serialized)
-            allocations = allocations.filter((a) =>
-              r.device_ids.some((d) =>
-                this.one(
-                  "SELECT id FROM devices WHERE id=? AND batch_id=? AND sale_line_id=?",
-                  d,
-                  a.batch_id,
-                  ol.id,
-                ),
-              ),
-            );
           for (const a of allocations) {
             if (!remaining) break;
             const q = Math.min(remaining, a.quantity - a.returned);
@@ -1245,12 +1076,6 @@ export class Store {
               q,
               a.batch_id,
             );
-            if (p.serialized)
-              this.run(
-                "UPDATE devices SET status='in_stock',sale_line_id=NULL WHERE batch_id=? AND sale_line_id=?",
-                a.batch_id,
-                ol.id,
-              );
             lineCost += q * a.unit_cost;
             remaining -= q;
           }
@@ -1259,20 +1084,10 @@ export class Store {
           this.move(doc, p, r.quantity, lineCost);
         } else {
           let remaining = r.quantity;
-          let batches = this.all(
+          const batches = this.all(
             "SELECT * FROM batches WHERE line_id=? AND remaining>0 ORDER BY id",
             ol.id,
           );
-          if (p.serialized)
-            batches = batches.filter((b) =>
-              r.device_ids.some((d) =>
-                this.one(
-                  "SELECT id FROM devices WHERE id=? AND batch_id=?",
-                  d,
-                  b.id,
-                ),
-              ),
-            );
           for (const b of batches) {
             if (!remaining) break;
             const q = Math.min(remaining, b.remaining);
@@ -1282,11 +1097,6 @@ export class Store {
               q,
               b.id,
             );
-            if (p.serialized)
-              this.run(
-                "UPDATE devices SET status='returned_supplier' WHERE batch_id=? AND status='in_stock'",
-                b.id,
-              );
             lineCost += q * b.unit_cost;
             remaining -= q;
           }
@@ -1343,9 +1153,7 @@ export class Store {
         cost: money.default(0),
         note: text.min(3),
         request_key: z.string().min(8),
-        serials: lineSchema.shape.serials,
         opening: z.boolean().default(false),
-        device_ids: lineSchema.shape.device_ids,
       })
       .parse(input);
     return this.transaction(() => {
@@ -1387,8 +1195,8 @@ export class Store {
       if (!Number.isSafeInteger(l.cost) || l.cost > 1e12)
         throw new Error("Stock adjustment exceeds supported amount.");
       let cost = l.cost;
-      if (d.quantity > 0) this.receive(p, l, doc, d.serials);
-      else cost = this.consume(p, l, doc, d.device_ids);
+      if (d.quantity > 0) this.receive(p, l, doc);
+      else cost = this.consume(p, l, doc);
       this.run("UPDATE documents SET cost=? WHERE id=?", cost, doc.id);
       this.ledger(
         doc,
@@ -1428,10 +1236,10 @@ export class Store {
     }
     if (d.q) {
       clauses.push(
-        "(p.name LIKE ? ESCAPE '\\' OR p.sku LIKE ? ESCAPE '\\' OR p.barcode=? OR p.id IN (SELECT product_id FROM devices WHERE serial=? OR imei1=? OR imei2=?))",
+        "(p.name LIKE ? ESCAPE '\\' OR p.sku LIKE ? ESCAPE '\\' OR p.barcode=?)",
       );
       const q = d.q.replace(/[\\%_]/g, "\\$&") + "%";
-      params.push(q, q, d.q, d.q, d.q, d.q);
+      params.push(q, q, d.q);
     }
     if (d.category !== "All products") {
       clauses.push("p.category=?");
@@ -1908,19 +1716,11 @@ export class Store {
         const d = productSchema.parse(args);
         const existing = this.one("SELECT * FROM products WHERE id=?", args.id);
         if (!existing) throw new Error("Product not found.");
-        if (
-          Number(d.serialized) !== existing.serialized &&
-          this.one(
-            "SELECT COUNT(*) n FROM movements WHERE product_id=?",
-            existing.id,
-          ).n
-        )
-          throw new Error("Tracking mode cannot change after stock movements.");
         if (d.minimum > d.price)
           throw new Error("Minimum price cannot exceed selling price.");
         return this.transaction(() => {
           this.run(
-            "UPDATE products SET sku=?,barcode=?,name=?,brand=?,model=?,category=?,price=?,minimum=?,reorder_level=?,location=?,condition=?,warranty=?,attributes=?,serialized=?,image=? WHERE id=?",
+            "UPDATE products SET sku=?,barcode=?,name=?,brand=?,model=?,category=?,price=?,minimum=?,reorder_level=?,location=?,condition=?,warranty=?,attributes=?,serialized=0,image=? WHERE id=?",
             d.sku,
             d.barcode,
             d.name,
@@ -1934,7 +1734,6 @@ export class Store {
             d.condition,
             d.warranty,
             JSON.stringify(d.attributes),
-            Number(d.serialized),
             d.image,
             existing.id,
           );
@@ -2023,23 +1822,8 @@ export class Store {
         });
       }
       case "deviceCatalog":
-        if (
-          !user.permissions.some((p) =>
-            ["inventory", "sales", "purchases"].includes(p),
-          )
-        )
-          throw new Error("Permission required: inventory or sales");
-        return this.all(
-          "SELECT id,CASE WHEN serial_missing=1 THEN 'Serial not recorded · '||substr(id,1,8) ELSE serial END serial,serial_missing,imei1,imei2,status FROM devices WHERE product_id=? AND status='in_stock' ORDER BY serial LIMIT 500",
-          z.string().parse(args.id),
-        );
       case "devices":
-        if (!user.permissions.includes("inventory"))
-          throw new Error("Permission required: inventory");
-        return this.all(
-          "SELECT id,CASE WHEN serial_missing=1 THEN 'Serial not recorded · '||substr(id,1,8) ELSE serial END serial,serial_missing,imei1,imei2,status FROM devices WHERE product_id=? AND status='in_stock' ORDER BY serial LIMIT 500",
-          z.string().parse(args.id),
-        );
+        return [];
       case "productDetail": {
         const p = this.one("SELECT * FROM products WHERE id=?", args.id);
         if (!p) throw new Error("Product not found.");
@@ -2587,7 +2371,6 @@ export class Store {
         ram,
         storage,
       ] = items[i];
-      const serialized = ["Computers", "Mobiles", "Tablets"].includes(category);
       const p = this.createProduct(user, {
         name,
         brand,
@@ -2599,7 +2382,6 @@ export class Store {
         minimum: Math.round(price * 0.9),
         reorder_level: 5,
         location: `A-${i + 1}`,
-        serialized,
         warranty: "12 months",
         attributes: {
           RAM: ram,
@@ -2620,11 +2402,6 @@ export class Store {
             product_id: p,
             quantity: qty,
             price: cost,
-            serials: serialized
-              ? Array.from({ length: qty }, (_, j) => ({
-                  serial: `${brand.toUpperCase().slice(0, 3)}-${i + 1}-${String(j + 1).padStart(4, "0")}`,
-                }))
-              : [],
           },
         ],
       });
@@ -2635,12 +2412,6 @@ export class Store {
         const pi = (day * 3 + s) % products.length,
           p = this.one("SELECT * FROM products WHERE id=?", products[pi]);
         if (p.stock <= 0) continue;
-        const devices = p.serialized
-          ? this.all(
-              "SELECT id FROM devices WHERE product_id=? AND status='in_stock' LIMIT 1",
-              p.id,
-            ).map((d) => d.id)
-          : [];
         this.postTrade(user, {
           kind: "sale",
           party_id: s % 2 ? c1 : walk,
@@ -2652,7 +2423,6 @@ export class Store {
               product_id: p.id,
               quantity: 1,
               price: p.price,
-              device_ids: devices,
             },
           ],
         });

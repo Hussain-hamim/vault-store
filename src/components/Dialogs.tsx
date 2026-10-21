@@ -30,7 +30,10 @@ import {
   Empty,
   ErrorMessage,
 } from "./ui";
-type DialogProps = { close: () => void; done: (message: string) => void };
+type DialogProps = {
+  close: () => void;
+  done: (message: string, result?: unknown) => void;
+};
 export function ProductForm({
   close,
   done,
@@ -41,9 +44,6 @@ export function ProductForm({
   product?: Product;
 }) {
   const [category, setCategory] = useState(product?.category || "Computers"),
-    [serialized, setSerialized] = useState(
-      product ? !!product.serialized : true,
-    ),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
   async function submit(e: React.FormEvent<HTMLFormElement>) {
@@ -82,7 +82,6 @@ export function ProductForm({
         location: f.get("location"),
         condition: f.get("condition"),
         warranty: f.get("warranty"),
-        serialized,
         attributes,
         ...(!product
           ? { opening_quantity: Number(f.get("opening_quantity") || 0) }
@@ -139,14 +138,7 @@ export function ProductForm({
             <Field label="Category">
               <select
                 value={category}
-                onChange={(e) => {
-                  setCategory(e.target.value);
-                  setSerialized(
-                    ["Computers", "Mobiles", "Tablets"].includes(
-                      e.target.value,
-                    ),
-                  );
-                }}
+                onChange={(e) => setCategory(e.target.value)}
               >
                 {[
                   "Computers",
@@ -277,20 +269,6 @@ export function ProductForm({
               />
             </Field>
           </div>
-          <label className="checkbox-field">
-            <input
-              type="checkbox"
-              checked={serialized}
-              onChange={(e) => setSerialized(e.target.checked)}
-            />
-            <span>
-              <strong>Track individual devices</strong>
-              <small>
-                Keep a separate cost for each unit. Serial numbers and IMEIs are
-                optional.
-              </small>
-            </span>
-          </label>
           <div className="form-section-title">Specifications</div>
           <div className="form-grid">
             {attrs.map((a) => (
@@ -329,9 +307,6 @@ type CartLine = {
   quantity: number;
   price: string;
   discount: string;
-  device_ids: string[];
-  devices: any[];
-  serialText: string;
 };
 function BillFrame({
   title,
@@ -378,28 +353,62 @@ export function TradeForm({
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [initial, setInitial] = useState<any>(null),
-    [loading, setLoading] = useState(!!documentId);
+    [loading, setLoading] = useState(!!documentId),
+    [addingParty, setAddingParty] = useState(false),
+    [searching, setSearching] = useState(false),
+    [pickerOpen, setPickerOpen] = useState(false);
   const key = useRef(requestKey());
+  const pickerRef = useRef<HTMLDivElement>(null);
   const Frame = inline ? BillFrame : Modal;
   const purchase = kind === "purchase";
+  const selectedParty = parties.find((p) => p.id === party);
   useEffect(() => {
+    if (!pickerOpen) return;
     let active = true;
+    setSearching(true);
+    const query = q.trim();
     const timer = setTimeout(
       () =>
-        api<{ rows: Product[] }>("catalog", { q, limit: 12 })
+        api<{ rows: Product[] }>("catalog", { q: query, limit: 50 })
           .then((d) => {
-            if (active) setProducts(d.rows);
+            if (!active) return;
+            const rows = purchase
+              ? d.rows
+              : [...d.rows].sort(
+                  (a, b) =>
+                    Number(b.stock > 0) - Number(a.stock > 0) ||
+                    a.name.localeCompare(b.name),
+                );
+            setProducts(rows);
           })
           .catch((e) => {
             if (active) setError(e.message);
+          })
+          .finally(() => {
+            if (active) setSearching(false);
           }),
-      150,
+      query ? 150 : 0,
     );
     return () => {
       active = false;
       clearTimeout(timer);
     };
-  }, [q]);
+  }, [q, pickerOpen, purchase]);
+  useEffect(() => {
+    if (!pickerOpen) return;
+    const onPointer = (e: MouseEvent) => {
+      if (!pickerRef.current?.contains(e.target as Node)) setPickerOpen(false);
+    };
+    // Defer so the opening click itself does not immediately close the list.
+    const timer = window.setTimeout(
+      () => document.addEventListener("mousedown", onPointer),
+      0,
+    );
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener("mousedown", onPointer);
+    };
+  }, [pickerOpen]);
   useEffect(() => {
     let active = true;
     api<{ rows: Party[] }>("parties", {
@@ -434,21 +443,11 @@ export function TradeForm({
               throw new Error(
                 `Product ${line.name} is no longer in the catalog.`,
               );
-            const devices = found.serialized
-              ? await api<any[]>("deviceCatalog", { id: found.id })
-              : [];
-            const soldDevices = (line.device_serials || []).map((d: any) => ({
-              ...d,
-              status: "sold",
-            }));
             return {
               product: { ...found, stock: found.stock + line.quantity },
               quantity: line.quantity,
               price: String(line.price / 100),
               discount: String(line.discount / 100),
-              devices: [...devices, ...soldDevices],
-              device_ids: soldDevices.map((d: any) => d.id),
-              serialText: "",
             };
           }),
         );
@@ -469,66 +468,34 @@ export function TradeForm({
       active = false;
     };
   }, [documentId]);
-  async function add(p: Product) {
+  function add(p: Product) {
     if (lines.some((l) => l.product.id === p.id)) return;
-    try {
-      const devices =
-        !purchase && p.serialized
-          ? await api<any[]>("deviceCatalog", { id: p.id })
-          : [];
-      setLines((ls) =>
-        ls.some((l) => l.product.id === p.id)
-          ? ls
-          : [
-              ...ls,
-              {
-                product: p,
-                quantity: 1,
-                price: String(
-                  purchase
-                    ? p.stock && p.cost
-                      ? Math.round(p.cost / p.stock) / 100
-                      : (p.unit_cost || 0) / 100
-                    : p.price / 100,
-                ),
-                discount: "0",
-                device_ids: devices
-                  .filter((d) => d.serial_missing)
-                  .slice(0, 1)
-                  .map((d) => d.id),
-                devices,
-                serialText: "",
-              },
-            ],
-      );
-    } catch (e: any) {
-      setError(e.message);
-    }
+    setLines((ls) =>
+      ls.some((l) => l.product.id === p.id)
+        ? ls
+        : [
+            ...ls,
+            {
+              product: p,
+              quantity: 1,
+              price: String(
+                purchase
+                  ? p.stock && p.cost
+                    ? Math.round(p.cost / p.stock) / 100
+                    : (p.unit_cost || 0) / 100
+                  : p.price / 100,
+              ),
+              discount: "0",
+            },
+          ],
+    );
+    setQ("");
+    setProducts([]);
+    setPickerOpen(false);
   }
   const update = (i: number, key: keyof CartLine, v: any) =>
     setLines((ls) =>
-      ls.map((l, j) =>
-        i === j
-          ? {
-              ...l,
-              [key]: v,
-              ...(key === "quantity" && l.product.serialized && !purchase
-                ? {
-                    device_ids: [
-                      ...l.device_ids.slice(0, v),
-                      ...l.devices
-                        .filter(
-                          (d) =>
-                            d.serial_missing && !l.device_ids.includes(d.id),
-                        )
-                        .slice(0, Math.max(0, v - l.device_ids.length))
-                        .map((d) => d.id),
-                    ],
-                  }
-                : {}),
-            }
-          : l,
-      ),
+      ls.map((l, j) => (i === j ? { ...l, [key]: v } : l)),
     );
   const total = lines.reduce(
     (s, l) =>
@@ -549,20 +516,6 @@ export function TradeForm({
         quantity: l.quantity,
         price: toMoney(l.price),
         discount: toMoney(l.discount),
-        device_ids: l.device_ids,
-        serials:
-          purchase && l.product.serialized
-            ? l.serialText
-                .split("\n")
-                .map((s) => s.trim())
-                .filter(Boolean)
-                .map((row) => {
-                  const [serial, imei1 = "", imei2 = ""] = row
-                    .split("|")
-                    .map((x) => x.trim());
-                  return { serial, imei1, imei2 };
-                })
-            : [],
       }));
       await api(documentId ? "saleEdit" : kind, {
         ...(documentId ? { id: documentId, revision: initial.revision } : {}),
@@ -588,6 +541,7 @@ export function TradeForm({
     }
   }
   return (
+    <>
     <Frame
       title={
         purchase
@@ -610,21 +564,39 @@ export function TradeForm({
         <form onSubmit={submit}>
           <div className="form-body trade-body">
             <div className="form-grid three">
-              <Field label={purchase ? "Supplier" : "Customer"}>
-                <select
-                  value={party}
-                  onChange={(e) => setParty(e.target.value)}
-                  required
-                >
-                  <option value="">
-                    Choose {purchase ? "supplier" : "customer"}
-                  </option>
-                  {parties.map((p) => (
-                    <option value={p.id} key={p.id}>
-                      {p.name}
+              <Field
+                label={purchase ? "Supplier" : "Customer"}
+                hint={
+                  !purchase
+                    ? "Add a named customer when any balance will remain unpaid."
+                    : undefined
+                }
+              >
+                <div className="inline-actions party-picker">
+                  <select
+                    value={party}
+                    onChange={(e) => setParty(e.target.value)}
+                    required
+                  >
+                    <option value="">
+                      Choose {purchase ? "supplier" : "customer"}
                     </option>
-                  ))}
-                </select>
+                    {parties.map((p) => (
+                      <option value={p.id} key={p.id}>
+                        {p.name}
+                        {p.walk_in ? " (cash only)" : ""}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    className="button"
+                    onClick={() => setAddingParty(true)}
+                  >
+                    <PlusIcon size={15} />
+                    Add
+                  </button>
+                </div>
               </Field>
               <Field label="Invoice date">
                 <input
@@ -643,38 +615,107 @@ export function TradeForm({
                 />
               </Field>
             </div>
+            {!purchase &&
+              selectedParty?.walk_in &&
+              total - payment > 0 && (
+                <p className="credit-hint">
+                  Walk-in customers must pay in full. Add or choose a named
+                  customer to leave a balance unpaid.
+                </p>
+              )}
             <div className="form-section-title">
               Add products{" "}
               <span className="subtle">
-                {lines.length} invoice line{lines.length === 1 ? "" : "s"} · Add
-                as many products as you need
+                {lines.length} invoice line{lines.length === 1 ? "" : "s"} ·
+                Click search to browse
               </span>
             </div>
-            <Search
-              value={q}
-              onChange={setQ}
-              placeholder="Search by name, SKU, barcode or serial…"
-            />
-            <div className="product-picker">
-              {products.map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  disabled={
-                    lines.some((l) => l.product.id === p.id) ||
-                    (!purchase && p.stock === 0)
-                  }
-                  onClick={() => add(p)}
+            <div className="product-search-dropdown" ref={pickerRef}>
+              <Search
+                value={q}
+                onChange={(value) => {
+                  setQ(value);
+                  setPickerOpen(true);
+                }}
+                onFocus={() => setPickerOpen(true)}
+                onClick={() => setPickerOpen(true)}
+                placeholder="Search or browse products by name, SKU or barcode…"
+              />
+              {pickerOpen && (
+                <div
+                  className="product-picker product-picker-rich is-open product-picker-dropdown"
+                  role="listbox"
+                  aria-label="Available products"
                 >
-                  <ProductName product={p} />
-                  <span>{purchase ? af(p.price) : `${p.stock} in stock`}</span>
-                  <PlusIcon size={16} />
-                </button>
-              ))}
-              {!products.length && (
-                <span className="muted">
-                  No matching products. Add a product in Inventory first.
-                </span>
+                  {searching ? (
+                    <span className="muted">Loading products…</span>
+                  ) : products.length ? (
+                    products.map((p) => {
+                      const specs = Object.entries(p.attributes || {})
+                        .filter(([, v]) => v)
+                        .slice(0, 3)
+                        .map(([k, v]) => `${k}: ${v}`)
+                        .join(" · ");
+                      const added = lines.some((l) => l.product.id === p.id);
+                      const out = !purchase && p.stock === 0;
+                      return (
+                        <button
+                          key={p.id}
+                          type="button"
+                          role="option"
+                          className="product-pick-card"
+                          disabled={added || out}
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => add(p)}
+                        >
+                          <span className="product-pick-image">
+                            {p.image ? (
+                              <img src={p.image} alt="" />
+                            ) : (
+                              <PackageIcon size={28} weight="light" />
+                            )}
+                          </span>
+                          <span className="product-pick-body">
+                            <strong>{p.name}</strong>
+                            <small>
+                              {[p.brand, p.model, p.sku]
+                                .filter(Boolean)
+                                .join(" · ")}
+                            </small>
+                            <small>
+                              {[
+                                p.category,
+                                p.condition,
+                                p.location && `Loc ${p.location}`,
+                                p.warranty,
+                              ]
+                                .filter(Boolean)
+                                .join(" · ")}
+                            </small>
+                            {specs ? <small>{specs}</small> : null}
+                            <span className="product-pick-meta">
+                              <em>{af(p.price)}</em>
+                              <em>
+                                {purchase
+                                  ? "In catalog"
+                                  : out
+                                    ? "Out of stock"
+                                    : `${p.stock} in stock`}
+                              </em>
+                            </span>
+                          </span>
+                          <PlusIcon size={18} />
+                        </button>
+                      );
+                    })
+                  ) : (
+                    <span className="muted">
+                      {q.trim()
+                        ? "No matching products. Try another search or add the product in Inventory."
+                        : "No products available. Add products in Inventory first."}
+                    </span>
+                  )}
+                </div>
               )}
             </div>
             <div className="cart-lines">
@@ -730,50 +771,6 @@ export function TradeForm({
                       />
                     </Field>
                   </div>
-                  {!!l.product.serialized &&
-                    (purchase ? (
-                      <Field
-                        label="Device serial numbers (optional)"
-                        hint="Leave blank if not available. Enter up to one device per line: SERIAL | IMEI1 | IMEI2. Remaining units are recorded without serials."
-                      >
-                        <textarea
-                          rows={Math.min(l.quantity + 1, 5)}
-                          placeholder="SN-0001 | 123456789012345"
-                          value={l.serialText}
-                          onChange={(e) =>
-                            update(i, "serialText", e.target.value)
-                          }
-                        />
-                      </Field>
-                    ) : (
-                      <Field
-                        label={`Select ${l.quantity} device${l.quantity > 1 ? "s" : ""}`}
-                        hint="Units without recorded serials are selected automatically. You can change the selection."
-                      >
-                        <select
-                          multiple
-                          value={l.device_ids}
-                          onChange={(e) =>
-                            update(
-                              i,
-                              "device_ids",
-                              Array.from(e.target.selectedOptions).map(
-                                (o) => o.value,
-                              ),
-                            )
-                          }
-                          required
-                          size={Math.min(4, Math.max(2, l.devices.length))}
-                        >
-                          {l.devices.map((d) => (
-                            <option key={d.id} value={d.id}>
-                              {d.serial}
-                              {d.imei1 ? ` · IMEI ${d.imei1}` : ""}
-                            </option>
-                          ))}
-                        </select>
-                      </Field>
-                    ))}
                 </div>
               ))}
             </div>
@@ -781,7 +778,7 @@ export function TradeForm({
               <div className="cart-empty">
                 <ShoppingIllustration />
                 <p>
-                  Select products above to start your{" "}
+                  Click the product search to browse and add items to your{" "}
                   {purchase ? "purchase" : "sale"}.
                 </p>
               </div>
@@ -849,6 +846,25 @@ export function TradeForm({
         </form>
       )}
     </Frame>
+    {addingParty && (
+      <PartyForm
+        kind={purchase ? "supplier" : "customer"}
+        close={() => setAddingParty(false)}
+        done={(_message, result) => {
+          setAddingParty(false);
+          const created = result as { id?: string } | undefined;
+          api<{ rows: Party[] }>("parties", {
+            kind: purchase ? "supplier" : "customer",
+          })
+            .then((d) => {
+              setParties(d.rows);
+              if (created?.id) setParty(created.id);
+            })
+            .catch((e) => setError(e.message));
+        }}
+      />
+    )}
+    </>
   );
 }
 function ShoppingIllustration() {
@@ -866,7 +882,7 @@ export function PartyForm({
     const f = new FormData(e.currentTarget);
     setBusy(true);
     try {
-      await api("partyCreate", {
+      const created = await api<{ id: string }>("partyCreate", {
         kind,
         name: f.get("name"),
         phone: f.get("phone"),
@@ -874,7 +890,7 @@ export function PartyForm({
         address: f.get("address"),
         credit_limit: toMoney(f.get("credit_limit") || "0"),
       });
-      done(`${kind === "customer" ? "Customer" : "Supplier"} added.`);
+      done(`${kind === "customer" ? "Customer" : "Supplier"} added.`, created);
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -1119,8 +1135,7 @@ export function InvoiceDialog({
     [error, setError] = useState(""),
     [returning, setReturning] = useState(false),
     [busy, setBusy] = useState(false),
-    [quantities, setQuantities] = useState<Record<string, number>>({}),
-    [returnDevices, setReturnDevices] = useState<Record<string, string[]>>({});
+    [quantities, setQuantities] = useState<Record<string, number>>({});
   const key = useRef(requestKey());
   useEffect(() => {
     Promise.all([api("document", { id: documentId }), api("status")])
@@ -1141,7 +1156,6 @@ export function InvoiceDialog({
           .map((l: any) => ({
             line_id: l.id,
             quantity: quantities[l.id],
-            device_ids: returnDevices[l.id] || [],
           })),
         note: new FormData(e.currentTarget).get("reason"),
         request_key: key.current,
@@ -1211,15 +1225,6 @@ export function InvoiceDialog({
                     <tr key={l.id}>
                       <td>
                         <ProductName product={l} />
-                        {l.device_serials?.map((d: any) => (
-                          <small
-                            className="device-invoice-serial"
-                            key={d.serial}
-                          >
-                            {d.serial}
-                            {d.imei1 ? " · IMEI " + d.imei1 : ""}
-                          </small>
-                        ))}
                       </td>
                       <td>
                         {l.quantity}
@@ -1292,42 +1297,12 @@ export function InvoiceDialog({
                     />
                   </Field>
                 ))}
-              {doc.lines
-                .filter((l: any) => l.serialized && quantities[l.id] > 0)
-                .map((l: any) => (
-                  <Field
-                    key={l.id + "-devices"}
-                    label={`Devices to return · ${l.name}`}
-                  >
-                    <select
-                      multiple
-                      required
-                      value={returnDevices[l.id] || []}
-                      onChange={(e) =>
-                        setReturnDevices({
-                          ...returnDevices,
-                          [l.id]: Array.from(e.target.selectedOptions).map(
-                            (o) => o.value,
-                          ),
-                        })
-                      }
-                    >
-                      {(l.return_devices || []).map((d: any) => (
-                        <option key={d.id} value={d.id}>
-                          {d.serial}
-                          {d.imei1 ? " · " + d.imei1 : ""}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
-                ))}
               <Field label="Reason for return">
                 <input name="reason" minLength={2} required />
               </Field>
               <p className="help-note">
                 The return reduces outstanding debt first. Any remaining amount
-                is refunded in cash. For serial-tracked items, select the exact
-                devices being returned.
+                is refunded in cash.
               </p>
               <ErrorMessage error={error} />
               <button
@@ -1491,17 +1466,12 @@ export function ProductDetail({
   const [data, setData] = useState<any>(null),
     [error, setError] = useState(""),
     [adjust, setAdjust] = useState(false),
-    [busy, setBusy] = useState(false),
-    [devices, setDevices] = useState<any[]>([]);
+    [busy, setBusy] = useState(false);
   const key = useRef(requestKey());
   useEffect(() => {
     api("productDetail", { id: product.id })
       .then(setData)
       .catch((e) => setError(e.message));
-    if (product.serialized)
-      api<any[]>("deviceCatalog", { id: product.id })
-        .then(setDevices)
-        .catch((e) => setError(e.message));
   }, [product.id]);
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -1514,11 +1484,6 @@ export function ProductDetail({
         cost: toMoney(f.get("cost") || "0"),
         note: f.get("note"),
         request_key: key.current,
-        device_ids: f.getAll("devices"),
-        serials: String(f.get("serials") || "")
-          .split("\n")
-          .filter(Boolean)
-          .map((serial) => ({ serial: serial.trim() })),
         opening: f.get("opening") === "on",
       });
       done("Stock adjustment posted with an audit record.");
@@ -1564,19 +1529,6 @@ export function ProductDetail({
               </div>
             ))}
         </div>
-        {!!product.serialized && (
-          <details className="device-details">
-            <summary>Available serial numbers ({devices.length})</summary>
-            <div className="serial-list">
-              {devices.map((d) => (
-                <span key={d.id}>
-                  {d.serial}
-                  {d.imei1 && <small>IMEI {d.imei1}</small>}
-                </span>
-              ))}
-            </div>
-          </details>
-        )}
         <div className="form-section-title">
           Stock movement history <small>Latest 100 entries</small>
         </div>
@@ -1636,22 +1588,6 @@ export function ProductDetail({
                 />
               </Field>
             </div>
-            {!!product.serialized && (
-              <>
-                <Field label="Serials for added units (one per line)">
-                  <textarea name="serials" rows={2} />
-                </Field>
-                <Field label="Devices to remove">
-                  <select name="devices" multiple>
-                    {devices.map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {d.serial}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-              </>
-            )}
             <Field label="Reason">
               <input
                 name="note"

@@ -29,10 +29,10 @@ test("desktop preload unwraps successful commands and keeps the public API narro
 test("desktop validation errors stay readable without Electron protocol details", async () => {
   const api = bridge({
     ok: false,
-    error: "Enter one serial number for each device.",
+    error: "Insufficient stock for this product.",
   });
   await assert.rejects(
     api.request("purchase", {}),
-    (e) => e.message === "Enter one serial number for each device.",
+    (e) => e.message === "Insufficient stock for this product.",
   );
 });

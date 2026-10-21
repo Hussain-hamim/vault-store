@@ -674,13 +674,13 @@ export function App() {
             <h3>Start with your products</h3>
             <p>
               Add products with their cost and opening stock in Inventory.
-              Receive purchases to add more products at their actual costs;
-              serial numbers are optional.
+              Receive purchases to add more stock at actual costs.
             </p>
             <h3>Make a sale</h3>
             <p>
-              Choose products and the exact devices being sold. Use a saved
-              customer for credit sales; walk-in customers pay in full.
+              Search for products, review their details, then add them to the
+              bill. Add or choose a named customer for credit or partial
+              payment; walk-in customers must pay in full.
             </p>
             <h3>Understand your profit</h3>
             <p>

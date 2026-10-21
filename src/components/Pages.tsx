@@ -97,7 +97,7 @@ export function ProductsPage({
       <PageIntro
         eyebrow="Your catalog"
         title="Every product. One place."
-        description="Manage models, specifications, serial numbers and stock levels."
+        description="Manage models, specifications and stock levels."
         action={
           <button
             className="button button-dark"
@@ -209,7 +209,6 @@ export function ProductsPage({
                     )}
                     <th>Selling price</th>
                     <th>Location</th>
-                    <th>Tracking</th>
                     <th />
                   </tr>
                 </thead>
@@ -252,7 +251,6 @@ export function ProductsPage({
                       )}
                       <td>{af(p.price, 2)}</td>
                       <td>{p.location || "—"}</td>
-                      <td>{p.serialized ? "Serial / IMEI" : "Quantity"}</td>
                       <td>
                         <ArrowUpRightIcon size={15} />
                       </td>
@@ -1956,9 +1954,8 @@ export function SettingsPage({ refresh, open, toast, user }: PageProps) {
             <div className="divider" />
             <h3>Accounting policies</h3>
             <p className="muted">
-              FIFO for quantity-tracked stock; actual acquisition cost for
-              individually tracked devices. Purchases create inventory assets.
-              Only sold stock becomes cost of goods sold. Money is stored in
+              FIFO costing for stock. Purchases create inventory assets. Only
+              sold stock becomes cost of goods sold. Money is stored in
               hundredths of an afghani.
             </p>
           </div>

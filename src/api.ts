@@ -16,7 +16,6 @@ export type Product = {
   minimum: number;
   reorder_level: number;
   stock: number;
-  serialized: number;
   image: string;
   barcode: string;
   location: string;
@@ -144,7 +143,7 @@ export async function downloadInvoice(doc: any) {
   const rows = doc.lines
     .map(
       (l: any) =>
-        `<tr><td>${esc(l.name)}<small>${esc(l.sku)}${(l.device_serials || []).map((d: any) => `<br>${esc(d.serial)}`).join("")}</small></td><td>${l.quantity}</td><td>${af(l.price, 2)}</td><td>${af(l.discount, 2)}</td><td>${af(l.price * l.quantity - l.discount, 2)}</td></tr>`,
+        `<tr><td>${esc(l.name)}<small>${esc(l.sku)}</small></td><td>${l.quantity}</td><td>${af(l.price, 2)}</td><td>${af(l.discount, 2)}</td><td>${af(l.price * l.quantity - l.discount, 2)}</td></tr>`,
     )
     .join("");
   const html = `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'"><title>${esc(doc.number)}</title><style>body{font:14px system-ui,sans-serif;color:#252528;max-width:850px;margin:48px auto;padding:24px}header{display:flex;justify-content:space-between}h1{font-size:24px}p,small{color:#64646a}small{display:block}table{width:100%;border-collapse:collapse;margin:32px 0}th,td{padding:14px 8px;border-bottom:1px solid #ddd;text-align:left}.total{text-align:right;font-size:18px}@media print{body{margin:0}}</style></head><body><header><div><h1>${esc(status.store.name)}</h1><p>${esc(status.store.address)}<br>${esc(status.store.phone)}</p></div><div><h2>${esc(doc.number)}</h2><p>${esc(doc.date)}</p></div></header><p>${doc.kind === "purchase" ? "Supplier" : "Customer"}: <strong>${esc(doc.party_name)}</strong></p><table><thead><tr><th>Product</th><th>Qty</th><th>Unit price</th><th>Discount</th><th>Total</th></tr></thead><tbody>${rows}</tbody></table><div class="total"><p>Total: <strong>${af(doc.total, 2)}</strong></p><p>Paid: ${af(doc.paid, 2)}</p><p>Returned: ${af(doc.returned || 0, 2)}</p><p>Outstanding: ${af(Math.max(0, doc.total - doc.paid - (doc.returned || 0)), 2)}</p></div><p>${esc(doc.note)}</p><small>AFN · No tax · Open this file in a browser to print or save as PDF.</small></body></html>`;

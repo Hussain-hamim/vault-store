@@ -28,7 +28,12 @@ export function Modal({
     );
     first?.focus();
     const key = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") {
+        const backdrops = document.querySelectorAll(".modal-backdrop");
+        if (backdrops[backdrops.length - 1] === ref.current?.parentElement)
+          onClose();
+        return;
+      }
       if (e.key === "Tab") {
         const list = Array.from(
           ref.current?.querySelectorAll<HTMLElement>(
@@ -138,10 +143,16 @@ export function Search({
   value,
   onChange,
   placeholder = "Search products…",
+  onFocus,
+  onBlur,
+  onClick,
 }: {
   value: string;
   onChange: (s: string) => void;
   placeholder?: string;
+  onFocus?: () => void;
+  onBlur?: () => void;
+  onClick?: () => void;
 }) {
   return (
     <div className="search-input">
@@ -151,9 +162,16 @@ export function Search({
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        onFocus={onFocus}
+        onBlur={onBlur}
+        onClick={onClick}
       />
       {value && (
-        <button aria-label="Clear search" onClick={() => onChange("")}>
+        <button
+          type="button"
+          aria-label="Clear search"
+          onClick={() => onChange("")}
+        >
           <XIcon size={14} />
         </button>
       )}
