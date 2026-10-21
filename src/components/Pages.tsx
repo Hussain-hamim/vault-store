@@ -166,7 +166,6 @@ export function ProductsPage({
                       price,
                       cost,
                       unit_cost,
-                      location,
                     }) => ({
                       name,
                       sku,
@@ -181,7 +180,6 @@ export function ProductsPage({
                               (stock ? cost / stock : unit_cost || 0) / 100,
                           }
                         : {}),
-                      location,
                     }),
                   ) || [],
                 );
@@ -208,7 +206,6 @@ export function ProductsPage({
                       <th>Unit cost</th>
                     )}
                     <th>Selling price</th>
-                    <th>Location</th>
                     <th />
                   </tr>
                 </thead>
@@ -218,7 +215,12 @@ export function ProductsPage({
                       <td>
                         <ProductName product={p} />
                       </td>
-                      <td>{p.category}</td>
+                      <td>
+                        {p.category}
+                        {p.category === "Accessories" && p.attributes?.Type
+                          ? ` · ${p.attributes.Type}`
+                          : ""}
+                      </td>
                       <td>{p.brand}</td>
                       <td>{p.model}</td>
                       <td>
@@ -245,12 +247,19 @@ export function ProductsPage({
                             )}
                           </strong>
                           <small className="block muted">
-                            {p.stock ? "Average stock cost" : "Catalog cost"}
+                            {p.cost_aed
+                              ? `AED ${(p.cost_aed / 100).toFixed(2)} · ${
+                                  p.fx_rate
+                                    ? `${(p.fx_rate / 10000).toLocaleString("en-US", { maximumFractionDigits: 4 })} rate`
+                                    : "rate —"
+                                }`
+                              : p.stock
+                                ? "Average stock cost"
+                                : "Catalog cost"}
                           </small>
                         </td>
                       )}
                       <td>{af(p.price, 2)}</td>
-                      <td>{p.location || "—"}</td>
                       <td>
                         <ArrowUpRightIcon size={15} />
                       </td>

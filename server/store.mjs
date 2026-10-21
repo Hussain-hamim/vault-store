@@ -57,7 +57,28 @@ export const today = () =>
   }).format(new Date());
 const text = z.string().trim().max(500),
   money = z.number().int().min(0).max(1_000_000_000_000),
-  positive = z.number().int().min(1).max(1_000_000);
+  positive = z.number().int().min(1).max(1_000_000),
+  /** AFN per 1 AED, scaled by 10_000 (e.g. 18.5 → 185000). */
+  fxRate = z.number().int().min(0).max(1_000_000_000);
+const afnFromAed = (aedMinor, rateScaled) => {
+  if (!aedMinor || !rateScaled) return 0;
+  return Math.round((aedMinor * rateScaled) / 10_000);
+};
+const ensureFxColumns = (db) => {
+  const add = (table, column, sqlType) => {
+    if (!db.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === column))
+      db.exec(
+        `ALTER TABLE ${table} ADD COLUMN ${column} ${sqlType} NOT NULL DEFAULT 0`,
+      );
+  };
+  add("products", "cost_aed", "INTEGER");
+  add("products", "fx_rate", "INTEGER");
+  add("batches", "cost_aed", "INTEGER");
+  add("batches", "fx_rate", "INTEGER");
+  add("document_lines", "cost_aed", "INTEGER");
+  add("document_lines", "fx_rate", "INTEGER");
+  add("documents", "fx_rate", "INTEGER");
+};
 const date = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/)
@@ -117,6 +138,8 @@ const productSchema = z.object({
   attributes: z.record(z.string(), z.string().max(200)).default({}),
   image: text.default(""),
   unit_cost: money.optional(),
+  cost_aed: money.default(0),
+  fx_rate: fxRate.default(0),
   opening_quantity: z.number().int().min(0).max(100000).default(0),
 });
 const lineSchema = z.object({
@@ -124,6 +147,8 @@ const lineSchema = z.object({
   quantity: positive,
   price: money,
   discount: money.default(0),
+  cost_aed: money.default(0),
+  fx_rate: fxRate.default(0),
 });
 const docSchema = z.object({
   kind: z.enum(["sale", "purchase"]),
@@ -133,6 +158,7 @@ const docSchema = z.object({
   paid: money,
   discount: money.default(0),
   note: text.default(""),
+  fx_rate: fxRate.default(0),
   request_key: z.string().min(8).max(100),
   lines: z.array(lineSchema).min(1).max(200),
 });
@@ -167,6 +193,7 @@ export class Store {
       this.db.exec(
         "ALTER TABLE devices ADD COLUMN serial_missing INTEGER NOT NULL DEFAULT 0",
       );
+    ensureFxColumns(this.db);
     this.sessions = new Map();
     this.attempts = new Map();
     this.backupBusy = false;
@@ -414,7 +441,7 @@ export class Store {
     if (closed && d.date <= closed)
       throw new Error("This accounting period is closed.");
     this.run(
-      "INSERT INTO documents VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+      "INSERT INTO documents(id,number,kind,party_id,date,total,paid,cost,discount,note,category,original_id,due_date,request_key,user_id,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
       d.id,
       d.number,
       d.kind,
@@ -461,20 +488,29 @@ export class Store {
   receive(product, line, doc) {
     const base = Math.floor(line.cost / line.quantity),
       remainder = line.cost % line.quantity,
-      costs = [];
+      costs = [],
+      unitAed = line.cost_aed || 0,
+      rate = line.fx_rate || 0;
     if (line.quantity - remainder)
       costs.push({ qty: line.quantity - remainder, cost: base });
     if (remainder) costs.push({ qty: remainder, cost: base + 1 });
     for (const c of costs) {
+      const bid = id();
       this.run(
-        "INSERT INTO batches VALUES (?,?,?,?,?,?,?)",
-        id(),
+        "INSERT INTO batches(id,product_id,line_id,quantity,remaining,unit_cost,received_at) VALUES (?,?,?,?,?,?,?)",
+        bid,
         product.id,
         line.id,
         c.qty,
         c.qty,
         c.cost,
         doc.created_at || `${doc.date}T${now().slice(11)}`,
+      );
+      this.run(
+        "UPDATE batches SET cost_aed=?,fx_rate=? WHERE id=?",
+        unitAed,
+        rate,
+        bid,
       );
     }
     this.move(doc, product, line.quantity, line.cost);
@@ -528,6 +564,14 @@ export class Store {
     const d = productSchema.parse(data);
     if (d.minimum > d.price)
       throw new Error("Minimum price cannot exceed selling price.");
+    if (d.cost_aed && !d.fx_rate)
+      throw new Error("Enter the AED→AFN exchange rate used for this cost.");
+    if (d.fx_rate && !d.cost_aed)
+      throw new Error("Enter the Dubai supplier cost in AED.");
+    const unitCost =
+      d.cost_aed && d.fx_rate
+        ? afnFromAed(d.cost_aed, d.fx_rate)
+        : (d.unit_cost ?? 0);
     return this.transaction(() => {
       const pid = id();
       this.run(
@@ -551,17 +595,23 @@ export class Store {
         now(),
       );
       this.run(
-        "UPDATE products SET unit_cost=? WHERE id=?",
-        d.unit_cost || 0,
+        "UPDATE products SET unit_cost=?,cost_aed=?,fx_rate=? WHERE id=?",
+        unitCost,
+        d.cost_aed || 0,
+        d.fx_rate || 0,
         pid,
       );
       if (d.opening_quantity) {
-        if (d.unit_cost === undefined)
+        if (!unitCost && unitCost !== 0)
           throw new Error("Enter the unit cost for opening stock.");
+        if (d.cost_aed && !d.fx_rate)
+          throw new Error("Enter the AED→AFN exchange rate for opening stock.");
         this.adjust(user, {
           product_id: pid,
           quantity: d.opening_quantity,
-          cost: d.unit_cost,
+          cost: unitCost,
+          cost_aed: d.cost_aed || 0,
+          fx_rate: d.fx_rate || 0,
           note: "Opening stock at product creation",
           opening: true,
           request_key: `product-opening-${pid}`,
@@ -589,8 +639,20 @@ export class Store {
         throw new Error("Choose a valid customer or supplier.");
       if (d.discount)
         throw new Error("Apply discounts to individual invoice lines.");
+      if (d.kind === "purchase" && d.lines.some((l) => l.cost_aed) && !d.fx_rate)
+        throw new Error(
+          "Enter the AED→AFN exchange rate used for this Dubai purchase.",
+        );
       let total = 0;
       for (const l of d.lines) {
+        if (d.kind === "purchase" && l.cost_aed) {
+          const expected = afnFromAed(l.cost_aed, l.fx_rate || d.fx_rate);
+          if (Math.abs(l.price - expected) > 1)
+            throw new Error(
+              "Purchase line AFN cost must match AED cost × exchange rate.",
+            );
+          l.fx_rate = l.fx_rate || d.fx_rate;
+        }
         if (l.discount > l.price * l.quantity)
           throw new Error("Discount exceeds line value.");
         total += l.price * l.quantity - l.discount;
@@ -603,6 +665,8 @@ export class Store {
       if (d.due_date && d.due_date < (d.date || today()))
         throw new Error("Due date cannot be before the invoice date.");
       const doc = this.document(d.kind, user, { ...d, total, ...identity });
+      if (d.kind === "purchase" && d.fx_rate)
+        this.run("UPDATE documents SET fx_rate=? WHERE id=?", d.fx_rate, doc.id);
       let cost = 0;
       for (const l of d.lines) {
         const p = this.one(
@@ -623,9 +687,11 @@ export class Store {
           ...l,
           id: id(),
           cost: d.kind === "purchase" ? l.price * l.quantity - l.discount : 0,
+          cost_aed: d.kind === "purchase" ? l.cost_aed || 0 : 0,
+          fx_rate: d.kind === "purchase" ? l.fx_rate || d.fx_rate || 0 : 0,
         };
         this.run(
-          "INSERT INTO document_lines VALUES (?,?,?,?,?,?,?,NULL)",
+          "INSERT INTO document_lines(id,document_id,product_id,quantity,price,cost,discount,original_line_id,cost_aed,fx_rate) VALUES (?,?,?,?,?,?,?,NULL,?,?)",
           line.id,
           doc.id,
           p.id,
@@ -633,6 +699,8 @@ export class Store {
           l.price,
           line.cost,
           l.discount,
+          line.cost_aed,
+          line.fx_rate,
         );
         if (d.kind === "sale") {
           line.cost = this.consume(p, line, doc);
@@ -641,7 +709,17 @@ export class Store {
             line.cost,
             line.id,
           );
-        } else this.receive(p, line, doc);
+        } else {
+          this.receive(p, line, doc);
+          if (line.cost_aed || line.fx_rate)
+            this.run(
+              "UPDATE products SET unit_cost=?,cost_aed=?,fx_rate=? WHERE id=?",
+              l.price,
+              line.cost_aed,
+              line.fx_rate,
+              p.id,
+            );
+        }
         cost += line.cost;
       }
       this.run("UPDATE documents SET cost=? WHERE id=?", cost, doc.id);
@@ -1078,7 +1156,7 @@ export class Store {
           lid = id();
         let lineCost = 0;
         this.run(
-          "INSERT INTO document_lines VALUES (?,?,?,?,?,?,?,?)",
+          "INSERT INTO document_lines(id,document_id,product_id,quantity,price,cost,discount,original_line_id) VALUES (?,?,?,?,?,?,?,?)",
           lid,
           doc.id,
           p.id,
@@ -1182,6 +1260,8 @@ export class Store {
           .max(1_000_000)
           .refine((n) => n !== 0),
         cost: money.default(0),
+        cost_aed: money.default(0),
+        fx_rate: fxRate.default(0),
         note: text.min(3),
         request_key: z.string().min(8),
         opening: z.boolean().default(false),
@@ -1208,13 +1288,17 @@ export class Store {
         note: d.note,
         request_key: d.request_key,
       });
+      if (d.fx_rate)
+        this.run("UPDATE documents SET fx_rate=? WHERE id=?", d.fx_rate, doc.id);
       const l = {
         id: id(),
         quantity: Math.abs(d.quantity),
         cost: Math.abs(d.quantity) * d.cost,
+        cost_aed: d.cost_aed || 0,
+        fx_rate: d.fx_rate || 0,
       };
       this.run(
-        "INSERT INTO document_lines VALUES (?,?,?,?,?,?,?,NULL)",
+        "INSERT INTO document_lines(id,document_id,product_id,quantity,price,cost,discount,original_line_id,cost_aed,fx_rate) VALUES (?,?,?,?,?,?,?,NULL,?,?)",
         l.id,
         doc.id,
         p.id,
@@ -1222,6 +1306,8 @@ export class Store {
         d.cost,
         l.cost,
         0,
+        l.cost_aed,
+        l.fx_rate,
       );
       if (!Number.isSafeInteger(l.cost) || l.cost > 1e12)
         throw new Error("Stock adjustment exceeds supported amount.");
@@ -1768,12 +1854,25 @@ export class Store {
             d.image,
             existing.id,
           );
-          if (d.unit_cost !== undefined)
-            this.run(
-              "UPDATE products SET unit_cost=? WHERE id=?",
-              d.unit_cost,
-              existing.id,
+          if (d.cost_aed && !d.fx_rate)
+            throw new Error(
+              "Enter the AED→AFN exchange rate used for this cost.",
             );
+          if (d.fx_rate && !d.cost_aed)
+            throw new Error("Enter the Dubai supplier cost in AED.");
+          const unitCost =
+            d.cost_aed && d.fx_rate
+              ? afnFromAed(d.cost_aed, d.fx_rate)
+              : d.unit_cost !== undefined
+                ? d.unit_cost
+                : existing.unit_cost;
+          this.run(
+            "UPDATE products SET unit_cost=?,cost_aed=?,fx_rate=? WHERE id=?",
+            unitCost,
+            d.cost_aed || 0,
+            d.fx_rate || 0,
+            existing.id,
+          );
           this.audit(user, "Update product", existing.id, {
             name: d.name,
             price: d.price,

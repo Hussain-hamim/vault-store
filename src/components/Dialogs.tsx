@@ -13,7 +13,13 @@ import {
 import {
   api,
   af,
+  aed,
   toMoney,
+  toFxRate,
+  afnFromAed,
+  fxRateLabel,
+  fxRateInput,
+  moneyInput,
   requestKey,
   businessDate,
   Product,
@@ -34,6 +40,94 @@ type DialogProps = {
   close: () => void;
   done: (message: string, result?: unknown) => void;
 };
+const PRODUCT_BRANDS = [
+  "Apple",
+  "Dell",
+  "Samsung",
+  "HP",
+  "Lenovo",
+  "Asus",
+  "Acer",
+  "Microsoft",
+  "Sony",
+  "LG",
+  "Xiaomi",
+  "Huawei",
+  "Anker",
+  "Logitech",
+  "Western Digital",
+  "Seagate",
+  "Kingston",
+  "SanDisk",
+  "Corsair",
+  "Razer",
+  "Other",
+];
+const ACCESSORY_TYPES = [
+  "Keyboard",
+  "Mouse",
+  "Headphones",
+  "Charger",
+  "Cable",
+  "Case",
+  "Mouse pad",
+  "Plush",
+  "Hard disk",
+  "Webcam",
+  "Hub",
+  "Speaker",
+  "Other",
+];
+function brandChoices(current?: string) {
+  if (current && !PRODUCT_BRANDS.includes(current))
+    return [current, ...PRODUCT_BRANDS];
+  return PRODUCT_BRANDS;
+}
+function accessoryChoices(current?: string) {
+  if (current && !ACCESSORY_TYPES.includes(current))
+    return [current, ...ACCESSORY_TYPES];
+  return ACCESSORY_TYPES;
+}
+const ACCESSORY_IMAGES: Record<string, string> = {
+  Keyboard: "/assets/keyboard.jpg",
+  Mouse: "/assets/mouse.jpg",
+  Headphones: "/assets/headphones.png",
+  Charger: "/assets/adapter.png",
+  Cable: "/assets/cable.jpg",
+  Case: "/assets/case.jpg",
+  "Mouse pad": "/assets/mouse-pad.jpg",
+  Plush: "/assets/plush.jpg",
+  "Hard disk": "/assets/storage.png",
+  Webcam: "/assets/webcam.jpg",
+  Hub: "/assets/hub.jpg",
+  Speaker: "/assets/speaker.jpg",
+};
+function productImage(category: string, accessoryType = "") {
+  if (category === "Computers") return "/assets/laptop.png";
+  if (category === "Tablets") return "/assets/tablet.png";
+  if (category === "Mobiles") return "/assets/phone.png";
+  if (category === "Storage") return "/assets/storage.png";
+  if (category !== "Accessories") return "/assets/adapter.png";
+  if (ACCESSORY_IMAGES[accessoryType]) return ACCESSORY_IMAGES[accessoryType];
+  const t = accessoryType.toLowerCase();
+  if (t.includes("key")) return ACCESSORY_IMAGES.Keyboard;
+  if (t.includes("mouse pad") || t.includes("mousepad"))
+    return ACCESSORY_IMAGES["Mouse pad"];
+  if (t.includes("mouse")) return ACCESSORY_IMAGES.Mouse;
+  if (t.includes("headphone") || t.includes("earbud") || t.includes("airpod"))
+    return ACCESSORY_IMAGES.Headphones;
+  if (t.includes("charg") || t.includes("adapter") || t.includes("power"))
+    return ACCESSORY_IMAGES.Charger;
+  if (t.includes("cable") || t.includes("cord")) return ACCESSORY_IMAGES.Cable;
+  if (t.includes("case") || t.includes("cover")) return ACCESSORY_IMAGES.Case;
+  if (t.includes("plush") || t.includes("toy")) return ACCESSORY_IMAGES.Plush;
+  if (t.includes("hard") || t.includes("disk") || t.includes("ssd") || t.includes("storage"))
+    return ACCESSORY_IMAGES["Hard disk"];
+  if (t.includes("web") || t.includes("cam")) return ACCESSORY_IMAGES.Webcam;
+  if (t.includes("hub") || t.includes("dock")) return ACCESSORY_IMAGES.Hub;
+  if (t.includes("speaker") || t.includes("audio")) return ACCESSORY_IMAGES.Speaker;
+  return ACCESSORY_IMAGES.Charger;
+}
 export function ProductForm({
   close,
   done,
@@ -44,14 +138,58 @@ export function ProductForm({
   product?: Product;
 }) {
   const [category, setCategory] = useState(product?.category || "Computers"),
+    [brandPick, setBrandPick] = useState(product?.brand || "Apple"),
+    [brandOther, setBrandOther] = useState(""),
+    [accessoryPick, setAccessoryPick] = useState(
+      product?.attributes?.Type || "Keyboard",
+    ),
+    [accessoryOther, setAccessoryOther] = useState(""),
+    [costAed, setCostAed] = useState(
+      product?.cost_aed ? moneyInput(product.cost_aed) : "",
+    ),
+    [fxRate, setFxRate] = useState(
+      product?.fx_rate ? fxRateInput(product.fx_rate) : "",
+    ),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
+  const costAedMinor = (() => {
+    try {
+      return costAed.trim() ? toMoney(costAed) : 0;
+    } catch {
+      return 0;
+    }
+  })();
+  const fxRateScaled = (() => {
+    try {
+      return fxRate.trim() ? toFxRate(fxRate) : 0;
+    } catch {
+      return 0;
+    }
+  })();
+  const unitCostAfn = afnFromAed(costAedMinor, fxRateScaled);
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
     setBusy(true);
     setError("");
     try {
+      const resolvedBrand =
+        brandPick === "Other" ? brandOther.trim() : brandPick.trim();
+      if (!resolvedBrand) throw new Error("Choose a company / brand.");
+      const resolvedAccessory =
+        category !== "Accessories"
+          ? ""
+          : accessoryPick === "Other"
+            ? accessoryOther.trim()
+            : accessoryPick.trim();
+      if (category === "Accessories" && !resolvedAccessory)
+        throw new Error("Choose which accessory this is.");
+      const cost_aed = costAed.trim() ? toMoney(costAed) : 0;
+      const fx_rate = fxRate.trim() ? toFxRate(fxRate) : 0;
+      if (!cost_aed || !fx_rate)
+        throw new Error(
+          "Enter the Dubai cost in AED and the AFN exchange rate at that time.",
+        );
       const attributes: Record<string, string> = {};
       for (const k of [
         "CPU",
@@ -68,30 +206,29 @@ export function ProductForm({
         const v = String(f.get(k) || "");
         if (v) attributes[k] = v;
       }
+      if (resolvedAccessory) attributes.Type = resolvedAccessory;
       await api(product ? "productUpdate" : "productCreate", {
         id: product?.id,
         name: f.get("name"),
-        brand: f.get("brand"),
+        brand: resolvedBrand,
         model: f.get("model"),
         sku: f.get("sku"),
         barcode: f.get("barcode"),
         category,
         price: toMoney(f.get("price")),
-        minimum: toMoney(f.get("minimum")),
+        minimum: product?.minimum ?? 0,
         reorder_level: Number(f.get("reorder_level")),
-        location: f.get("location"),
+        location: product?.location || "",
         condition: f.get("condition"),
         warranty: f.get("warranty"),
         attributes,
+        cost_aed,
+        fx_rate,
+        unit_cost: afnFromAed(cost_aed, fx_rate),
         ...(!product
           ? { opening_quantity: Number(f.get("opening_quantity") || 0) }
           : {}),
-        ...(f.has("unit_cost")
-          ? { unit_cost: toMoney(f.get("unit_cost")) }
-          : {}),
-        image:
-          product?.image ||
-          `/assets/${category === "Computers" ? "laptop" : category === "Tablets" ? "tablet" : category === "Mobiles" ? "phone" : category === "Storage" ? "storage" : "adapter"}.png`,
+        image: productImage(category, resolvedAccessory),
       });
       done(
         product
@@ -112,6 +249,12 @@ export function ProductForm({
         : category === "Storage"
           ? ["Storage", "Interface"]
           : ["Compatibility", "Wattage", "Color"];
+  const previewAccessory =
+    accessoryPick === "Other" ? accessoryOther.trim() : accessoryPick;
+  const previewImage = productImage(
+    category,
+    category === "Accessories" ? previewAccessory : "",
+  );
   return (
     <Modal
       title={product ? "Edit product" : "Add new product"}
@@ -124,6 +267,19 @@ export function ProductForm({
           <div className="form-section-title">
             <PackageIcon size={17} />
             Product information
+          </div>
+          <div className="product-form-preview">
+            <img src={previewImage} alt="" />
+            <div>
+              <strong>Catalog image</strong>
+              <small>
+                {category === "Accessories"
+                  ? previewAccessory
+                    ? `${previewAccessory} accessory photo`
+                    : "Pick an accessory type to choose its photo"
+                  : `${category} catalog photo`}
+              </small>
+            </div>
           </div>
           <div className="form-grid">
             <Field label="Product name">
@@ -151,14 +307,52 @@ export function ProductForm({
                 ))}
               </select>
             </Field>
+            {category === "Accessories" && (
+              <>
+                <Field label="Accessory type">
+                  <select
+                    value={accessoryPick}
+                    onChange={(e) => setAccessoryPick(e.target.value)}
+                    required
+                  >
+                    {accessoryChoices(product?.attributes?.Type).map((t) => (
+                      <option key={t}>{t}</option>
+                    ))}
+                  </select>
+                </Field>
+                {accessoryPick === "Other" && (
+                  <Field label="Custom accessory type">
+                    <input
+                      value={accessoryOther}
+                      onChange={(e) => setAccessoryOther(e.target.value)}
+                      placeholder="e.g. Drawing tablet"
+                      required
+                    />
+                  </Field>
+                )}
+              </>
+            )}
             <Field label="Company / brand">
-              <input
-                name="brand"
-                defaultValue={product?.brand}
-                placeholder="e.g. Apple"
+              <select
+                value={brandPick}
+                onChange={(e) => setBrandPick(e.target.value)}
                 required
-              />
+              >
+                {brandChoices(product?.brand).map((b) => (
+                  <option key={b}>{b}</option>
+                ))}
+              </select>
             </Field>
+            {brandPick === "Other" && (
+              <Field label="Custom company / brand">
+                <input
+                  value={brandOther}
+                  onChange={(e) => setBrandOther(e.target.value)}
+                  placeholder="e.g. Baseus"
+                  required
+                />
+              </Field>
+            )}
             <Field label="Model">
               <input
                 name="model"
@@ -184,17 +378,54 @@ export function ProductForm({
             </Field>
           </div>
           <div className="form-section-title">Pricing & stock rules</div>
-          <div className="form-grid three">
+          <div className="form-grid">
             <Field
-              label="Unit cost (AF)"
-              hint="Opening stock is valued at this cost. Later purchases keep their actual costs."
+              label="Unit cost (AED)"
+              hint="What you paid the Dubai supplier in dirhams."
             >
               <input
-                name="unit_cost"
                 type="number"
                 min="0"
                 step="0.01"
-                defaultValue={(product?.unit_cost ?? 0) / 100}
+                value={costAed}
+                onChange={(e) => setCostAed(e.target.value)}
+                placeholder="0.00"
+                required
+              />
+            </Field>
+            <Field
+              label="Exchange rate (AFN per 1 AED)"
+              hint="The Afghani rate on the day you bought this stock."
+            >
+              <input
+                type="number"
+                min="0"
+                step="0.0001"
+                value={fxRate}
+                onChange={(e) => setFxRate(e.target.value)}
+                placeholder="e.g. 18.50"
+                required
+              />
+            </Field>
+            <Field
+              label="Unit cost (AF)"
+              hint="Calculated from AED × rate for inventory and profit."
+            >
+              <input
+                value={unitCostAfn ? moneyInput(unitCostAfn) : ""}
+                readOnly
+                tabIndex={-1}
+                placeholder="0.00"
+              />
+            </Field>
+            <Field label="Selling price (AF)">
+              <input
+                name="price"
+                defaultValue={product ? product.price / 100 : undefined}
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="0.00"
                 required
               />
             </Field>
@@ -213,26 +444,6 @@ export function ProductForm({
                 />
               </Field>
             )}
-            <Field label="Selling price (AF)">
-              <input
-                name="price"
-                defaultValue={product ? product.price / 100 : undefined}
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="0.00"
-                required
-              />
-            </Field>
-            <Field label="Minimum price (AF)">
-              <input
-                name="minimum"
-                type="number"
-                min="0"
-                step="0.01"
-                defaultValue={product ? product.minimum / 100 : 0}
-              />
-            </Field>
             <Field label="Reorder level">
               <input
                 name="reorder_level"
@@ -240,15 +451,6 @@ export function ProductForm({
                 min="0"
                 defaultValue={product?.reorder_level ?? 5}
                 required
-              />
-            </Field>
-          </div>
-          <div className="form-grid">
-            <Field label="Shelf / location">
-              <input
-                name="location"
-                defaultValue={product?.location}
-                placeholder="e.g. A-01"
               />
             </Field>
             <Field label="Condition">
@@ -307,6 +509,8 @@ type CartLine = {
   quantity: number;
   price: string;
   discount: string;
+  /** Per-unit Dubai cost in AED (major units string). */
+  costAed?: string;
 };
 function BillFrame({
   title,
@@ -352,6 +556,7 @@ export function TradeForm({
     [party, setParty] = useState(""),
     [lines, setLines] = useState<CartLine[]>([]),
     [paid, setPaid] = useState(""),
+    [fxRate, setFxRate] = useState(""),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [initial, setInitial] = useState<any>(null),
@@ -451,6 +656,9 @@ export function TradeForm({
               quantity: line.quantity,
               price: String(line.price / 100),
               discount: String(line.discount / 100),
+              costAed: line.cost_aed
+                ? moneyInput(line.cost_aed)
+                : undefined,
             };
           }),
         );
@@ -458,6 +666,7 @@ export function TradeForm({
           setInitial(doc);
           setParty(doc.party_id);
           setPaid(String(doc.paid / 100));
+          if (doc.fx_rate) setFxRate(fxRateInput(doc.fx_rate));
           setLines(loaded);
         }
       })
@@ -471,8 +680,21 @@ export function TradeForm({
       active = false;
     };
   }, [documentId]);
+  function afnPriceFromAed(aedMajor: string, rateMajor: string) {
+    try {
+      if (!aedMajor.trim() || !rateMajor.trim()) return "";
+      return moneyInput(afnFromAed(toMoney(aedMajor), toFxRate(rateMajor)));
+    } catch {
+      return "";
+    }
+  }
   function add(p: Product) {
     if (lines.some((l) => l.product.id === p.id)) return;
+    const costAedMajor = p.cost_aed ? moneyInput(p.cost_aed) : "";
+    const rateForLine =
+      fxRate.trim() || (p.fx_rate ? fxRateInput(p.fx_rate) : "");
+    if (purchase && p.fx_rate && !fxRate.trim())
+      setFxRate(fxRateInput(p.fx_rate));
     setLines((ls) =>
       ls.some((l) => l.product.id === p.id)
         ? ls
@@ -481,14 +703,16 @@ export function TradeForm({
             {
               product: p,
               quantity: 1,
-              price: String(
-                purchase
-                  ? p.stock && p.cost
-                    ? Math.round(p.cost / p.stock) / 100
-                    : (p.unit_cost || 0) / 100
-                  : p.price / 100,
-              ),
+              price: purchase
+                ? afnPriceFromAed(costAedMajor, rateForLine) ||
+                  String(
+                    p.stock && p.cost
+                      ? Math.round(p.cost / p.stock) / 100
+                      : (p.unit_cost || 0) / 100,
+                  )
+                : String(p.price / 100),
               discount: "0",
+              ...(purchase ? { costAed: costAedMajor } : {}),
             },
           ],
     );
@@ -496,8 +720,28 @@ export function TradeForm({
   }
   const update = (i: number, key: keyof CartLine, v: any) =>
     setLines((ls) =>
-      ls.map((l, j) => (i === j ? { ...l, [key]: v } : l)),
+      ls.map((l, j) => {
+        if (i !== j) return l;
+        const next = { ...l, [key]: v };
+        if (purchase && (key === "costAed" || key === "price")) {
+          if (key === "costAed") {
+            const afn = afnPriceFromAed(String(v), fxRate);
+            if (afn) next.price = afn;
+          }
+        }
+        return next;
+      }),
     );
+  function applyFxRate(rate: string) {
+    setFxRate(rate);
+    if (!purchase) return;
+    setLines((ls) =>
+      ls.map((l) => {
+        const afn = afnPriceFromAed(l.costAed || "", rate);
+        return afn ? { ...l, price: afn } : l;
+      }),
+    );
+  }
   const total = lines.reduce(
     (s, l) =>
       s +
@@ -512,12 +756,32 @@ export function TradeForm({
     setError("");
     const f = new FormData(e.currentTarget);
     try {
-      const payload = lines.map((l) => ({
-        product_id: l.product.id,
-        quantity: l.quantity,
-        price: toMoney(l.price),
-        discount: toMoney(l.discount),
-      }));
+      const rate = purchase && fxRate.trim() ? toFxRate(fxRate) : 0;
+      if (purchase && lines.some((l) => (l.costAed || "").trim()) && !rate)
+        throw new Error(
+          "Enter the AED→AFN exchange rate used for this Dubai purchase.",
+        );
+      const payload = lines.map((l) => {
+        const cost_aed =
+          purchase && (l.costAed || "").trim() ? toMoney(l.costAed!) : 0;
+        const price = toMoney(l.price);
+        if (purchase && cost_aed) {
+          const expected = afnFromAed(cost_aed, rate);
+          if (Math.abs(price - expected) > 1)
+            throw new Error(
+              `${l.product.name}: AFN cost must equal AED × exchange rate.`,
+            );
+        }
+        return {
+          product_id: l.product.id,
+          quantity: l.quantity,
+          price,
+          discount: toMoney(l.discount),
+          ...(purchase
+            ? { cost_aed, fx_rate: cost_aed ? rate : 0 }
+            : {}),
+        };
+      });
       await api(documentId ? "saleEdit" : kind, {
         ...(documentId ? { id: documentId, revision: initial.revision } : {}),
         party_id: party,
@@ -526,6 +790,7 @@ export function TradeForm({
         date: f.get("date"),
         due_date: f.get("due_date") || null,
         note: f.get("note"),
+        ...(purchase ? { fx_rate: rate } : {}),
         request_key: key.current,
       });
       done(
@@ -617,6 +882,42 @@ export function TradeForm({
                   />
                 </Field>
               </div>
+              {purchase && (
+                <div className="form-grid" style={{ marginTop: 12 }}>
+                  <Field
+                    label="Exchange rate (AFN per 1 AED)"
+                    hint="Dirham rate on this purchase day — used for every line."
+                  >
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.0001"
+                      value={fxRate}
+                      onChange={(e) => applyFxRate(e.target.value)}
+                      placeholder="e.g. 18.50"
+                      required
+                    />
+                  </Field>
+                  <Field label="Rate applied">
+                    <input
+                      value={
+                        (() => {
+                          try {
+                            return fxRate.trim()
+                              ? fxRateLabel(toFxRate(fxRate))
+                              : "";
+                          } catch {
+                            return "";
+                          }
+                        })()
+                      }
+                      readOnly
+                      tabIndex={-1}
+                      placeholder="Enter rate above"
+                    />
+                  </Field>
+                </div>
+              )}
               {!purchase && selectedParty?.walk_in && total - payment > 0 && (
                 <p className="credit-hint">
                   Walk-in customers must pay in full. Add or choose a named
@@ -759,7 +1060,7 @@ export function TradeForm({
                           <TrashIcon size={17} />
                         </button>
                       </div>
-                      <div className="form-grid three">
+                      <div className={`form-grid ${purchase ? "" : "three"}`}>
                         <Field label="Quantity">
                           <input
                             aria-label={`${l.product.name} quantity`}
@@ -773,20 +1074,50 @@ export function TradeForm({
                             required
                           />
                         </Field>
-                        <Field
-                          label={
-                            purchase ? "Unit cost (AF)" : "Unit price (AF)"
-                          }
-                        >
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={l.price}
-                            onChange={(e) => update(i, "price", e.target.value)}
-                            required
-                          />
-                        </Field>
+                        {purchase ? (
+                          <>
+                            <Field label="Unit cost (AED)">
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={l.costAed ?? ""}
+                                onChange={(e) =>
+                                  update(i, "costAed", e.target.value)
+                                }
+                                placeholder="0.00"
+                                required
+                              />
+                            </Field>
+                            <Field
+                              label="Unit cost (AF)"
+                              hint="From AED × invoice rate"
+                            >
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={l.price}
+                                readOnly
+                                tabIndex={-1}
+                                required
+                              />
+                            </Field>
+                          </>
+                        ) : (
+                          <Field label="Unit price (AF)">
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={l.price}
+                              onChange={(e) =>
+                                update(i, "price", e.target.value)
+                              }
+                              required
+                            />
+                          </Field>
+                        )}
                         <Field label="Line discount (AF)">
                           <input
                             type="number"
@@ -856,7 +1187,9 @@ export function TradeForm({
             </div>
           </div>
           <div className="modal-actions">
-            <span className="subtle">AFN · No tax</span>
+            <span className="subtle">
+              {purchase ? "AED purchase → AFN stock · No tax" : "AFN · No tax"}
+            </span>
             <button type="button" className="button" onClick={close}>
               Cancel
             </button>
@@ -1263,6 +1596,12 @@ export function InvoiceDialog({
                 <span>Due date</span>
                 <strong>{doc.due_date || "—"}</strong>
               </div>
+              {doc.kind === "purchase" && !!doc.fx_rate && (
+                <div>
+                  <span>Exchange rate</span>
+                  <strong>{fxRateLabel(doc.fx_rate)}</strong>
+                </div>
+              )}
             </div>
             {doc.lines.length > 0 && (
               <table className="data-table">
@@ -1270,7 +1609,10 @@ export function InvoiceDialog({
                   <tr>
                     <th>Product</th>
                     <th>Quantity</th>
-                    <th>Unit price</th>
+                    {doc.kind === "purchase" && <th>Unit cost (AED)</th>}
+                    <th>
+                      {doc.kind === "purchase" ? "Unit cost (AF)" : "Unit price"}
+                    </th>
                     <th>Discount</th>
                     <th>Total</th>
                   </tr>
@@ -1289,6 +1631,9 @@ export function InvoiceDialog({
                           </small>
                         )}
                       </td>
+                      {doc.kind === "purchase" && (
+                        <td>{l.cost_aed ? aed(l.cost_aed) : "—"}</td>
+                      )}
                       <td>{af(l.price, 2)}</td>
                       <td>{af(l.discount, 2)}</td>
                       <td>{af(l.quantity * l.price - l.discount, 2)}</td>
@@ -1568,10 +1913,14 @@ export function ProductDetail({
             <p>
               {product.condition} · {product.warranty || "No warranty set"}
             </p>
-            <p>
-              Location: {product.location || "Not set"} · Reorder at{" "}
-              {product.reorder_level}
-            </p>
+            <p>Reorder at {product.reorder_level}</p>
+            {(product.cost_aed || product.fx_rate) && (
+              <p>
+                Dubai cost {aed(product.cost_aed || 0)} ·{" "}
+                {fxRateLabel(product.fx_rate || 0)} · stock cost{" "}
+                {af(product.unit_cost || 0, 2)}
+              </p>
+            )}
           </div>
         </div>
         <div className="spec-grid">

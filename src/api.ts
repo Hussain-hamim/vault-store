@@ -24,6 +24,10 @@ export type Product = {
   attributes: Record<string, string>;
   cost?: number;
   unit_cost?: number;
+  /** Dubai supplier unit cost in fils (AED × 100). */
+  cost_aed?: number;
+  /** AFN per 1 AED, scaled by 10_000 (e.g. 18.5 → 185000). */
+  fx_rate?: number;
 };
 export type Party = {
   id: string;
@@ -85,6 +89,8 @@ export const businessDate = () =>
   }).format(new Date());
 export const af = (amount = 0, decimals = 0) =>
   `AF ${new Intl.NumberFormat("en-US", { maximumFractionDigits: decimals, minimumFractionDigits: decimals }).format(amount / 100)}`;
+export const aed = (amount = 0, decimals = 2) =>
+  `AED ${new Intl.NumberFormat("en-US", { maximumFractionDigits: decimals, minimumFractionDigits: decimals }).format(amount / 100)}`;
 export const shortMoney = (amount = 0) => {
   const n = amount / 100;
   return n >= 1e6
@@ -101,6 +107,34 @@ export function toMoney(value: FormDataEntryValue | null | string) {
   const n = Number(whole) * 100 + Number(fraction.padEnd(2, "0"));
   if (!Number.isSafeInteger(n)) throw new Error("Amount is too large.");
   return n;
+}
+/** Parse AFN-per-AED rate into a scaled integer (×10_000). */
+export function toFxRate(value: FormDataEntryValue | null | string) {
+  const s = String(value ?? "").trim();
+  if (!s) return 0;
+  if (!/^\d+(\.\d{1,4})?$/.test(s))
+    throw new Error("Enter the exchange rate with up to four decimal places.");
+  const [whole, fraction = ""] = s.split(".");
+  const n = Number(whole) * 10_000 + Number(fraction.padEnd(4, "0"));
+  if (!Number.isSafeInteger(n) || n <= 0)
+    throw new Error("Exchange rate must be greater than zero.");
+  return n;
+}
+export const fxRateLabel = (rate = 0) =>
+  rate
+    ? `${(rate / 10_000).toLocaleString("en-US", { maximumFractionDigits: 4 })} AFN / AED`
+    : "—";
+export function afnFromAed(aedMinor = 0, rateScaled = 0) {
+  if (!aedMinor || !rateScaled) return 0;
+  return Math.round((aedMinor * rateScaled) / 10_000);
+}
+export function moneyInput(amount = 0) {
+  return (amount / 100).toFixed(2);
+}
+export function fxRateInput(rate = 0) {
+  if (!rate) return "";
+  const n = rate / 10_000;
+  return Number.isInteger(n) ? String(n) : String(n);
 }
 export function exportCSV(name: string, rows: Record<string, unknown>[]) {
   if (!rows.length) return;

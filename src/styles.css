@@ -1916,6 +1916,29 @@ button:active {
   padding: 7px;
   border-radius: 3px;
 }
+.product-form-preview {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 0 0 18px;
+  padding: 12px 14px;
+  border: 1px solid #e8ebe3;
+  background: #fafaf7;
+}
+.product-form-preview img {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  background: #f0f0ee;
+  flex-shrink: 0;
+}
+.product-form-preview strong {
+  display: block;
+  font-size: 14px;
+}
+.product-form-preview small {
+  color: #64646a;
+}
 .form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

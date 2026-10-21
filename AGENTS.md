@@ -12,7 +12,11 @@ Desktop testing: keep `npm run dev` running, then use `npm run desktop:dev` (not
 
 ## Store workflow decisions
 - Inventory opens the product table with company, model, quantity, unit cost and selling price.
-- New products support unit cost and opening stock in the same form.
+- New products support unit cost and opening stock in the same form; unit cost and selling price sit side by side. Minimum price and shelf location are not collected on the product form for now.
+- Stock is bought from Dubai in AED and sold in Afghanistan in AFN. Product and purchase forms record unit cost in AED plus the AFN-per-AED exchange rate at that time; AFN unit cost is calculated and stored for inventory/ledgers.
+- Product company/brand is chosen from a picker (Apple, Dell, Samsung, and similar; Other for a custom name).
+- When category is Accessories, the form also asks for accessory type (keyboard, plush, hard disk, headphones, and similar; Other for a custom type).
+- Each accessory type maps to its own catalog photo (charger, headphones, keyboard, etc.), previewed in the add/edit product form.
 - Purchase invoices contain multiple product lines; stock is quantity-only (no serial/IMEI tracking).
 - New Sale is a full-page bill editor, with a separate invoice-history section providing view, edit, hard-delete and download actions.
 - New Sale uses a two-column bill workspace: a fixed-height product catalog (search + scroll + Load more) beside the bill lines. Results show image, name, brand/model/SKU, specs and stock.
