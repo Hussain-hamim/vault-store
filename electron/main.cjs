@@ -62,8 +62,7 @@ async function reloadDatabaseWorker(reason = "server change") {
   try {
     db = await createDatabaseWorker();
     await previous.close();
-    if (mainWindow && !mainWindow.isDestroyed())
-      mainWindow.webContents.reloadIgnoringCache();
+    // Keep the window open — sessions are durable in SQLite, so the user stays signed in.
   } catch (error) {
     console.error("[vault-desktop] Worker reload failed:", error);
     db = previous;

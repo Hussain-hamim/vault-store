@@ -17,7 +17,16 @@ import {
   DatabaseIcon,
   HardDrivesIcon,
 } from "@phosphor-icons/react";
-import { api, af, exportCSV, businessDate, Product, Party, User } from "../api";
+import {
+  api,
+  af,
+  exportCSV,
+  businessDate,
+  getToken,
+  Product,
+  Party,
+  User,
+} from "../api";
 import {
   Search,
   PageIntro,
@@ -1568,9 +1577,7 @@ export function BackupsPage({ refresh, toast }: PageProps) {
         throw new Error(
           "Open the desktop application to install the operating system backup schedule.",
         );
-      await window.vault.installSchedule(
-        sessionStorage.getItem("vault-session") || "",
-      );
+      await window.vault.installSchedule(getToken());
       toast("Daily backup schedule installed for this desktop account.");
     } catch (e: any) {
       setLocalError(e.message);
@@ -1597,10 +1604,7 @@ export function BackupsPage({ refresh, toast }: PageProps) {
         );
       const backup = await window.vault.pickBackup();
       if (!backup) return;
-      const result = await window.vault.restore(
-        backup,
-        sessionStorage.getItem("vault-session") || "",
-      );
+      const result = await window.vault.restore(backup, getToken());
       if (!result.cancelled) toast("Backup restored. Restarting…");
     } catch (e: any) {
       setLocalError(e.message);

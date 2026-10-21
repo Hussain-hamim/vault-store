@@ -194,7 +194,19 @@ export class Store {
         "ALTER TABLE devices ADD COLUMN serial_missing INTEGER NOT NULL DEFAULT 0",
       );
     ensureFxColumns(this.db);
-    this.sessions = new Map();
+    this.db.exec(
+      "CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id),expires_at INTEGER NOT NULL) STRICT",
+    );
+    this.db
+      .prepare("DELETE FROM sessions WHERE expires_at<?")
+      .run(Date.now());
+    // Cache mirrors durable sessions so worker reloads keep desktop/browser logins.
+    this.sessions = new Map(
+      this.all("SELECT token,user_id,expires_at FROM sessions").map((r) => [
+        r.token,
+        { id: r.user_id, expires: r.expires_at },
+      ]),
+    );
     this.attempts = new Map();
     this.backupBusy = false;
     this.run(
@@ -311,12 +323,35 @@ export class Store {
     };
   }
   auth(token, permission) {
-    const s = this.sessions.get(token);
-    if (!s || s.expires < Date.now())
+    if (!token || typeof token !== "string")
       throw new Error("SESSION_EXPIRED: Please sign in again.");
+    let s = this.sessions.get(token);
+    if (!s) {
+      const row = this.one("SELECT * FROM sessions WHERE token=?", token);
+      if (row) {
+        s = { id: row.user_id, expires: row.expires_at };
+        this.sessions.set(token, s);
+      }
+    }
+    if (!s || s.expires < Date.now()) {
+      if (s) {
+        this.sessions.delete(token);
+        this.run("DELETE FROM sessions WHERE token=?", token);
+      }
+      throw new Error("SESSION_EXPIRED: Please sign in again.");
+    }
     const u = this.one("SELECT * FROM users WHERE id=? AND active=1", s.id);
-    if (!u) throw new Error("SESSION_EXPIRED: User is disabled.");
+    if (!u) {
+      this.sessions.delete(token);
+      this.run("DELETE FROM sessions WHERE token=?", token);
+      throw new Error("SESSION_EXPIRED: User is disabled.");
+    }
     s.expires = Date.now() + 8 * 3600_000;
+    this.run(
+      "UPDATE sessions SET expires_at=? WHERE token=?",
+      s.expires,
+      token,
+    );
     const user = this.publicUser(u);
     if (permission && !user.permissions.includes(permission))
       throw new Error(`Permission required: ${permission}`);
@@ -324,10 +359,14 @@ export class Store {
   }
   session(user) {
     const token = randomBytes(32).toString("hex");
-    this.sessions.set(token, {
-      id: user.id,
-      expires: Date.now() + 8 * 3600_000,
-    });
+    const expires = Date.now() + 8 * 3600_000;
+    this.sessions.set(token, { id: user.id, expires });
+    this.run(
+      "INSERT INTO sessions(token,user_id,expires_at) VALUES (?,?,?)",
+      token,
+      user.id,
+      expires,
+    );
     return { token, user: this.publicUser(user) };
   }
   setup(data) {
@@ -1816,6 +1855,7 @@ export class Store {
         return user;
       case "logout":
         this.sessions.delete(token);
+        this.run("DELETE FROM sessions WHERE token=?", token);
         return { ok: true };
       case "overview":
         return this.overview(user, args);

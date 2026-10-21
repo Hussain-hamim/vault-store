@@ -52,12 +52,34 @@ declare global {
     };
   }
 }
-let token = sessionStorage.getItem("vault-session") || "";
+function readStoredToken() {
+  try {
+    return (
+      localStorage.getItem("vault-session") ||
+      sessionStorage.getItem("vault-session") ||
+      ""
+    );
+  } catch {
+    return "";
+  }
+}
+let token = readStoredToken();
+export function getToken() {
+  return token || readStoredToken();
+}
 export function setToken(value: string) {
   token = value;
-  value
-    ? sessionStorage.setItem("vault-session", value)
-    : sessionStorage.removeItem("vault-session");
+  try {
+    if (value) {
+      localStorage.setItem("vault-session", value);
+      sessionStorage.removeItem("vault-session");
+    } else {
+      localStorage.removeItem("vault-session");
+      sessionStorage.removeItem("vault-session");
+    }
+  } catch {
+    /* private mode / storage blocked */
+  }
 }
 export async function api<T = any>(
   command: string,
