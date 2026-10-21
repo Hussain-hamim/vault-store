@@ -524,8 +524,9 @@ export class Store {
       throw new Error(
         "Stock transactions must follow the most recent stock movement date for this product.",
       );
+    // Strict FIFO: oldest receipt first; rowid breaks same-timestamp ties.
     const batches = this.all(
-      "SELECT * FROM batches WHERE product_id=? AND remaining>0 AND SUBSTR(received_at,1,10)<=? ORDER BY received_at,rowid",
+      "SELECT * FROM batches WHERE product_id=? AND remaining>0 AND SUBSTR(received_at,1,10)<=? ORDER BY received_at ASC, rowid ASC",
       product.id,
       doc.date,
     );
@@ -1126,7 +1127,7 @@ export class Store {
           let remaining = l.quantity;
           amount = 0;
           const batches = this.all(
-            "SELECT b.* FROM batches b WHERE b.line_id=? AND b.remaining>0 ORDER BY b.id",
+            "SELECT b.* FROM batches b WHERE b.line_id=? AND b.remaining>0 ORDER BY b.received_at ASC, b.rowid ASC",
             ol.id,
           );
           for (const b of batches) {
@@ -1168,8 +1169,9 @@ export class Store {
         );
         if (kind === "sale_return") {
           let remaining = r.quantity;
+          // Undo sale allocations in the same FIFO order they were consumed.
           const allocations = this.all(
-            "SELECT a.*,b.unit_cost FROM allocations a JOIN batches b ON b.id=a.batch_id WHERE a.line_id=? AND a.returned<a.quantity",
+            "SELECT a.*,b.unit_cost FROM allocations a JOIN batches b ON b.id=a.batch_id WHERE a.line_id=? AND a.returned<a.quantity ORDER BY a.rowid ASC",
             ol.id,
           );
           for (const a of allocations) {
@@ -1194,7 +1196,7 @@ export class Store {
         } else {
           let remaining = r.quantity;
           const batches = this.all(
-            "SELECT * FROM batches WHERE line_id=? AND remaining>0 ORDER BY id",
+            "SELECT * FROM batches WHERE line_id=? AND remaining>0 ORDER BY received_at ASC, rowid ASC",
             ol.id,
           );
           for (const b of batches) {

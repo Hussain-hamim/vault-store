@@ -981,3 +981,111 @@ test("invoice editing preserves cost after a catalog SKU change", async (t) => {
   assert.equal(f.s.one("SELECT stock FROM products WHERE id=?", p).stock, 1);
   summariesMatch(f.s);
 });
+
+test("FIFO keeps separate purchase costs and profit uses batches sold, not catalog cost", (t) => {
+  const f = fixture(t);
+  const p = f.s.createProduct(f.u, {
+    name: "Dubai Keyboard",
+    brand: "Logitech",
+    model: "K380",
+    sku: "FIFO-KB",
+    category: "Accessories",
+    price: 250000,
+    attributes: { Type: "Keyboard" },
+  }).id;
+  // Older cheap lot: 10 AED × 18.00 AFN/AED = 180 AFN
+  f.s.postTrade(f.u, {
+    kind: "purchase",
+    party_id: f.supplier,
+    paid: 0,
+    fx_rate: 180000,
+    request_key: key(),
+    lines: [
+      {
+        product_id: p,
+        quantity: 3,
+        cost_aed: 1000,
+        fx_rate: 180000,
+        price: 18000,
+        discount: 0,
+      },
+    ],
+  });
+  // Newer expensive lot: 10 AED × 20.00 = 200 AFN
+  f.s.postTrade(f.u, {
+    kind: "purchase",
+    party_id: f.supplier,
+    paid: 0,
+    fx_rate: 200000,
+    request_key: key(),
+    lines: [
+      {
+        product_id: p,
+        quantity: 2,
+        cost_aed: 1000,
+        fx_rate: 200000,
+        price: 20000,
+        discount: 0,
+      },
+    ],
+  });
+  const batches = f.s.all(
+    "SELECT remaining,unit_cost,cost_aed,fx_rate FROM batches WHERE product_id=? AND remaining>0 ORDER BY received_at,rowid",
+    p,
+  );
+  assert.equal(batches.length, 2);
+  assert.deepEqual(
+    batches.map((b) => [b.remaining, b.unit_cost, b.cost_aed, b.fx_rate]),
+    [
+      [3, 18000, 1000, 180000],
+      [2, 20000, 1000, 200000],
+    ],
+  );
+  assert.equal(f.s.one("SELECT stock FROM products WHERE id=?", p).stock, 5);
+  // Catalog shows latest purchase, but COGS must still use FIFO batches.
+  assert.equal(f.s.one("SELECT unit_cost FROM products WHERE id=?", p).unit_cost, 20000);
+  // Sell 4: 3×18000 + 1×20000 = 74000; revenue 4×250000; gross 1000000-74000
+  const doc = f.s.postTrade(f.u, {
+    kind: "sale",
+    party_id: f.customer,
+    paid: 1_000_000,
+    request_key: key(),
+    lines: [{ product_id: p, quantity: 4, price: 250000 }],
+  });
+  assert.equal(doc.cost, 74000);
+  assert.equal(f.s.totals().gross, 1_000_000 - 74000);
+  assert.equal(f.s.one("SELECT stock FROM products WHERE id=?", p).stock, 1);
+  assert.equal(
+    f.s.one(
+      "SELECT remaining,unit_cost FROM batches WHERE product_id=? AND remaining>0",
+      p,
+    ).unit_cost,
+    20000,
+  );
+  // Return one sold unit → restores oldest consumed cost (18000)
+  const ret = f.s.returnTrade(f.u, {
+    original_id: doc.id,
+    lines: [{ line_id: doc.lines[0].id, quantity: 1 }],
+    note: "Return one keyboard",
+    request_key: key(),
+  });
+  assert.equal(ret.cost, 18000);
+  assert.equal(f.s.one("SELECT stock FROM products WHERE id=?", p).stock, 2);
+  // Next sale takes restored cheap unit first, then remaining expensive unit
+  const next = f.s.postTrade(f.u, {
+    kind: "sale",
+    party_id: f.customer,
+    paid: 500000,
+    request_key: key(),
+    lines: [{ product_id: p, quantity: 2, price: 250000 }],
+  });
+  assert.equal(next.cost, 18000 + 20000);
+  assert.equal(f.s.one("SELECT stock FROM products WHERE id=?", p).stock, 0);
+  assert.equal(
+    f.s.one(
+      "SELECT COUNT(*) n FROM products p WHERE p.stock<>(SELECT COALESCE(SUM(remaining),0) FROM batches b WHERE b.product_id=p.id)",
+    ).n,
+    0,
+  );
+  balanced(f.s);
+});

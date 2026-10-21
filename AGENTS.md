@@ -14,6 +14,7 @@ Desktop testing: keep `npm run dev` running, then use `npm run desktop:dev` (not
 - Inventory opens the product table with company, model, quantity, unit cost and selling price.
 - New products support unit cost and opening stock in the same form; unit cost and selling price sit side by side. Minimum price and shelf location are not collected on the product form for now.
 - Stock is bought from Dubai in AED and sold in Afghanistan in AFN. Product and purchase forms record unit cost in AED plus the AFN-per-AED exchange rate at that time; AFN unit cost is calculated and stored for inventory/ledgers.
+- Inventory costing is FIFO: each purchase keeps its own cost batch (AED + rate + AFN). Sales consume the oldest remaining batch first; profit uses those batch costs, not the catalog’s latest unit cost. Sale returns restore cost to the original batches in the same order.
 - Product company/brand is chosen from a picker (Apple, Dell, Samsung, and similar; Other for a custom name).
 - When category is Accessories, the form also asks for accessory type (keyboard, plush, hard disk, headphones, and similar; Other for a custom type).
 - Each accessory type maps to its own catalog photo (charger, headphones, keyboard, etc.), previewed in the add/edit product form.
