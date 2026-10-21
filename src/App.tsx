@@ -20,7 +20,6 @@ import {
   SlidersHorizontalIcon,
   BellIcon,
   EnvelopeSimpleIcon,
-  PlusCircleIcon,
   CheckCircleIcon,
   XIcon,
   ArrowRightIcon,
@@ -184,7 +183,7 @@ export function App() {
   }, []);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k" && page === "Dashboard") {
         e.preventDefault();
         searchRef.current?.focus();
       }
@@ -192,7 +191,7 @@ export function App() {
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, []);
+  }, [page]);
   async function signOut() {
     await api("logout");
     setToken("");
@@ -239,40 +238,6 @@ export function App() {
   const props = { user, refresh, open, toast, globalSearch: search };
   const cost = user.permissions.includes("view_costs");
   const current = page === "Products" ? "Inventory" : page;
-  const primary =
-    page === "Sales"
-      ? "New sale"
-      : page === "Purchases"
-        ? "Receive purchase"
-        : page === "Customers"
-          ? "Add customer"
-          : page === "Suppliers"
-            ? "Add supplier"
-            : page === "Expenses" || page === "Daily book"
-              ? "Record expense"
-              : "Add new product";
-  const action =
-    page === "Sales"
-      ? "sale"
-      : page === "Purchases"
-        ? "purchase"
-        : page === "Customers"
-          ? "customer"
-          : page === "Suppliers"
-            ? "supplier"
-            : page === "Expenses" || page === "Daily book"
-              ? "expense"
-              : "product";
-  const actionPermission =
-    action === "product"
-      ? "inventory"
-      : action === "sale"
-        ? "sales"
-        : action === "purchase"
-          ? "purchases"
-          : ["customer", "supplier"].includes(action)
-            ? "people"
-            : "finance";
   return (
     <div className={`app-shell ${collapsed ? "sidebar-collapsed" : ""}`}>
       <aside className="sidebar">
@@ -407,80 +372,74 @@ export function App() {
         </div>
       </aside>
       <main className="main-workspace">
-        <header className="topbar">
-          <div className="page-title">
-            <h1>{page === "Products" ? "Inventory" : page}</h1>
-            {page === "Products" && (
-              <span className="page-title-tag">All products</span>
-            )}
-          </div>
-          <form
-            className="global-search"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (search.trim()) {
-                if (user.permissions.includes("inventory")) setPage("Products");
-                else if (user.permissions.includes("sales")) setPage("Sales");
-              }
-            }}
-          >
-            <MagnifyingGlassIcon size={18} />
-            <input
-              ref={searchRef}
-              aria-label="Search your store"
-              placeholder="Search here"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-            <kbd>⌘ K</kbd>
-          </form>
-          <div className="topbar-actions">
-            <button
-              className="header-icon filter-icon"
-              aria-label="View inventory"
-              title="View inventory"
-              onClick={() =>
-                navigate(
-                  user.permissions.includes("inventory")
-                    ? "Products"
-                    : "Dashboard",
-                )
-              }
+        {page === "Dashboard" && (
+          <header className="topbar">
+            <div className="page-title">
+              <h1>Dashboard</h1>
+            </div>
+            <form
+              className="global-search"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (search.trim()) {
+                  if (user.permissions.includes("inventory"))
+                    setPage("Products");
+                  else if (user.permissions.includes("sales")) setPage("Sales");
+                }
+              }}
             >
-              <SlidersHorizontalIcon size={19} />
-            </button>
-            <span className="header-divider" />
-            <button
-              className="header-icon"
-              aria-label="Stock alerts"
-              title="Stock alerts"
-              onClick={() => open("lowStock")}
-            >
-              <BellIcon size={20} />
-            </button>
-            <button
-              className="header-icon messages-icon"
-              aria-label="Backup status"
-              title="Backup status"
-              onClick={() =>
-                navigate(
-                  user.permissions.includes("backups")
-                    ? "Backups"
-                    : "Dashboard",
-                )
-              }
-            >
-              <EnvelopeSimpleIcon size={21} />
-              <i />
-            </button>
-            {user.permissions.includes(actionPermission) && (
-              <button className="header-add" onClick={() => open(action)}>
-                {primary}
-                <PlusCircleIcon weight="fill" size={18} />
+              <MagnifyingGlassIcon size={18} />
+              <input
+                ref={searchRef}
+                aria-label="Search your store"
+                placeholder="Search here"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+              <kbd>⌘ K</kbd>
+            </form>
+            <div className="topbar-actions">
+              <button
+                className="header-icon filter-icon"
+                aria-label="View inventory"
+                title="View inventory"
+                onClick={() =>
+                  navigate(
+                    user.permissions.includes("inventory")
+                      ? "Products"
+                      : "Dashboard",
+                  )
+                }
+              >
+                <SlidersHorizontalIcon size={19} />
               </button>
-            )}
-          </div>
-        </header>
+              <span className="header-divider" />
+              <button
+                className="header-icon"
+                aria-label="Stock alerts"
+                title="Stock alerts"
+                onClick={() => open("lowStock")}
+              >
+                <BellIcon size={20} />
+              </button>
+              <button
+                className="header-icon messages-icon"
+                aria-label="Backup status"
+                title="Backup status"
+                onClick={() =>
+                  navigate(
+                    user.permissions.includes("backups")
+                      ? "Backups"
+                      : "Dashboard",
+                  )
+                }
+              >
+                <EnvelopeSimpleIcon size={21} />
+                <i />
+              </button>
+            </div>
+          </header>
+        )}
         <div className="workspace-scroll">
           {page === "Dashboard" ? (
             <Dashboard
