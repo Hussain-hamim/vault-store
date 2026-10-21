@@ -1730,7 +1730,14 @@ export class Store {
     };
   }
   capitalReport(args = {}) {
-    const asOf = date.parse(args.to || today());
+    const d = z
+      .object({
+        to: date.optional(),
+        after: z.string().default(""),
+        limit: z.number().int().min(1).max(100).default(25),
+      })
+      .parse(args);
+    const asOf = date.parse(d.to || today());
     const first =
       this.one("SELECT MIN(date) d FROM journal WHERE date<=?", asOf)?.d ||
       asOf;
@@ -1771,16 +1778,50 @@ export class Store {
       ym = this.nextMonth(ym);
     }
     months.reverse();
-    const limited = months.slice(0, 36);
-    const movements = limited
-      .filter((m) => m.invested || m.withdrawn)
-      .map((m) => ({
-        month: m.month,
-        invested: m.invested,
-        withdrawn: m.withdrawn,
-        net: m.invested - m.withdrawn,
-      }));
-    return { current, months: limited, movements };
+    const clauses = ["d.kind=?", "d.date<=?"],
+      params = ["owner", asOf];
+    if (d.after) {
+      let cursor;
+      try {
+        cursor = z
+          .tuple([z.string(), z.string(), z.string()])
+          .parse(
+            JSON.parse(Buffer.from(d.after, "base64url").toString("utf8")),
+          );
+      } catch {
+        throw new Error("Invalid pagination cursor.");
+      }
+      clauses.push(
+        "(d.date<? OR (d.date=? AND d.created_at<?) OR (d.date=? AND d.created_at=? AND d.id<?))",
+      );
+      params.push(cursor[0], cursor[0], cursor[1], cursor[0], cursor[1], cursor[2]);
+    }
+    const movementRows = this.all(
+      `SELECT d.id,d.number,d.date,d.note,d.created_at,COALESCE(SUM(CASE WHEN j.account='equity' THEN j.credit-j.debit ELSE 0 END),0) capital_change FROM documents d LEFT JOIN journal j ON j.document_id=d.id WHERE ${clauses.join(" AND ")} GROUP BY d.id ORDER BY d.date DESC,d.created_at DESC,d.id DESC LIMIT ?`,
+      ...params,
+      d.limit + 1,
+    );
+    const more = movementRows.length > d.limit;
+    movementRows.length = Math.min(movementRows.length, d.limit);
+    const movements = movementRows.map((m) => ({
+      ...m,
+      direction: m.capital_change >= 0 ? "deposit" : "withdrawal",
+      amount: Math.abs(m.capital_change),
+    }));
+    return {
+      current,
+      months: months.slice(0, 36),
+      movements,
+      next: more
+        ? Buffer.from(
+            JSON.stringify([
+              movements.at(-1).date,
+              movements.at(-1).created_at,
+              movements.at(-1).id,
+            ]),
+          ).toString("base64url")
+        : null,
+    };
   }
   dayBook(input = {}) {
     const day = date.parse(input.date || today());

@@ -1194,18 +1194,34 @@ test("capital report tracks invested capital and monthly net worth", async (t) =
     "ownerMovement",
     {
       direction: "deposit",
-      amount: 250000,
-      note: "Extra cash from home",
+      amount: 100000,
+      note: "First investment",
+      request_key: key(),
+    },
+    f.token,
+  );
+  await f.s.dispatch(
+    "ownerMovement",
+    {
+      direction: "deposit",
+      amount: 200000,
+      note: "Second investment",
       request_key: key(),
     },
     f.token,
   );
   const report = await f.s.dispatch("capitalReport", {}, f.token);
   assert.ok(report.current.net_worth > 0);
-  assert.ok(report.current.capital >= 250000);
+  assert.ok(report.current.capital >= 300000);
   assert.ok(report.months.length >= 1);
-  assert.ok(report.months.some((m) => m.invested >= 250000));
-  assert.ok(report.movements.some((m) => m.invested >= 250000));
+  assert.ok(report.months.some((m) => m.invested >= 300000));
+  const deposits = report.movements.filter((m) => m.direction === "deposit");
+  assert.ok(deposits.some((m) => m.amount === 100000));
+  assert.ok(deposits.some((m) => m.amount === 200000));
+  assert.equal(
+    deposits.filter((m) => [100000, 200000].includes(m.amount)).length,
+    2,
+  );
   const before = report.current.cash;
   await f.s.dispatch(
     "ownerMovement",
@@ -1217,8 +1233,17 @@ test("capital report tracks invested capital and monthly net worth", async (t) =
     },
     f.token,
   );
-  const after = await f.s.dispatch("capitalReport", {}, f.token);
+  const after = await f.s.dispatch("capitalReport", { limit: 1 }, f.token);
   assert.equal(after.current.cash, before - 50000);
+  assert.equal(after.movements.length, 1);
+  assert.ok(after.next);
+  const page2 = await f.s.dispatch(
+    "capitalReport",
+    { after: after.next, limit: 1 },
+    f.token,
+  );
+  assert.equal(page2.movements.length, 1);
+  assert.notEqual(page2.movements[0].id, after.movements[0].id);
   balanced(f.s);
 });
 test("global search finds products, customers and suppliers", async (t) => {

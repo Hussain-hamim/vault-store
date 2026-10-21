@@ -896,12 +896,14 @@ export function CapitalPage({ refresh, open, toast, user }: PageProps) {
     [direction, setDirection] = useState<"deposit" | "withdrawal">("deposit"),
     [amount, setAmount] = useState(""),
     [note, setNote] = useState(""),
-    [moveDate, setMoveDate] = useState(businessDate());
+    [moveDate, setMoveDate] = useState(businessDate()),
+    [historyAfter, setHistoryAfter] = useState(""),
+    [historyStack, setHistoryStack] = useState<string[]>([]);
   const key = useRef(requestKey());
   useEffect(() => {
     let active = true;
     setError("");
-    api("capitalReport", {})
+    api("capitalReport", { after: historyAfter, limit: 25 })
       .then((d) => {
         if (active) setData(d);
       })
@@ -911,6 +913,10 @@ export function CapitalPage({ refresh, open, toast, user }: PageProps) {
     return () => {
       active = false;
     };
+  }, [refresh, historyAfter]);
+  useEffect(() => {
+    setHistoryAfter("");
+    setHistoryStack([]);
   }, [refresh]);
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -1150,10 +1156,10 @@ export function CapitalPage({ refresh, open, toast, user }: PageProps) {
           <section className="panel">
             <div className="panel-heading padded">
               <div>
-                <h3>Monthly capital cash</h3>
+                <h3>Investment & withdrawal history</h3>
                 <p className="subtle">
-                  External cash you put in or took out, totaled by month — not
-                  stock or opening inventory entries
+                  Each cash investment or withdrawal on its own row, newest
+                  first
                 </p>
               </div>
             </div>
@@ -1161,27 +1167,30 @@ export function CapitalPage({ refresh, open, toast, user }: PageProps) {
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th>Month</th>
-                    <th>Invested</th>
-                    <th>Withdrawn</th>
-                    <th>Net capital</th>
+                    <th>Date</th>
+                    <th>Type</th>
+                    <th>Reference</th>
+                    <th>Note</th>
+                    <th>Amount</th>
                   </tr>
                 </thead>
                 <tbody>
                   {data.movements.map((m: any) => (
-                    <tr key={m.month}>
-                      <td>{monthLabel(m.month)}</td>
-                      <td className="money text-green">
-                        {m.invested ? af(m.invested) : "—"}
+                    <tr
+                      key={m.id}
+                      onClick={() => open("invoice", { id: m.id })}
+                    >
+                      <td>{m.date}</td>
+                      <td>
+                        {m.direction === "deposit" ? "Investment" : "Withdrawal"}
                       </td>
-                      <td className="money text-red">
-                        {m.withdrawn ? af(m.withdrawn) : "—"}
-                      </td>
+                      <td>{m.number}</td>
+                      <td>{m.note || "—"}</td>
                       <td
-                        className={`money ${m.net >= 0 ? "text-green" : "text-red"}`}
+                        className={`money ${m.direction === "deposit" ? "text-green" : "text-red"}`}
                       >
-                        {m.net > 0 ? "+" : ""}
-                        {af(m.net)}
+                        {m.direction === "deposit" ? "+" : "−"}
+                        {af(m.amount)}
                       </td>
                     </tr>
                   ))}
@@ -1194,6 +1203,29 @@ export function CapitalPage({ refresh, open, toast, user }: PageProps) {
                 text="Use the form above to put external cash into the business."
               />
             )}
+            <div className="pagination">
+              <span>25 entries per page</span>
+              <button
+                className="button"
+                disabled={!historyStack.length}
+                onClick={() => {
+                  setHistoryAfter(historyStack.at(-1) || "");
+                  setHistoryStack((h) => h.slice(0, -1));
+                }}
+              >
+                Newer
+              </button>
+              <button
+                className="button"
+                disabled={!data.next}
+                onClick={() => {
+                  setHistoryStack((h) => [...h, historyAfter]);
+                  setHistoryAfter(data.next || "");
+                }}
+              >
+                Older
+              </button>
+            </div>
           </section>
         </>
       )}
