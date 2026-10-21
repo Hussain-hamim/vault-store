@@ -13,6 +13,6 @@ Build app UI in `src/`. Keep `.openai/hosting.json`, `worker/index.js`, `scripts
 - New products support unit cost and opening stock in the same form.
 - Purchase invoices contain multiple product lines; stock is quantity-only (no serial/IMEI tracking).
 - New Sale is a full-page bill editor, with a separate invoice-history section providing view, edit, hard-delete and download actions.
-- New Sale product picking opens a dropdown of available products on search focus; typing filters it. Results show image, name, brand/model/SKU, specs and stock, then add to the bill.
+- New Sale uses a two-column bill workspace: a fixed-height product catalog (search + scroll + Load more) beside the bill lines. Results show image, name, brand/model/SKU, specs and stock.
 - Cashiers can add a customer from the New Sale customer picker when leaving a balance unpaid; walk-in remains cash-only.
 - Invoice mutations must update stock and ledgers atomically and enforce access rights and closed periods.

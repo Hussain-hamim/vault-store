@@ -3853,35 +3853,38 @@ button:active {
   padding: 0;
 }
 .bill-editor {
-  max-width: 1400px;
+  max-width: 1480px;
   margin: auto;
-  overflow: visible;
+  overflow: hidden;
+  border: 1px solid #e8e8e4;
+  box-shadow: 0 18px 50px #1c1d2010;
 }
-.bill-editor .form-body {
-  overflow: visible;
+.bill-editor .form-body.trade-body {
+  padding: 22px 24px 10px;
+  display: grid;
+  gap: 18px;
+  background:
+    radial-gradient(1200px 280px at 12% -10%, #f4f7ea 0%, transparent 55%),
+    #fcfcfb;
 }
 .bill-heading {
-  padding: 26px 28px 22px;
+  padding: 24px 28px 20px;
   border-bottom: 1px solid #eeeef0;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+  background: linear-gradient(180deg, #ffffff 0%, #fafaf8 100%);
 }
 .bill-heading h2 {
-  font-size: 25px;
+  font-size: 26px;
   margin: 6px 0 8px;
-  letter-spacing: -0.7px;
+  letter-spacing: -0.8px;
 }
 .bill-heading p {
   margin: 0;
   color: #77777d;
   font-size: 12px;
-}
-.bill-editor .product-picker {
-  grid-template-columns: 1fr;
-  max-height: 320px;
-  overflow-y: auto;
 }
 .party-picker {
   width: 100%;
@@ -3896,7 +3899,7 @@ button:active {
   gap: 6px;
 }
 .credit-hint {
-  margin: 0 0 12px;
+  margin: 12px 0 0;
   padding: 10px 12px;
   border-radius: 8px;
   background: #fff7e8;
@@ -3904,31 +3907,82 @@ button:active {
   font-size: 12px;
   line-height: 1.45;
 }
-.product-search-dropdown {
-  position: relative;
-  margin-bottom: 8px;
+.trade-meta {
+  padding: 14px 16px;
+  border: 1px solid #ecece8;
+  border-radius: 14px;
+  background: #fff;
 }
-.product-picker-rich {
+.trade-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  gap: 16px;
+  align-items: stretch;
+  min-height: 420px;
+}
+.trade-catalog,
+.trade-cart {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 420px;
+  padding: 14px;
+  border: 1px solid #e7e7e2;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: inset 0 1px 0 #ffffffaa;
+}
+.trade-panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.trade-panel-head h3 {
+  margin: 0;
+  font-size: 15px;
+  letter-spacing: -0.3px;
+}
+.trade-panel-head p {
+  margin: 4px 0 0;
+  color: #8a8a90;
+  font-size: 11px;
+  line-height: 1.4;
+}
+.product-browser-list {
+  flex: 1;
+  min-height: 340px;
+  max-height: 420px;
+  overflow-y: auto;
   display: grid;
   gap: 8px;
-  padding: 10px;
-}
-.product-picker-dropdown {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: calc(100% + 6px);
-  z-index: 20;
-  max-height: min(360px, 50vh);
-  overflow-y: auto;
-  margin: 0;
-  background: #fff;
-  border: 1px solid #e4e4e0;
+  align-content: start;
+  padding: 8px;
+  border: 1px solid #eeeeea;
   border-radius: 12px;
-  box-shadow: 0 16px 40px #0000001f;
+  background: linear-gradient(180deg, #fbfbf9 0%, #f7f7f4 100%);
+  scrollbar-width: thin;
 }
-.bill-editor .product-picker-dropdown {
-  max-height: min(360px, 50vh);
+.product-browser-empty {
+  min-height: 280px;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 10px;
+  text-align: center;
+  color: #9a9aa0;
+  padding: 24px;
+}
+.product-browser-empty p {
+  margin: 0;
+  max-width: 240px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.product-load-more {
+  width: 100%;
+  justify-content: center;
+  margin-top: 4px;
 }
 .product-pick-card {
   display: grid;
@@ -3937,21 +3991,24 @@ button:active {
   align-items: center;
   width: 100%;
   padding: 10px 12px;
-  border-radius: 10px;
+  border-radius: 12px;
   text-align: left;
-  border: 1px solid transparent;
+  border: 1px solid #ecece8;
+  background: #fff;
+  box-shadow: 0 1px 0 #00000008;
 }
 .product-pick-card:hover:not(:disabled) {
-  background: #f3f6e8;
-  border-color: #e4e9d4;
+  background: #f5f8eb;
+  border-color: #dfe6c8;
+  transform: translateY(-1px);
 }
 .product-pick-card:disabled {
-  opacity: 0.55;
+  opacity: 0.5;
 }
 .product-pick-image {
   width: 64px;
   height: 64px;
-  border-radius: 10px;
+  border-radius: 12px;
   background: #f2f2f1;
   overflow: hidden;
   display: flex;
@@ -4000,21 +4057,80 @@ button:active {
 }
 .bill-editor .cart-lines {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  flex: 1;
+  align-content: start;
+  overflow-y: auto;
+  max-height: 420px;
+  padding-right: 2px;
 }
 .bill-editor .cart-line {
   margin: 0;
   min-width: 0;
+  background: #fdfefb;
 }
 .bill-editor .cart-empty {
-  padding: 30px;
+  flex: 1;
+  min-height: 280px;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 10px;
+  padding: 28px;
+  border: 1px dashed #e2e2dc;
+  border-radius: 12px;
+  background: #fafaf7;
+  color: #8f8f95;
+  text-align: center;
+}
+.bill-editor .cart-empty p {
+  margin: 0;
+  max-width: 220px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.trade-footer {
+  display: grid;
+  gap: 14px;
+  padding: 16px 18px;
+  border: 1px solid #ecece8;
+  border-radius: 14px;
+  background: #fff;
 }
 .bill-editor .trade-totals {
-  margin-top: 22px;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #f4f7ea 0%, #f8f8f5 55%, #fff 100%);
+  border: 1px solid #e7ebd8;
+}
+.bill-editor .trade-totals > div {
+  display: block;
+  margin: 0;
+  color: inherit;
+}
+.bill-editor .trade-totals > div span {
+  display: block;
+  font-size: 11px;
+  color: #7d7d83;
+  margin-bottom: 4px;
+}
+.bill-editor .trade-totals > div strong {
+  display: block;
+  font-size: 18px;
+  letter-spacing: -0.4px;
+  color: #3f4a2d;
+}
+.bill-editor .trade-totals > .field {
+  margin: 0;
 }
 .bill-editor .modal-actions {
-  background: #fafafa;
+  background: #f7f7f4;
+  border-top: 1px solid #ecece8;
 }
 .form-section-title > .subtle {
   margin-left: auto;
@@ -4041,7 +4157,19 @@ button:active {
   flex-wrap: wrap;
 }
 @media (max-width: 1150px) {
+  .trade-workspace {
+    grid-template-columns: 1fr;
+    min-height: 0;
+  }
+  .trade-catalog,
+  .trade-cart {
+    min-height: 0;
+  }
+  .product-browser-list,
   .bill-editor .cart-lines {
+    max-height: 320px;
+  }
+  .bill-editor .trade-totals {
     grid-template-columns: 1fr;
   }
 }
@@ -4051,6 +4179,9 @@ button:active {
   }
   .bill-heading {
     padding: 20px;
+  }
+  .bill-editor .form-body.trade-body {
+    padding: 16px;
   }
   .product-pick-card {
     grid-template-columns: 52px minmax(0, 1fr) auto;

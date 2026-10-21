@@ -344,8 +344,10 @@ export function TradeForm({
   inline?: boolean;
   documentId?: string;
 } & DialogProps) {
+  const PAGE = 8;
   const [q, setQ] = useState(""),
     [products, setProducts] = useState<Product[]>([]),
+    [next, setNext] = useState<string | null>(null),
     [parties, setParties] = useState<Party[]>([]),
     [party, setParty] = useState(""),
     [lines, setLines] = useState<CartLine[]>([]),
@@ -355,31 +357,27 @@ export function TradeForm({
     [initial, setInitial] = useState<any>(null),
     [loading, setLoading] = useState(!!documentId),
     [addingParty, setAddingParty] = useState(false),
-    [searching, setSearching] = useState(false),
-    [pickerOpen, setPickerOpen] = useState(false);
+    [searching, setSearching] = useState(true),
+    [loadingMore, setLoadingMore] = useState(false);
   const key = useRef(requestKey());
-  const pickerRef = useRef<HTMLDivElement>(null);
   const Frame = inline ? BillFrame : Modal;
   const purchase = kind === "purchase";
   const selectedParty = parties.find((p) => p.id === party);
   useEffect(() => {
-    if (!pickerOpen) return;
     let active = true;
     setSearching(true);
+    setNext(null);
     const query = q.trim();
     const timer = setTimeout(
       () =>
-        api<{ rows: Product[] }>("catalog", { q: query, limit: 50 })
+        api<{ rows: Product[]; next: string | null }>("catalog", {
+          q: query,
+          limit: PAGE,
+        })
           .then((d) => {
             if (!active) return;
-            const rows = purchase
-              ? d.rows
-              : [...d.rows].sort(
-                  (a, b) =>
-                    Number(b.stock > 0) - Number(a.stock > 0) ||
-                    a.name.localeCompare(b.name),
-                );
-            setProducts(rows);
+            setProducts(d.rows);
+            setNext(d.next);
           })
           .catch((e) => {
             if (active) setError(e.message);
@@ -393,22 +391,27 @@ export function TradeForm({
       active = false;
       clearTimeout(timer);
     };
-  }, [q, pickerOpen, purchase]);
-  useEffect(() => {
-    if (!pickerOpen) return;
-    const onPointer = (e: MouseEvent) => {
-      if (!pickerRef.current?.contains(e.target as Node)) setPickerOpen(false);
-    };
-    // Defer so the opening click itself does not immediately close the list.
-    const timer = window.setTimeout(
-      () => document.addEventListener("mousedown", onPointer),
-      0,
-    );
-    return () => {
-      window.clearTimeout(timer);
-      document.removeEventListener("mousedown", onPointer);
-    };
-  }, [pickerOpen]);
+  }, [q]);
+  async function loadMore() {
+    if (!next || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const d = await api<{ rows: Product[]; next: string | null }>("catalog", {
+        q: q.trim(),
+        after: next,
+        limit: PAGE,
+      });
+      setProducts((rows) => {
+        const seen = new Set(rows.map((p) => p.id));
+        return [...rows, ...d.rows.filter((p) => !seen.has(p.id))];
+      });
+      setNext(d.next);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoadingMore(false);
+    }
+  }
   useEffect(() => {
     let active = true;
     api<{ rows: Party[] }>("parties", {
@@ -489,9 +492,7 @@ export function TradeForm({
             },
           ],
     );
-    setQ("");
-    setProducts([]);
-    setPickerOpen(false);
+    if (q) setQ("");
   }
   const update = (i: number, key: keyof CartLine, v: any) =>
     setLines((ls) =>
@@ -563,264 +564,296 @@ export function TradeForm({
       ) : (
         <form onSubmit={submit}>
           <div className="form-body trade-body">
-            <div className="form-grid three">
-              <Field
-                label={purchase ? "Supplier" : "Customer"}
-                hint={
-                  !purchase
-                    ? "Add a named customer when any balance will remain unpaid."
-                    : undefined
-                }
-              >
-                <div className="inline-actions party-picker">
-                  <select
-                    value={party}
-                    onChange={(e) => setParty(e.target.value)}
-                    required
-                  >
-                    <option value="">
-                      Choose {purchase ? "supplier" : "customer"}
-                    </option>
-                    {parties.map((p) => (
-                      <option value={p.id} key={p.id}>
-                        {p.name}
-                        {p.walk_in ? " (cash only)" : ""}
+            <div className="trade-meta">
+              <div className="form-grid three">
+                <Field
+                  label={purchase ? "Supplier" : "Customer"}
+                  hint={
+                    !purchase
+                      ? "Add a named customer when any balance will remain unpaid."
+                      : undefined
+                  }
+                >
+                  <div className="inline-actions party-picker">
+                    <select
+                      value={party}
+                      onChange={(e) => setParty(e.target.value)}
+                      required
+                    >
+                      <option value="">
+                        Choose {purchase ? "supplier" : "customer"}
                       </option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    className="button"
-                    onClick={() => setAddingParty(true)}
-                  >
-                    <PlusIcon size={15} />
-                    Add
-                  </button>
-                </div>
-              </Field>
-              <Field label="Invoice date">
-                <input
-                  type="date"
-                  name="date"
-                  defaultValue={initial?.date || businessDate()}
-                  max={businessDate()}
-                  required
-                />
-              </Field>
-              <Field label="Payment due (optional)">
-                <input
-                  type="date"
-                  name="due_date"
-                  defaultValue={initial?.due_date || ""}
-                />
-              </Field>
-            </div>
-            {!purchase &&
-              selectedParty?.walk_in &&
-              total - payment > 0 && (
+                      {parties.map((p) => (
+                        <option value={p.id} key={p.id}>
+                          {p.name}
+                          {p.walk_in ? " (cash only)" : ""}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      className="button"
+                      onClick={() => setAddingParty(true)}
+                    >
+                      <PlusIcon size={15} />
+                      Add
+                    </button>
+                  </div>
+                </Field>
+                <Field label="Invoice date">
+                  <input
+                    type="date"
+                    name="date"
+                    defaultValue={initial?.date || businessDate()}
+                    max={businessDate()}
+                    required
+                  />
+                </Field>
+                <Field label="Payment due (optional)">
+                  <input
+                    type="date"
+                    name="due_date"
+                    defaultValue={initial?.due_date || ""}
+                  />
+                </Field>
+              </div>
+              {!purchase && selectedParty?.walk_in && total - payment > 0 && (
                 <p className="credit-hint">
                   Walk-in customers must pay in full. Add or choose a named
                   customer to leave a balance unpaid.
                 </p>
               )}
-            <div className="form-section-title">
-              Add products{" "}
-              <span className="subtle">
-                {lines.length} invoice line{lines.length === 1 ? "" : "s"} ·
-                Click search to browse
-              </span>
             </div>
-            <div className="product-search-dropdown" ref={pickerRef}>
-              <Search
-                value={q}
-                onChange={(value) => {
-                  setQ(value);
-                  setPickerOpen(true);
-                }}
-                onFocus={() => setPickerOpen(true)}
-                onClick={() => setPickerOpen(true)}
-                placeholder="Search or browse products by name, SKU or barcode…"
-              />
-              {pickerOpen && (
+            <div className="trade-workspace">
+              <section className="trade-catalog">
+                <div className="trade-panel-head">
+                  <div>
+                    <h3>Product catalog</h3>
+                    <p>Search or scroll the list, then add to the bill.</p>
+                  </div>
+                  <span className="subtle">
+                    {products.length}
+                    {next ? "+" : ""} shown
+                  </span>
+                </div>
+                <Search
+                  value={q}
+                  onChange={setQ}
+                  placeholder="Search by name, SKU or barcode…"
+                />
                 <div
-                  className="product-picker product-picker-rich is-open product-picker-dropdown"
+                  className="product-browser-list"
                   role="listbox"
                   aria-label="Available products"
                 >
                   {searching ? (
-                    <span className="muted">Loading products…</span>
+                    <div className="product-browser-empty">
+                      <span className="muted">Loading products…</span>
+                    </div>
                   ) : products.length ? (
-                    products.map((p) => {
-                      const specs = Object.entries(p.attributes || {})
-                        .filter(([, v]) => v)
-                        .slice(0, 3)
-                        .map(([k, v]) => `${k}: ${v}`)
-                        .join(" · ");
-                      const added = lines.some((l) => l.product.id === p.id);
-                      const out = !purchase && p.stock === 0;
-                      return (
-                        <button
-                          key={p.id}
-                          type="button"
-                          role="option"
-                          className="product-pick-card"
-                          disabled={added || out}
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => add(p)}
-                        >
-                          <span className="product-pick-image">
-                            {p.image ? (
-                              <img src={p.image} alt="" />
-                            ) : (
-                              <PackageIcon size={28} weight="light" />
-                            )}
-                          </span>
-                          <span className="product-pick-body">
-                            <strong>{p.name}</strong>
-                            <small>
-                              {[p.brand, p.model, p.sku]
-                                .filter(Boolean)
-                                .join(" · ")}
-                            </small>
-                            <small>
-                              {[
-                                p.category,
-                                p.condition,
-                                p.location && `Loc ${p.location}`,
-                                p.warranty,
-                              ]
-                                .filter(Boolean)
-                                .join(" · ")}
-                            </small>
-                            {specs ? <small>{specs}</small> : null}
-                            <span className="product-pick-meta">
-                              <em>{af(p.price)}</em>
-                              <em>
-                                {purchase
-                                  ? "In catalog"
-                                  : out
-                                    ? "Out of stock"
-                                    : `${p.stock} in stock`}
-                              </em>
+                    <>
+                      {products.map((p) => {
+                        const specs = Object.entries(p.attributes || {})
+                          .filter(([, v]) => v)
+                          .slice(0, 3)
+                          .map(([k, v]) => `${k}: ${v}`)
+                          .join(" · ");
+                        const added = lines.some((l) => l.product.id === p.id);
+                        const out = !purchase && p.stock === 0;
+                        return (
+                          <button
+                            key={p.id}
+                            type="button"
+                            role="option"
+                            className="product-pick-card"
+                            disabled={added || out}
+                            onClick={() => add(p)}
+                          >
+                            <span className="product-pick-image">
+                              {p.image ? (
+                                <img src={p.image} alt="" />
+                              ) : (
+                                <PackageIcon size={28} weight="light" />
+                              )}
                             </span>
-                          </span>
-                          <PlusIcon size={18} />
+                            <span className="product-pick-body">
+                              <strong>{p.name}</strong>
+                              <small>
+                                {[p.brand, p.model, p.sku]
+                                  .filter(Boolean)
+                                  .join(" · ")}
+                              </small>
+                              <small>
+                                {[
+                                  p.category,
+                                  p.condition,
+                                  p.location && `Loc ${p.location}`,
+                                  p.warranty,
+                                ]
+                                  .filter(Boolean)
+                                  .join(" · ")}
+                              </small>
+                              {specs ? <small>{specs}</small> : null}
+                              <span className="product-pick-meta">
+                                <em>{af(p.price)}</em>
+                                <em>
+                                  {purchase
+                                    ? "In catalog"
+                                    : out
+                                      ? "Out of stock"
+                                      : `${p.stock} in stock`}
+                                </em>
+                              </span>
+                            </span>
+                            <PlusIcon size={18} />
+                          </button>
+                        );
+                      })}
+                      {next && (
+                        <button
+                          type="button"
+                          className="button product-load-more"
+                          disabled={loadingMore}
+                          onClick={loadMore}
+                        >
+                          {loadingMore ? "Loading…" : "Load more products"}
                         </button>
-                      );
-                    })
+                      )}
+                    </>
                   ) : (
-                    <span className="muted">
-                      {q.trim()
-                        ? "No matching products. Try another search or add the product in Inventory."
-                        : "No products available. Add products in Inventory first."}
-                    </span>
+                    <div className="product-browser-empty">
+                      <PackageIcon size={28} weight="light" />
+                      <p>
+                        {q.trim()
+                          ? "No matching products. Try another search."
+                          : "No products yet. Add products in Inventory first."}
+                      </p>
+                    </div>
                   )}
                 </div>
-              )}
-            </div>
-            <div className="cart-lines">
-              {lines.map((l, i) => (
-                <div className="cart-line" key={l.product.id}>
-                  <div className="cart-line-title">
-                    <ProductName product={l.product} />
-                    <button
-                      type="button"
-                      className="icon-button"
-                      aria-label={`Remove ${l.product.name}`}
-                      onClick={() =>
-                        setLines((ls) => ls.filter((_, j) => j !== i))
-                      }
-                    >
-                      <TrashIcon size={17} />
-                    </button>
-                  </div>
-                  <div className="form-grid three">
-                    <Field label="Quantity">
-                      <input
-                        aria-label={`${l.product.name} quantity`}
-                        type="number"
-                        min="1"
-                        max={purchase ? 100000 : l.product.stock}
-                        value={l.quantity}
-                        onChange={(e) =>
-                          update(i, "quantity", Number(e.target.value))
-                        }
-                        required
-                      />
-                    </Field>
-                    <Field
-                      label={purchase ? "Unit cost (AF)" : "Unit price (AF)"}
-                    >
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={l.price}
-                        onChange={(e) => update(i, "price", e.target.value)}
-                        required
-                      />
-                    </Field>
-                    <Field label="Line discount (AF)">
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={l.discount}
-                        onChange={(e) => update(i, "discount", e.target.value)}
-                        required
-                      />
-                    </Field>
+              </section>
+              <section className="trade-cart">
+                <div className="trade-panel-head">
+                  <div>
+                    <h3>Bill lines</h3>
+                    <p>
+                      {lines.length
+                        ? `${lines.length} product${lines.length === 1 ? "" : "s"} on this invoice`
+                        : "Added products appear here."}
+                    </p>
                   </div>
                 </div>
-              ))}
+                <div className="cart-lines">
+                  {lines.map((l, i) => (
+                    <div className="cart-line" key={l.product.id}>
+                      <div className="cart-line-title">
+                        <ProductName product={l.product} />
+                        <button
+                          type="button"
+                          className="icon-button"
+                          aria-label={`Remove ${l.product.name}`}
+                          onClick={() =>
+                            setLines((ls) => ls.filter((_, j) => j !== i))
+                          }
+                        >
+                          <TrashIcon size={17} />
+                        </button>
+                      </div>
+                      <div className="form-grid three">
+                        <Field label="Quantity">
+                          <input
+                            aria-label={`${l.product.name} quantity`}
+                            type="number"
+                            min="1"
+                            max={purchase ? 100000 : l.product.stock}
+                            value={l.quantity}
+                            onChange={(e) =>
+                              update(i, "quantity", Number(e.target.value))
+                            }
+                            required
+                          />
+                        </Field>
+                        <Field
+                          label={
+                            purchase ? "Unit cost (AF)" : "Unit price (AF)"
+                          }
+                        >
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={l.price}
+                            onChange={(e) => update(i, "price", e.target.value)}
+                            required
+                          />
+                        </Field>
+                        <Field label="Line discount (AF)">
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={l.discount}
+                            onChange={(e) =>
+                              update(i, "discount", e.target.value)
+                            }
+                            required
+                          />
+                        </Field>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {!lines.length && (
+                  <div className="cart-empty">
+                    <ShoppingIllustration />
+                    <p>
+                      Browse the catalog on the left and add products to start
+                      your {purchase ? "purchase" : "sale"}.
+                    </p>
+                  </div>
+                )}
+              </section>
             </div>
-            {!lines.length && (
-              <div className="cart-empty">
-                <ShoppingIllustration />
-                <p>
-                  Click the product search to browse and add items to your{" "}
-                  {purchase ? "purchase" : "sale"}.
-                </p>
+            <div className="trade-footer">
+              <div className="trade-totals">
+                <div>
+                  <span>Invoice total</span>
+                  <strong>{af(total, 2)}</strong>
+                </div>
+                <div>
+                  <span>
+                    {purchase
+                      ? "Supplier balance remaining"
+                      : "Customer balance remaining"}
+                  </span>
+                  <strong>{af(Math.max(0, total - payment), 2)}</strong>
+                </div>
+                <Field
+                  label="Amount paid now (AF)"
+                  hint="Leave blank for full payment. Enter 0 for credit."
+                >
+                  <input
+                    name="paid"
+                    type="number"
+                    min="0"
+                    max={total / 100}
+                    step="0.01"
+                    value={paid}
+                    placeholder={(total / 100).toFixed(2)}
+                    onChange={(e) => setPaid(e.target.value)}
+                  />
+                </Field>
               </div>
-            )}
-            <div className="trade-totals">
-              <div>
-                <span>Invoice total</span>
-                <strong>{af(total, 2)}</strong>
-              </div>
-              <div>
-                <span>
-                  {purchase
-                    ? "Supplier balance remaining"
-                    : "Customer balance remaining"}
-                </span>
-                <strong>{af(Math.max(0, total - payment), 2)}</strong>
-              </div>
-              <Field
-                label="Amount paid now (AF)"
-                hint="Leave blank for full payment. Enter 0 for credit."
-              >
-                <input
-                  name="paid"
-                  type="number"
-                  min="0"
-                  max={total / 100}
-                  step="0.01"
-                  value={paid}
-                  placeholder={(total / 100).toFixed(2)}
-                  onChange={(e) => setPaid(e.target.value)}
+              <Field label="Note (optional)">
+                <textarea
+                  name="note"
+                  defaultValue={initial?.note || ""}
+                  rows={2}
+                  placeholder="Additional details for this invoice"
                 />
               </Field>
+              <ErrorMessage error={error} />
             </div>
-            <Field label="Note (optional)">
-              <textarea
-                name="note"
-                defaultValue={initial?.note || ""}
-                rows={2}
-                placeholder="Additional details for this invoice"
-              />
-            </Field>
-            <ErrorMessage error={error} />
           </div>
           <div className="modal-actions">
             <span className="subtle">AFN · No tax</span>
