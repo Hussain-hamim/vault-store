@@ -558,8 +558,6 @@ type CartLine = {
   costAed?: string;
 };
 function BillFrame({
-  title,
-  subtitle,
   children,
 }: {
   title: string;
@@ -568,19 +566,7 @@ function BillFrame({
   onClose: () => void;
   wide?: boolean;
 }) {
-  return (
-    <section className="panel bill-editor">
-      <div className="bill-heading">
-        <div>
-          <span className="eyebrow">SALES COUNTER</span>
-          <h2>{title}</h2>
-          <p>{subtitle}</p>
-        </div>
-        <Badge tone="green">AFN · No tax</Badge>
-      </div>
-      {children}
-    </section>
-  );
+  return <section className="panel bill-editor">{children}</section>;
 }
 export function TradeForm({
   kind,
@@ -1266,9 +1252,6 @@ export function TradeForm({
             </div>
           </div>
           <div className="modal-actions">
-            <span className="subtle">
-              {purchase ? "AED purchase → AFN stock · No tax" : "AFN · No tax"}
-            </span>
             <button type="button" className="button" onClick={close}>
               Cancel
             </button>
