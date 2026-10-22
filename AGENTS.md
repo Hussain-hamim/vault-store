@@ -14,7 +14,7 @@ Desktop testing: keep `npm run dev` running, then use `npm run desktop:dev` (not
 - Inventory opens a colored card-style product list (category accent borders, stock badges) with a sticky search/header while the rows scroll; each card shows brand/model/SKU plus full saved specs (CPU/RAM/Storage/etc. by category), quantity, unit cost and selling price.
 - Products can store a barcode on add/edit; New Sale/Purchase has a barcode scan field that looks up the product and adds it to the bill (Enter or Add). Catalog search also matches barcode.
 - Customers use a teal/sky card list (rose when they owe); suppliers use a warmer clay/olive card list. Sticky search/header while contacts scroll; status chips show Owes you / Settled / Credit.
-- Page content uses the full workspace width (no centered max-width gutters); keep side padding minimal.
+- Page content, dashboard, and sales workspace sit in a ~1280px centered column so lists and cards stay readable and close together on wide screens.
 - New products support unit cost and opening stock in the same form; unit cost and selling price sit side by side. Minimum price and shelf location are not collected on the product form for now.
 - Stock is bought from Dubai in AED and sold in Afghanistan in AFN. Product and purchase forms record unit cost in AED plus the AFN-per-AED exchange rate at that time; AFN unit cost is calculated and stored for inventory/ledgers.
 - Inventory costing is FIFO: each purchase keeps its own cost batch (AED + rate + AFN). Sales consume the oldest remaining batch first; profit uses those batch costs, not the catalog’s latest unit cost. Sale returns restore cost to the original batches in the same order.

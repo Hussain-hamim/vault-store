@@ -474,9 +474,9 @@ button:active {
 }
 .dashboard {
   width: 100%;
-  max-width: none;
-  margin: 0;
-  padding: 14px 14px 10px;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 14px 18px 10px;
   box-sizing: border-box;
 }
 .dashboard-toolbar {
@@ -1215,9 +1215,9 @@ button:active {
 }
 .page-content {
   width: 100%;
-  max-width: none;
-  margin: 0;
-  padding: 16px 14px;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 16px 18px;
   box-sizing: border-box;
 }
 .page-intro {
@@ -4260,9 +4260,9 @@ input[type="number"]::-webkit-inner-spin-button {
 /* The sales counter is a workspace, with history beside its bill editor. */
 .sales-workspace {
   width: 100%;
-  max-width: none;
-  margin: 0;
-  padding: 14px;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 14px 18px;
   box-sizing: border-box;
 }
 .sales-tabs {
@@ -4357,7 +4357,7 @@ input[type="number"]::-webkit-inner-spin-button {
 .trade-workspace {
   display: grid;
   grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
-  gap: 16px;
+  gap: 12px;
   align-items: stretch;
   min-height: 420px;
 }
