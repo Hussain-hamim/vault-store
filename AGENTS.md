@@ -11,7 +11,7 @@ Build app UI in `src/`. Keep `.openai/hosting.json`, `worker/index.js`, `scripts
 Desktop testing: keep `npm run dev` running, then use `npm run desktop:dev` (not a long-lived `npm run desktop` from before server edits). Unpackaged Electron loads the Vite UI and watches `server/` so ledger/API changes reload the DB worker without signing the user out (sessions are stored in SQLite). Desktop uses its own SQLite under Electron userData (not the browser demo DB).
 
 ## Store workflow decisions
-- Inventory opens a colored card-style product list (category accent borders, stock badges) with a sticky search/header while the rows scroll; columns show company, model, quantity, unit cost and selling price.
+- Inventory opens a colored card-style product list (category accent borders, stock badges) with a sticky search/header while the rows scroll; each card shows brand/model/SKU plus full saved specs (CPU/RAM/Storage/etc. by category), quantity, unit cost and selling price.
 - Customers use a teal/sky card list (rose when they owe); suppliers use a warmer clay/olive card list. Sticky search/header while contacts scroll; status chips show Owes you / Settled / Credit.
 - Page content uses the full workspace width (no centered max-width gutters); keep side padding minimal.
 - New products support unit cost and opening stock in the same form; unit cost and selling price sit side by side. Minimum price and shelf location are not collected on the product form for now.

@@ -114,12 +114,39 @@ export function ProductsPage({
     })[c] || "cat-default";
   const stockTone = (p: Product) =>
     p.stock === 0 ? "red" : p.stock <= p.reorder_level ? "yellow" : "green";
+  const specOrder = (c: string) =>
+    c === "Computers"
+      ? ["CPU", "RAM", "Storage", "GPU", "Display", "Color"]
+      : ["Mobiles", "Tablets"].includes(c)
+        ? ["RAM", "Storage", "Color", "Connectivity"]
+        : c === "Storage"
+          ? ["Storage", "Interface"]
+          : c === "Accessories"
+            ? ["Type"]
+            : [];
+  function productSpecs(p: Product) {
+    const attrs = p.attributes || {};
+    const ordered = specOrder(p.category);
+    const seen = new Set<string>();
+    const specs: { key: string; value: string }[] = [];
+    for (const key of ordered) {
+      const value = attrs[key];
+      if (value) {
+        specs.push({ key, value });
+        seen.add(key);
+      }
+    }
+    for (const [key, value] of Object.entries(attrs)) {
+      if (value && !seen.has(key)) specs.push({ key, value });
+    }
+    return specs;
+  }
   return (
     <div className="page-content inventory-page">
       <PageIntro
         eyebrow="Your catalog"
         title="Inventory"
-        description="Browse stock by product, with cost and selling price at a glance."
+        description="Browse stock with full specs — RAM, storage, and the rest — beside cost and price."
         action={
           <button
             className="button button-dark"
@@ -191,6 +218,7 @@ export function ProductsPage({
                         price,
                         cost,
                         unit_cost,
+                        attributes,
                       }) => ({
                         name,
                         sku,
@@ -205,6 +233,12 @@ export function ProductsPage({
                                 (stock ? cost / stock : unit_cost || 0) / 100,
                             }
                           : {}),
+                        ...Object.fromEntries(
+                          Object.entries(attributes || {}).map(([k, v]) => [
+                            k.toLowerCase(),
+                            v,
+                          ]),
+                        ),
                       }),
                     ) || [],
                   );
@@ -214,10 +248,7 @@ export function ProductsPage({
             </div>
           </div>
           <div className="inventory-list-cols" role="row">
-            <span>Product</span>
-            <span>Category</span>
-            <span>Company</span>
-            <span>Model</span>
+            <span>Product & specs</span>
             <span>Qty</span>
             {showCost && <span>Unit cost</span>}
             <span>Selling price</span>
@@ -235,6 +266,7 @@ export function ProductsPage({
                 const unitCost = p.stock
                   ? (p.cost || 0) / p.stock
                   : p.unit_cost || 0;
+                const specs = productSpecs(p);
                 return (
                   <button
                     type="button"
@@ -243,49 +275,60 @@ export function ProductsPage({
                     className={`inventory-row ${categoryClass(p.category)} stock-${tone}`}
                     onClick={() => open("productDetail", p)}
                   >
-                    <div className="inventory-row-product">
-                      <span className="inventory-row-image">
-                        {p.image ? (
-                          <img src={p.image} alt="" />
-                        ) : (
-                          <PackageIcon size={22} />
-                        )}
-                      </span>
-                      <span className="inventory-row-copy">
-                        <strong>{p.name}</strong>
-                        <small>{p.sku}</small>
-                      </span>
-                    </div>
-                    <div className="inventory-row-meta">
-                      <span className="inventory-chip category-chip">
-                        {p.category}
-                        {p.category === "Accessories" && p.attributes?.Type
-                          ? ` · ${p.attributes.Type}`
-                          : ""}
-                      </span>
-                    </div>
-                    <div className="inventory-row-meta">
-                      <span className="inventory-row-value">{p.brand || "—"}</span>
-                    </div>
-                    <div className="inventory-row-meta">
-                      <span className="inventory-row-value">{p.model || "—"}</span>
-                    </div>
-                    <div className="inventory-row-meta">
-                      <Badge tone={tone}>{p.stock} units</Badge>
-                    </div>
-                    {showCost && (
-                      <div className="inventory-row-meta inventory-row-cost">
-                        <strong>{af(unitCost, 2)}</strong>
-                        <small>
-                          {p.stock ? "FIFO avg on hand" : "Last buy"}
-                        </small>
+                    <div className="inventory-row-main">
+                      <div className="inventory-row-product">
+                        <span className="inventory-row-image">
+                          {p.image ? (
+                            <img src={p.image} alt="" />
+                          ) : (
+                            <PackageIcon size={22} />
+                          )}
+                        </span>
+                        <span className="inventory-row-copy">
+                          <strong>{p.name}</strong>
+                          <small>
+                            {[p.brand, p.model, p.sku]
+                              .filter(Boolean)
+                              .join(" · ") || "No brand / model"}
+                          </small>
+                          <span className="inventory-chip category-chip">
+                            {p.category}
+                            {p.condition ? ` · ${p.condition}` : ""}
+                            {p.warranty ? ` · ${p.warranty}` : ""}
+                          </span>
+                        </span>
                       </div>
-                    )}
-                    <div className="inventory-row-meta inventory-row-price">
-                      <strong>{af(p.price, 2)}</strong>
+                      <div className="inventory-row-meta">
+                        <Badge tone={tone}>{p.stock} units</Badge>
+                      </div>
+                      {showCost && (
+                        <div className="inventory-row-meta inventory-row-cost">
+                          <strong>{af(unitCost, 2)}</strong>
+                          <small>
+                            {p.stock ? "FIFO avg on hand" : "Last buy"}
+                          </small>
+                        </div>
+                      )}
+                      <div className="inventory-row-meta inventory-row-price">
+                        <strong>{af(p.price, 2)}</strong>
+                      </div>
+                      <div className="inventory-row-go" aria-hidden="true">
+                        <ArrowUpRightIcon size={16} />
+                      </div>
                     </div>
-                    <div className="inventory-row-go" aria-hidden="true">
-                      <ArrowUpRightIcon size={16} />
+                    <div className="inventory-row-specs">
+                      {specs.length ? (
+                        specs.map((s) => (
+                          <span key={s.key} className="inventory-spec">
+                            <em>{s.key}</em>
+                            <strong>{s.value}</strong>
+                          </span>
+                        ))
+                      ) : (
+                        <span className="inventory-spec empty">
+                          No specs saved for this product
+                        </span>
+                      )}
                     </div>
                   </button>
                 );
