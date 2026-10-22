@@ -384,6 +384,7 @@ export function DocumentsPage({
   useEffect(() => {
     setQ(globalSearch);
     setAfter("");
+    setHistory([]);
   }, [globalSearch]);
   const { data, error } = useLoad<any>(
     "documents",
@@ -392,8 +393,25 @@ export function DocumentsPage({
   );
   const label =
     kind === "sale" ? "Sales" : kind === "purchase" ? "Purchases" : "Expenses";
+  const partyLabel =
+    kind === "expense"
+      ? "Category"
+      : kind === "sale"
+        ? "Customer"
+        : "Supplier";
+  function docStatus(d: any) {
+    if (kind === "expense") {
+      return { tone: "green" as const, label: "Recorded" };
+    }
+    if (d.returned === d.total)
+      return { tone: "gray" as const, label: "Returned" };
+    if (d.paid + d.returned >= d.total)
+      return { tone: "green" as const, label: "Paid" };
+    if (d.paid) return { tone: "yellow" as const, label: "Partial" };
+    return { tone: "red" as const, label: "Unpaid" };
+  }
   return (
-    <div className="page-content">
+    <div className={`page-content docs-page docs-${kind}`}>
       <PageIntro
         eyebrow="Transactions"
         title={kind === "sale" ? "Invoice history" : label}
@@ -415,158 +433,172 @@ export function DocumentsPage({
           </button>
         }
       />
-      <section className="panel">
-        <div className="list-toolbar">
-          <Search
-            value={q}
-            onChange={(s) => {
-              setQ(s);
-              setAfter("");
-            }}
-            placeholder="Search invoice number or contact…"
-          />
-          <ExportButton
-            onClick={() => {
-              exportCSV(
-                `vault-${label.toLowerCase()}`,
-                data?.rows.map((d: any) => ({
-                  invoice: d.number,
-                  date: d.date,
-                  contact: d.party_name || "",
-                  category: d.category,
-                  total_AF: d.total / 100,
-                  paid_AF: d.paid / 100,
-                  returned_AF: d.returned / 100,
-                  outstanding_AF:
-                    Math.max(0, d.total - d.paid - d.returned) / 100,
-                  note: d.note,
-                })) || [],
-              );
-              toast("Current page exported.");
-            }}
-          />
+      <section className="panel docs-list">
+        <div className="docs-list-sticky">
+          <div className="list-toolbar">
+            <Search
+              value={q}
+              onChange={(s) => {
+                setQ(s);
+                setAfter("");
+                setHistory([]);
+              }}
+              placeholder={
+                kind === "expense"
+                  ? "Search expense number or category…"
+                  : "Search invoice number or contact…"
+              }
+            />
+            <ExportButton
+              onClick={() => {
+                exportCSV(
+                  `vault-${label.toLowerCase()}`,
+                  data?.rows.map((d: any) => ({
+                    invoice: d.number,
+                    date: d.date,
+                    contact: d.party_name || "",
+                    category: d.category,
+                    total_AF: d.total / 100,
+                    paid_AF: d.paid / 100,
+                    returned_AF: d.returned / 100,
+                    outstanding_AF:
+                      Math.max(0, d.total - d.paid - d.returned) / 100,
+                    note: d.note,
+                  })) || [],
+                );
+                toast("Current page exported.");
+              }}
+            />
+          </div>
+          <div className="docs-list-cols" role="row">
+            <span>Reference</span>
+            <span>Date</span>
+            <span>{partyLabel}</span>
+            <span>Total</span>
+            {kind !== "expense" && <span>Outstanding</span>}
+            <span>Status</span>
+            <span aria-hidden="true" />
+          </div>
         </div>
         <ErrorMessage error={error} />
         {!data ? (
           <Loading />
         ) : (
           <>
-            <div className="table-wrap">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Reference</th>
-                    <th>Date</th>
-                    <th>
-                      {kind === "expense"
-                        ? "Category"
-                        : kind === "sale"
-                          ? "Customer"
-                          : "Supplier"}
-                    </th>
-                    <th>Total</th>
-                    <th>Paid</th>
-                    <th>Outstanding</th>
-                    <th>Status</th>
-                    <th />
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.rows.map((d: any) => (
-                    <tr key={d.id} onClick={() => open("invoice", d)}>
-                      <td>
-                        <strong>{d.number}</strong>
-                        {d.returned > 0 && (
-                          <small className="block muted">
-                            {af(d.returned)} returned
-                          </small>
-                        )}
-                      </td>
-                      <td>{d.date}</td>
-                      <td>{kind === "expense" ? d.category : d.party_name}</td>
-                      <td>{af(d.total)}</td>
-                      <td>{af(d.paid)}</td>
-                      <td>{af(Math.max(0, d.total - d.paid - d.returned))}</td>
-                      <td>
-                        <Badge
-                          tone={
-                            d.returned === d.total
-                              ? "gray"
-                              : d.paid + d.returned >= d.total
-                                ? "green"
-                                : d.paid
-                                  ? "yellow"
-                                  : "red"
+            <div className="docs-list-scroll" role="list">
+              {data.rows.map((d: any) => {
+                const status = docStatus(d);
+                const outstanding = Math.max(0, d.total - d.paid - d.returned);
+                return (
+                  <button
+                    type="button"
+                    key={d.id}
+                    role="listitem"
+                    className={`docs-row status-${status.tone}`}
+                    onClick={() => open("invoice", d)}
+                  >
+                    <div className="docs-row-ref">
+                      <strong>{d.number}</strong>
+                      {d.note ? <small>{d.note}</small> : null}
+                      {d.returned > 0 && (
+                        <small className="docs-return-note">
+                          {af(d.returned)} returned
+                        </small>
+                      )}
+                    </div>
+                    <div className="docs-row-meta">
+                      <span className="docs-row-date">{d.date}</span>
+                    </div>
+                    <div className="docs-row-meta">
+                      <span className="docs-row-party">
+                        {kind === "expense"
+                          ? d.category || "Expense"
+                          : d.party_name || "—"}
+                      </span>
+                    </div>
+                    <div className="docs-row-meta docs-row-money">
+                      <strong>{af(d.total)}</strong>
+                      {kind !== "expense" && (
+                        <small>Paid {af(d.paid)}</small>
+                      )}
+                    </div>
+                    {kind !== "expense" && (
+                      <div className="docs-row-meta docs-row-money">
+                        <strong
+                          className={
+                            outstanding > 0 ? "text-red" : "text-green"
                           }
                         >
-                          {d.returned === d.total
-                            ? "Returned"
-                            : d.paid + d.returned >= d.total
-                              ? "Paid"
-                              : d.paid
-                                ? "Partial"
-                                : "Unpaid"}
-                        </Badge>
-                      </td>
-                      <td>
-                        {["sale", "purchase"].includes(kind) ? (
-                          <div
-                            className="invoice-row-actions"
-                            onClick={(e) => e.stopPropagation()}
+                          {af(outstanding)}
+                        </strong>
+                      </div>
+                    )}
+                    <div className="docs-row-meta">
+                      <Badge tone={status.tone}>{status.label}</Badge>
+                    </div>
+                    <div
+                      className="docs-row-actions"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {["sale", "purchase"].includes(kind) ? (
+                        <>
+                          <button
+                            type="button"
+                            className="text-button"
+                            onClick={() => open("invoice", d)}
                           >
-                            <button
-                              className="text-button"
-                              onClick={() => open("invoice", d)}
-                            >
-                              View / download
-                            </button>
-                            {["Owner", "Manager"].includes(user.role) && (
-                              <>
-                                <button
-                                  className="text-button"
-                                  onClick={() =>
-                                    open(
-                                      kind === "purchase"
-                                        ? "purchaseEdit"
-                                        : "saleEdit",
-                                      d,
-                                    )
-                                  }
-                                >
-                                  Edit
-                                </button>
-                                <button
-                                  className="text-button danger-text"
-                                  onClick={() =>
-                                    open(
-                                      kind === "purchase"
-                                        ? "purchaseDelete"
-                                        : "saleDelete",
-                                      d,
-                                    )
-                                  }
-                                >
-                                  Hard delete
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        ) : (
-                          <ArrowUpRightIcon size={15} />
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                            View
+                          </button>
+                          {["Owner", "Manager"].includes(user.role) && (
+                            <>
+                              <button
+                                type="button"
+                                className="text-button"
+                                onClick={() =>
+                                  open(
+                                    kind === "purchase"
+                                      ? "purchaseEdit"
+                                      : "saleEdit",
+                                    d,
+                                  )
+                                }
+                              >
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                className="text-button danger-text"
+                                onClick={() =>
+                                  open(
+                                    kind === "purchase"
+                                      ? "purchaseDelete"
+                                      : "saleDelete",
+                                    d,
+                                  )
+                                }
+                              >
+                                Delete
+                              </button>
+                            </>
+                          )}
+                        </>
+                      ) : (
+                        <span className="docs-row-go" aria-hidden="true">
+                          <ArrowUpRightIcon size={16} />
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+              {!data.rows.length && (
+                <Empty
+                  title={`No ${label.toLowerCase()} yet`}
+                  text="Your posted transactions will appear here."
+                />
+              )}
             </div>
-            {!data.rows.length && (
-              <Empty
-                title={`No ${label.toLowerCase()} yet`}
-                text="Your posted transactions will appear here."
-              />
-            )}
-            <div className="pagination">
+            <div className="pagination docs-list-pager">
               <span>{data.rows.length} records on this page</span>
               <button
                 className="button"
