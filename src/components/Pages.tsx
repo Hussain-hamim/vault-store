@@ -102,6 +102,38 @@ const REPORT_TAB_IDS = [
   "payables",
 ] as const;
 type ReportTabId = (typeof REPORT_TAB_IDS)[number];
+const REPORT_GROUPS: { labelKey: string; tabs: ReportTabId[] }[] = [
+  {
+    labelKey: "reports.groupPerformance",
+    tabs: ["profitLoss", "daily", "productProfit", "expenseBreak"],
+  },
+  {
+    labelKey: "reports.groupBooks",
+    tabs: ["trialBalance", "balanceSheet", "capitalNet"],
+  },
+  {
+    labelKey: "reports.groupStockDebt",
+    tabs: ["inventoryVal", "stockAging", "receivables", "payables"],
+  },
+];
+const REPORT_HINT: Record<ReportTabId, string> = {
+  profitLoss: "reports.hintProfitLoss",
+  daily: "reports.hintDaily",
+  productProfit: "reports.hintProductProfit",
+  trialBalance: "reports.hintTrialBalance",
+  balanceSheet: "reports.hintBalanceSheet",
+  capitalNet: "reports.hintCapitalNet",
+  expenseBreak: "reports.hintExpenseBreak",
+  inventoryVal: "reports.hintInventoryVal",
+  stockAging: "reports.hintStockAging",
+  receivables: "reports.hintReceivables",
+  payables: "reports.hintPayables",
+};
+function reportMoneyClass(n: number) {
+  if (n > 0) return "report-amt pos";
+  if (n < 0) return "report-amt neg";
+  return "report-amt";
+}
 function localizedAccountName(
   s: string,
   t: ReturnType<typeof useT>,
@@ -1720,14 +1752,25 @@ export function ReportsPage({ refresh, open, toast }: PageProps) {
     exportCSV("vault-" + tab, rows);
     toast(t("reports.exported"));
   }
+  const marginPct = data?.totals?.sales
+    ? Math.round((data.totals.gross / data.totals.sales) * 100)
+    : 0;
+  const expenseTotal =
+    data?.expenses?.reduce((s: number, r: any) => s + r.amount, 0) || 0;
+  const periodLabel =
+    tab === "balanceSheet" || tab === "trialBalance" || tab === "capitalNet"
+      ? t("ui.asOf", { date: to })
+      : `${from} — ${to}`;
+
   return (
-    <div className="page-content">
+    <div className="page-content reports-page">
       <PageIntro
+        compact
         eyebrow={t("reports.title")}
         title={t("reports.title")}
         description={t("reports.description")}
         action={
-          <div className="date-range">
+          <div className="report-date-range">
             <input
               aria-label={t("reports.startDate")}
               type="date"
@@ -1750,435 +1793,573 @@ export function ReportsPage({ refresh, open, toast }: PageProps) {
         <Loading />
       ) : (
         <>
-          <div className="metrics-row four">
-            <Metric
-              label={t("reports.netSales")}
-              value={af(data.totals.sales)}
-            />
-            <Metric label={t("reports.cogs")} value={af(data.totals.cogs)} />
-            <Metric
-              label={t("reports.grossProfit")}
-              value={af(data.totals.gross)}
-            />
-            <Metric
-              label={t("reports.netProfit")}
-              value={af(data.totals.net)}
-              dark
-            />
+          <div className="report-kpi-row">
+            <div className="report-kpi">
+              <span>{t("reports.netSales")}</span>
+              <strong className="money">{af(data.totals.sales)}</strong>
+              <small>{periodLabel}</small>
+            </div>
+            <div className="report-kpi">
+              <span>{t("reports.cogs")}</span>
+              <strong className="money">{af(data.totals.cogs)}</strong>
+              <small>{t("reports.colCogsShort")}</small>
+            </div>
+            <div className="report-kpi accent">
+              <span>{t("reports.grossProfit")}</span>
+              <strong className="money">{af(data.totals.gross)}</strong>
+              <small>
+                {t("reports.marginLabel")} · {marginPct}%
+              </small>
+            </div>
+            <div className="report-kpi dark">
+              <span>{t("reports.netProfit")}</span>
+              <strong className="money">{af(data.totals.net)}</strong>
+              <small>{t("common.afn")}</small>
+            </div>
           </div>
+
           <section className="panel report-panel">
-            <div className="report-tabs">
-              {REPORT_TAB_IDS.map((tabId) => (
-                <button
-                  key={tabId}
-                  className={tabId === tab ? "active" : ""}
-                  onClick={() => setTab(tabId)}
-                >
-                  {t(`reports.${tabId}`)}
-                </button>
+            <div className="report-nav">
+              {REPORT_GROUPS.map((group) => (
+                <div className="report-nav-group" key={group.labelKey}>
+                  <span className="report-nav-label">{t(group.labelKey)}</span>
+                  <div className="report-tabs">
+                    {group.tabs.map((tabId) => (
+                      <button
+                        key={tabId}
+                        type="button"
+                        className={tabId === tab ? "active" : ""}
+                        onClick={() => setTab(tabId)}
+                      >
+                        {t(`reports.${tabId}`)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
-            <div className="panel-heading padded">
-              <div>
+
+            <div className="report-head">
+              <div className="report-head-copy">
                 <h3>{t(`reports.${tab}`)}</h3>
-                <p className="subtle">
-                  {tab === "balanceSheet" ||
-                  tab === "trialBalance" ||
-                  tab === "capitalNet"
-                    ? t("ui.asOf", { date: to })
-                    : `${from} — ${to}`}{" "}
-                  · {t("common.afn")}
-                </p>
+                <p>{t(REPORT_HINT[tab])}</p>
+                <span className="report-period-chip">
+                  {periodLabel} · {t("common.afn")}
+                </span>
               </div>
               <ExportButton onClick={exportReport} />
             </div>
-            {(tab === "inventoryVal" || tab === "stockAging") && (
-              <>
-                <ErrorMessage error={inventoryError} />
-                <p className="table-note">{t("reports.stockNote")}</p>
-                <div className="table-wrap">
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>{t("reports.colProduct")}</th>
-                        <th>{t("reports.colQuantity")}</th>
-                        <th>{t("reports.colInventoryValue")}</th>
-                        <th>{t("reports.colOldestReceipt")}</th>
-                        <th>{t("reports.colAge")}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {inventoryReport?.stock.map((p: any) => (
-                        <tr key={p.id}>
-                          <td>
-                            <ProductName product={p} />
-                          </td>
-                          <td>{p.stock}</td>
-                          <td>{af(p.value, 2)}</td>
-                          <td>{p.oldest || EM_DASH}</td>
-                          <td>
-                            {p.oldest
-                              ? t("reports.ageDays", {
-                                  n: Math.max(
-                                    0,
-                                    Math.floor(
-                                      (Date.parse(businessDate()) -
-                                        Date.parse(p.oldest)) /
-                                        86400000,
-                                    ),
-                                  ),
-                                })
-                              : EM_DASH}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </>
-            )}
-            {(tab === "receivables" || tab === "payables") && (
-              <>
-                <ErrorMessage error={inventoryError} />
-                <p className="table-note">{t("reports.debtNote")}</p>
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>{t("reports.colContact")}</th>
-                      <th>{t("common.phone")}</th>
-                      <th>{t("common.outstanding")}</th>
-                      <th>{t("reports.colOverdue")}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(tab === "receivables"
-                      ? inventoryReport?.customers
-                      : inventoryReport?.suppliers
-                    )?.map((p: any) => (
-                      <tr key={p.id}>
-                        <td>{p.name}</td>
-                        <td>{p.phone || EM_DASH}</td>
-                        <td>{af(p.balance, 2)}</td>
-                        <td className={p.overdue ? "text-red" : ""}>
-                          {af(p.overdue, 2)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </>
-            )}
-            {tab === "profitLoss" && (
-              <div className="profit-report">
-                <div>
-                  <span>{t("reports.plNetSalesRevenue")}</span>
-                  <strong>{af(data.totals.sales, 2)}</strong>
-                </div>
-                <div>
-                  <span>{t("reports.plLessCogs")}</span>
-                  <strong>({af(data.totals.cogs, 2)})</strong>
-                </div>
-                <div className="subtotal">
-                  <span>{t("reports.plGrossTrading")}</span>
-                  <strong>{af(data.totals.gross, 2)}</strong>
-                </div>
-                <div>
-                  <span>{t("reports.plOtherIncomeStock")}</span>
-                  <strong>{af(data.totals.other, 2)}</strong>
-                </div>
-                <div>
-                  <span>{t("reports.plOpExpensesStock")}</span>
-                  <strong>({af(data.totals.expenses, 2)})</strong>
-                </div>
-                <div className="total">
-                  <span>{t("reports.netProfit")}</span>
-                  <strong>{af(data.totals.net, 2)}</strong>
-                </div>
-                <p>{t("reports.plFootnote")}</p>
-              </div>
-            )}
-            {tab === "daily" && (
-              <div className="table-wrap">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>{t("common.date")}</th>
-                      <th>{t("reports.colSales")}</th>
-                      <th>{t("reports.colCogsShort")}</th>
-                      <th>{t("reports.grossProfit")}</th>
-                      <th>{t("reports.operatingExpenses")}</th>
-                      <th>{t("reports.netProfit")}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.days.map((d: any) => (
-                      <tr key={d.date}>
-                        <td>{d.date}</td>
-                        <td>{af(d.sales)}</td>
-                        <td>{af(d.cogs)}</td>
-                        <td>{af(d.sales - d.cogs)}</td>
-                        <td>{af(d.expenses)}</td>
-                        <td>
-                          <strong>
-                            {af(d.sales - d.cogs - d.expenses + d.other)}
-                          </strong>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-            {tab === "productProfit" && (
-              <div className="table-wrap">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>{t("reports.colProduct")}</th>
-                      <th>{t("reports.colUnitsSoldNet")}</th>
-                      <th>{t("reports.colRevenue")}</th>
-                      <th>{t("reports.colCogsShort")}</th>
-                      <th>{t("reports.grossProfit")}</th>
-                      <th>{t("reports.colMargin")}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.best.map((p: any) => (
-                      <tr key={p.id}>
-                        <td>
-                          <ProductName product={p} sub={p.category} />
-                        </td>
-                        <td>{p.quantity}</td>
-                        <td>{af(p.revenue)}</td>
-                        <td>{af(p.cost)}</td>
-                        <td>{af(p.revenue - p.cost)}</td>
-                        <td>
-                          {p.revenue
-                            ? (
-                                ((p.revenue - p.cost) / p.revenue) *
-                                100
-                              ).toFixed(1)
-                            : "0"}
-                          %
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <p className="table-note">{t("reports.topProductsNote")}</p>
-              </div>
-            )}
-            {tab === "trialBalance" && (
-              <>
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>{t("reports.colAccount")}</th>
-                      <th>{t("reports.colTotalDebits")}</th>
-                      <th>{t("reports.colTotalCredits")}</th>
-                      <th>{t("reports.colNetBalance")}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.trial.map((r: any) => (
-                      <tr key={r.account}>
-                        <td>{localizedAccountName(r.account, t)}</td>
-                        <td>{af(r.debit, 2)}</td>
-                        <td>{af(r.credit, 2)}</td>
-                        <td>{af(r.balance, 2)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr>
-                      <td>{t("common.total")}</td>
-                      <td>
-                        {af(
-                          data.trial.reduce(
-                            (s: number, r: any) => s + r.debit,
-                            0,
-                          ),
-                          2,
-                        )}
-                      </td>
-                      <td>
-                        {af(
-                          data.trial.reduce(
-                            (s: number, r: any) => s + r.credit,
-                            0,
-                          ),
-                          2,
-                        )}
-                      </td>
-                      <td>
-                        {af(
-                          data.trial.reduce(
-                            (s: number, r: any) => s + r.balance,
-                            0,
-                          ),
-                          2,
-                        )}
-                      </td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </>
-            )}
-            {tab === "balanceSheet" && (
-              <div className="balance-sheet">
-                {(() => {
-                  const bal = (a: string) =>
-                    data.trial.find((r: any) => r.account === a)?.balance || 0;
-                  const profit = -[
-                    "sales",
-                    "cost_of_goods",
-                    "expenses",
-                    "other_income",
-                  ].reduce((s, a) => s + bal(a), 0);
-                  const assets =
-                      bal("cash") + bal("receivables") + bal("inventory"),
-                    liabilities = -bal("payables"),
-                    equity = -bal("equity") + profit;
-                  return (
-                    <>
-                      <div className="profit-report">
-                        <h3>{t("reports.bsAssets")}</h3>
-                        {["cash", "receivables", "inventory"].map((a) => (
-                          <div key={a}>
-                            <span>{localizedAccountName(a, t)}</span>
-                            <strong>{af(bal(a), 2)}</strong>
-                          </div>
-                        ))}
-                        <div className="subtotal">
-                          <span>{t("capital.totalAssets")}</span>
-                          <strong>{af(assets, 2)}</strong>
-                        </div>
-                        <h3>{t("reports.bsLiabilitiesEquity")}</h3>
-                        <div>
-                          <span>{t("reports.bsSupplierPayables")}</span>
-                          <strong>{af(liabilities, 2)}</strong>
-                        </div>
-                        <div>
-                          <span>{t("reports.bsOwnerEquity")}</span>
-                          <strong>{af(-bal("equity"), 2)}</strong>
-                        </div>
-                        <div>
-                          <span>{t("reports.bsCumulativeEarnings")}</span>
-                          <strong>{af(profit, 2)}</strong>
-                        </div>
-                        <div className="total">
-                          <span>{t("reports.bsTotalLiabEquity")}</span>
-                          <strong>{af(liabilities + equity, 2)}</strong>
-                        </div>
-                        <Badge
-                          tone={
-                            assets === liabilities + equity ? "green" : "red"
-                          }
-                        >
-                          {assets === liabilities + equity
-                            ? t("reports.balanced")
-                            : t("reports.reconNeeded")}
-                        </Badge>
-                      </div>
-                    </>
-                  );
-                })()}
-              </div>
-            )}
-            {tab === "capitalNet" && (
-              <>
-                <ErrorMessage error={capitalError} />
-                {!capitalReport?.current ? (
-                  <Loading />
-                ) : (
-                  <>
-                    <div className="metrics-row four report-inline-metrics">
-                      <Metric
-                        label={t("capital.netWorth")}
-                        value={af(capitalReport.current.net_worth)}
-                        dark
-                      />
-                      <Metric
-                        label={t("reports.ownerCapital")}
-                        value={af(capitalReport.current.capital)}
-                      />
-                      <Metric
-                        label={t("reports.earningsKept")}
-                        value={af(capitalReport.current.earnings)}
-                      />
-                      <Metric
-                        label={t("capital.cash")}
-                        value={af(capitalReport.current.cash)}
-                      />
-                    </div>
-                    <p className="table-note">{t("reports.capitalNetNote")}</p>
+
+            <div className="report-body">
+              {(tab === "inventoryVal" || tab === "stockAging") && (
+                <>
+                  <ErrorMessage error={inventoryError} />
+                  <p className="report-note">{t("reports.stockNote")}</p>
+                  {!inventoryReport?.stock?.length ? (
+                    <Empty title={t("reports.noRows")} />
+                  ) : (
                     <div className="table-wrap">
-                      <table className="data-table">
+                      <table className="data-table report-table">
                         <thead>
                           <tr>
-                            <th>{t("capital.month")}</th>
-                            <th>{t("reports.colInvested")}</th>
-                            <th>{t("reports.colWithdrawn")}</th>
-                            <th>{t("capital.profit")}</th>
-                            <th>{t("capital.netWorth")}</th>
-                            <th>{t("capital.change")}</th>
+                            <th>{t("reports.colProduct")}</th>
+                            <th className="num">{t("reports.colQuantity")}</th>
+                            <th className="num">
+                              {t("reports.colInventoryValue")}
+                            </th>
+                            <th>{t("reports.colOldestReceipt")}</th>
+                            <th className="num">{t("reports.colAge")}</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {capitalReport.months.map((m: any) => (
-                            <tr key={m.month}>
-                              <td>{monthLabel(m.month, locale)}</td>
-                              <td>{m.invested ? af(m.invested) : EM_DASH}</td>
-                              <td>{m.withdrawn ? af(m.withdrawn) : EM_DASH}</td>
-                              <td>{af(m.profit)}</td>
+                          {inventoryReport.stock.map((p: any) => (
+                            <tr key={p.id}>
                               <td>
-                                <strong>{af(m.net_worth)}</strong>
+                                <ProductName product={p} />
                               </td>
-                              <td
-                                className={
-                                  m.change > 0
-                                    ? "text-green"
-                                    : m.change < 0
-                                      ? "text-red"
-                                      : ""
-                                }
-                              >
-                                {m.change > 0 ? "+" : ""}
-                                {af(m.change)}
+                              <td className="num">{p.stock}</td>
+                              <td className="num money">{af(p.value, 2)}</td>
+                              <td>{p.oldest || EM_DASH}</td>
+                              <td className="num">
+                                {p.oldest
+                                  ? t("reports.ageDays", {
+                                      n: Math.max(
+                                        0,
+                                        Math.floor(
+                                          (Date.parse(businessDate()) -
+                                            Date.parse(p.oldest)) /
+                                            86400000,
+                                        ),
+                                      ),
+                                    })
+                                  : EM_DASH}
                               </td>
                             </tr>
                           ))}
                         </tbody>
                       </table>
                     </div>
-                  </>
-                )}
-              </>
-            )}
-            {tab === "expenseBreak" && (
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>{t("expenses.category")}</th>
-                    <th>{t("dashboard.amount")}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.expenses.map((r: any) => (
-                    <tr key={r.category}>
-                      <td>{r.category}</td>
-                      <td>{af(r.amount, 2)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
+                  )}
+                </>
+              )}
+
+              {(tab === "receivables" || tab === "payables") && (
+                <>
+                  <ErrorMessage error={inventoryError} />
+                  <p className="report-note">{t("reports.debtNote")}</p>
+                  {!(
+                    tab === "receivables"
+                      ? inventoryReport?.customers
+                      : inventoryReport?.suppliers
+                  )?.length ? (
+                    <Empty title={t("reports.noRows")} />
+                  ) : (
+                    <div className="table-wrap">
+                      <table className="data-table report-table">
+                        <thead>
+                          <tr>
+                            <th>{t("reports.colContact")}</th>
+                            <th>{t("common.phone")}</th>
+                            <th className="num">{t("common.outstanding")}</th>
+                            <th className="num">{t("reports.colOverdue")}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(tab === "receivables"
+                            ? inventoryReport.customers
+                            : inventoryReport.suppliers
+                          ).map((p: any) => (
+                            <tr key={p.id}>
+                              <td>
+                                <strong>{p.name}</strong>
+                              </td>
+                              <td>{p.phone || EM_DASH}</td>
+                              <td className="num money">{af(p.balance, 2)}</td>
+                              <td
+                                className={`num money ${p.overdue ? "text-red" : ""}`}
+                              >
+                                {af(p.overdue, 2)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {tab === "profitLoss" && (
+                <div className="report-statement">
+                  <div className="report-statement-card">
+                    <div className="report-line">
+                      <span>{t("reports.plNetSalesRevenue")}</span>
+                      <strong className="money">
+                        {af(data.totals.sales, 2)}
+                      </strong>
+                    </div>
+                    <div className="report-line muted">
+                      <span>{t("reports.plLessCogs")}</span>
+                      <strong className="money">
+                        ({af(data.totals.cogs, 2)})
+                      </strong>
+                    </div>
+                    <div className="report-line subtotal">
+                      <span>{t("reports.plGrossTrading")}</span>
+                      <strong className="money">
+                        {af(data.totals.gross, 2)}
+                      </strong>
+                    </div>
+                    <div className="report-margin-bar" aria-hidden>
+                      <div style={{ width: `${Math.min(100, marginPct)}%` }} />
+                    </div>
+                    <p className="report-margin-caption">
+                      {t("reports.marginLabel")}: {marginPct}%
+                    </p>
+                    <div className="report-line">
+                      <span>{t("reports.plOtherIncomeStock")}</span>
+                      <strong className="money">
+                        {af(data.totals.other, 2)}
+                      </strong>
+                    </div>
+                    <div className="report-line muted">
+                      <span>{t("reports.plOpExpensesStock")}</span>
+                      <strong className="money">
+                        ({af(data.totals.expenses, 2)})
+                      </strong>
+                    </div>
+                    <div
+                      className={`report-line total ${data.totals.net >= 0 ? "win" : "loss"}`}
+                    >
+                      <span>{t("reports.netProfit")}</span>
+                      <strong className="money">
+                        {af(data.totals.net, 2)}
+                      </strong>
+                    </div>
+                    <p className="report-footnote">{t("reports.plFootnote")}</p>
+                  </div>
+                </div>
+              )}
+
+              {tab === "daily" && (
+                <div className="table-wrap">
+                  {!data.days?.length ? (
+                    <Empty title={t("reports.noRows")} />
+                  ) : (
+                    <table className="data-table report-table">
+                      <thead>
+                        <tr>
+                          <th>{t("common.date")}</th>
+                          <th className="num">{t("reports.colSales")}</th>
+                          <th className="num">{t("reports.colCogsShort")}</th>
+                          <th className="num">{t("reports.grossProfit")}</th>
+                          <th className="num">
+                            {t("reports.operatingExpenses")}
+                          </th>
+                          <th className="num">{t("reports.netProfit")}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {data.days.map((d: any) => {
+                          const net = d.sales - d.cogs - d.expenses + d.other;
+                          return (
+                            <tr key={d.date}>
+                              <td>{d.date}</td>
+                              <td className="num money">{af(d.sales)}</td>
+                              <td className="num money">{af(d.cogs)}</td>
+                              <td className="num money">
+                                {af(d.sales - d.cogs)}
+                              </td>
+                              <td className="num money">{af(d.expenses)}</td>
+                              <td
+                                className={`num money ${reportMoneyClass(net)}`}
+                              >
+                                <strong>{af(net)}</strong>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              )}
+
+              {tab === "productProfit" && (
+                <>
+                  {!data.best?.length ? (
+                    <Empty title={t("reports.noRows")} />
+                  ) : (
+                    <div className="table-wrap">
+                      <table className="data-table report-table">
+                        <thead>
+                          <tr>
+                            <th>{t("reports.colProduct")}</th>
+                            <th className="num">
+                              {t("reports.colUnitsSoldNet")}
+                            </th>
+                            <th className="num">{t("reports.colRevenue")}</th>
+                            <th className="num">{t("reports.colCogsShort")}</th>
+                            <th className="num">{t("reports.grossProfit")}</th>
+                            <th className="num">{t("reports.colMargin")}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {data.best.map((p: any) => {
+                            const profit = p.revenue - p.cost;
+                            const m = p.revenue
+                              ? (profit / p.revenue) * 100
+                              : 0;
+                            return (
+                              <tr key={p.id}>
+                                <td>
+                                  <ProductName product={p} sub={p.category} />
+                                </td>
+                                <td className="num">{p.quantity}</td>
+                                <td className="num money">{af(p.revenue)}</td>
+                                <td className="num money">{af(p.cost)}</td>
+                                <td
+                                  className={`num money ${reportMoneyClass(profit)}`}
+                                >
+                                  {af(profit)}
+                                </td>
+                                <td className="num">
+                                  <span
+                                    className={`report-margin-pill ${m >= 20 ? "good" : m >= 10 ? "ok" : "low"}`}
+                                  >
+                                    {m.toFixed(1)}%
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                      <p className="report-note">
+                        {t("reports.topProductsNote")}
+                      </p>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {tab === "trialBalance" && (
+                <div className="table-wrap">
+                  <table className="data-table report-table">
+                    <thead>
+                      <tr>
+                        <th>{t("reports.colAccount")}</th>
+                        <th className="num">{t("reports.colTotalDebits")}</th>
+                        <th className="num">{t("reports.colTotalCredits")}</th>
+                        <th className="num">{t("reports.colNetBalance")}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.trial.map((r: any) => (
+                        <tr key={r.account}>
+                          <td>{localizedAccountName(r.account, t)}</td>
+                          <td className="num money">{af(r.debit, 2)}</td>
+                          <td className="num money">{af(r.credit, 2)}</td>
+                          <td
+                            className={`num money ${reportMoneyClass(r.balance)}`}
+                          >
+                            {af(r.balance, 2)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr>
+                        <td>{t("common.total")}</td>
+                        <td className="num money">
+                          {af(
+                            data.trial.reduce(
+                              (s: number, r: any) => s + r.debit,
+                              0,
+                            ),
+                            2,
+                          )}
+                        </td>
+                        <td className="num money">
+                          {af(
+                            data.trial.reduce(
+                              (s: number, r: any) => s + r.credit,
+                              0,
+                            ),
+                            2,
+                          )}
+                        </td>
+                        <td className="num money">
+                          {af(
+                            data.trial.reduce(
+                              (s: number, r: any) => s + r.balance,
+                              0,
+                            ),
+                            2,
+                          )}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              )}
+
+              {tab === "balanceSheet" && (
+                <div className="report-bs">
+                  {(() => {
+                    const bal = (a: string) =>
+                      data.trial.find((r: any) => r.account === a)?.balance ||
+                      0;
+                    const profit = -[
+                      "sales",
+                      "cost_of_goods",
+                      "expenses",
+                      "other_income",
+                    ].reduce((s, a) => s + bal(a), 0);
+                    const assets =
+                      bal("cash") + bal("receivables") + bal("inventory");
+                    const liabilities = -bal("payables");
+                    const equity = -bal("equity") + profit;
+                    const balanced = assets === liabilities + equity;
+                    return (
+                      <>
+                        <div className="report-bs-grid">
+                          <div className="report-bs-card">
+                            <header>
+                              <h4>{t("reports.bsAssets")}</h4>
+                            </header>
+                            {["cash", "receivables", "inventory"].map((a) => (
+                              <div className="report-line" key={a}>
+                                <span>{localizedAccountName(a, t)}</span>
+                                <strong className="money">
+                                  {af(bal(a), 2)}
+                                </strong>
+                              </div>
+                            ))}
+                            <div className="report-line subtotal">
+                              <span>{t("capital.totalAssets")}</span>
+                              <strong className="money">{af(assets, 2)}</strong>
+                            </div>
+                          </div>
+                          <div className="report-bs-card">
+                            <header>
+                              <h4>{t("reports.bsLiabilitiesEquity")}</h4>
+                            </header>
+                            <div className="report-line">
+                              <span>{t("reports.bsSupplierPayables")}</span>
+                              <strong className="money">
+                                {af(liabilities, 2)}
+                              </strong>
+                            </div>
+                            <div className="report-line">
+                              <span>{t("reports.bsOwnerEquity")}</span>
+                              <strong className="money">
+                                {af(-bal("equity"), 2)}
+                              </strong>
+                            </div>
+                            <div className="report-line">
+                              <span>{t("reports.bsCumulativeEarnings")}</span>
+                              <strong className="money">{af(profit, 2)}</strong>
+                            </div>
+                            <div className="report-line total">
+                              <span>{t("reports.bsTotalLiabEquity")}</span>
+                              <strong className="money">
+                                {af(liabilities + equity, 2)}
+                              </strong>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="report-bs-status">
+                          <Badge tone={balanced ? "green" : "red"}>
+                            {balanced
+                              ? t("reports.balanced")
+                              : t("reports.reconNeeded")}
+                          </Badge>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
+
+              {tab === "capitalNet" && (
+                <>
+                  <ErrorMessage error={capitalError} />
+                  {!capitalReport?.current ? (
+                    <Loading />
+                  ) : (
+                    <>
+                      <div className="report-kpi-row compact">
+                        <div className="report-kpi dark">
+                          <span>{t("capital.netWorth")}</span>
+                          <strong className="money">
+                            {af(capitalReport.current.net_worth)}
+                          </strong>
+                        </div>
+                        <div className="report-kpi">
+                          <span>{t("reports.ownerCapital")}</span>
+                          <strong className="money">
+                            {af(capitalReport.current.capital)}
+                          </strong>
+                        </div>
+                        <div className="report-kpi accent">
+                          <span>{t("reports.earningsKept")}</span>
+                          <strong className="money">
+                            {af(capitalReport.current.earnings)}
+                          </strong>
+                        </div>
+                        <div className="report-kpi">
+                          <span>{t("capital.cash")}</span>
+                          <strong className="money">
+                            {af(capitalReport.current.cash)}
+                          </strong>
+                        </div>
+                      </div>
+                      <p className="report-note">{t("reports.capitalNetNote")}</p>
+                      <div className="table-wrap">
+                        <table className="data-table report-table">
+                          <thead>
+                            <tr>
+                              <th>{t("capital.month")}</th>
+                              <th className="num">{t("reports.colInvested")}</th>
+                              <th className="num">
+                                {t("reports.colWithdrawn")}
+                              </th>
+                              <th className="num">{t("capital.profit")}</th>
+                              <th className="num">{t("capital.netWorth")}</th>
+                              <th className="num">{t("capital.change")}</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {capitalReport.months.map((m: any) => (
+                              <tr key={m.month}>
+                                <td>{monthLabel(m.month, locale)}</td>
+                                <td className="num money">
+                                  {m.invested ? af(m.invested) : EM_DASH}
+                                </td>
+                                <td className="num money">
+                                  {m.withdrawn ? af(m.withdrawn) : EM_DASH}
+                                </td>
+                                <td className="num money">{af(m.profit)}</td>
+                                <td className="num money">
+                                  <strong>{af(m.net_worth)}</strong>
+                                </td>
+                                <td
+                                  className={`num money ${reportMoneyClass(m.change)}`}
+                                >
+                                  {m.change > 0 ? "+" : ""}
+                                  {af(m.change)}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
+
+              {tab === "expenseBreak" && (
+                <div className="report-expense">
+                  {!data.expenses?.length ? (
+                    <Empty title={t("reports.noRows")} />
+                  ) : (
+                    <>
+                      <p className="report-note">
+                        {t("reports.shareOfExpenses")}
+                      </p>
+                      <div className="report-expense-list">
+                        {data.expenses.map((r: any) => {
+                          const pct = expenseTotal
+                            ? Math.round((r.amount / expenseTotal) * 100)
+                            : 0;
+                          return (
+                            <div className="report-expense-row" key={r.category}>
+                              <div className="report-expense-meta">
+                                <strong>{r.category}</strong>
+                                <span className="money">{af(r.amount, 2)}</span>
+                              </div>
+                              <div className="report-expense-track">
+                                <div style={{ width: `${pct}%` }} />
+                              </div>
+                              <small>{pct}%</small>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
           </section>
         </>
       )}
     </div>
   );
 }
+
 export function BackupsPage({ refresh, toast }: PageProps) {
   const t = useT();
   const { data, error } = useLoad<any>("backups", {}, refresh);
