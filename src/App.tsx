@@ -60,6 +60,7 @@ import {
   GlobalSearchHit,
 } from "./components/GlobalSearch";
 import { Modal, ErrorMessage, Field } from "./components/ui";
+import { StoreDecor } from "./components/StoreDecor";
 type AppModal = {
   name: string;
   data?: any;
@@ -426,6 +427,7 @@ export function App() {
         </div>
       </aside>
       <main className="main-workspace">
+        <StoreDecor />
         {page === "Dashboard" && (
           <header className="topbar">
             <div className="page-title">

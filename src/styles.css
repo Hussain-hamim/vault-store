@@ -349,6 +349,146 @@ button:active {
   min-width: 0;
   display: flex;
   flex-direction: column;
+  position: relative;
+  overflow: hidden;
+}
+.store-decor {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+  color: #9ba76e;
+}
+.store-decor-item {
+  position: absolute;
+  opacity: 0.18;
+  color: #8a9658;
+}
+.store-decor-laptop {
+  width: 170px;
+  top: 10%;
+  right: 1.6%;
+  animation: store-float 9s ease-in-out infinite;
+}
+.store-decor-phone {
+  width: 72px;
+  bottom: 22%;
+  left: 1.2%;
+  animation: store-float 11s ease-in-out infinite reverse;
+}
+.store-decor-chip {
+  width: 96px;
+  top: 38%;
+  left: 1.4%;
+  opacity: 0.14;
+  animation: store-spin-soft 22s linear infinite;
+}
+.store-decor-headphones {
+  width: 120px;
+  bottom: 8%;
+  right: 2%;
+  opacity: 0.16;
+  animation: store-float 13s ease-in-out infinite;
+}
+.store-decor-keyboard {
+  width: 140px;
+  top: 58%;
+  right: 1.8%;
+  opacity: 0.15;
+  animation: store-float 10s ease-in-out infinite reverse;
+}
+.store-decor-mouse {
+  width: 56px;
+  top: 22%;
+  left: 2%;
+  opacity: 0.15;
+  animation: store-float 12s ease-in-out infinite;
+}
+.store-decor-tablet {
+  width: 88px;
+  bottom: 36%;
+  right: 2.2%;
+  opacity: 0.14;
+  animation: store-float 14s ease-in-out infinite reverse;
+}
+.store-decor-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(2px);
+}
+.store-decor-orb-a {
+  width: 220px;
+  height: 220px;
+  top: -40px;
+  right: -30px;
+  background: radial-gradient(circle, #e8f0c866 0%, transparent 70%);
+  animation: store-pulse 8s ease-in-out infinite;
+}
+.store-decor-orb-b {
+  width: 180px;
+  height: 180px;
+  bottom: 8%;
+  left: -40px;
+  background: radial-gradient(circle, #d7eaf066 0%, transparent 70%);
+  animation: store-pulse 10s ease-in-out infinite reverse;
+}
+.store-decor-orb-c {
+  width: 140px;
+  height: 140px;
+  top: 48%;
+  right: 6%;
+  background: radial-gradient(circle, #f0e2d444 0%, transparent 70%);
+  animation: store-pulse 12s ease-in-out infinite;
+}
+@keyframes store-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-14px);
+  }
+}
+@keyframes store-spin-soft {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes store-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.08);
+  }
+}
+.amt-up {
+  color: #1f8a4c !important;
+}
+.amt-down {
+  color: #c23045 !important;
+}
+.amt-cash {
+  color: #1a7a96 !important;
+}
+.amt-worth {
+  color: #3f6b12 !important;
+}
+.amt-capital {
+  color: #8a6a1e !important;
+}
+.amt-recv {
+  color: #3a6eb8 !important;
+}
+.amt-inv {
+  color: #9a5c28 !important;
 }
 .topbar {
   height: 83px;
@@ -463,6 +603,8 @@ button:active {
   font-weight: 650;
 }
 .workspace-scroll {
+  position: relative;
+  z-index: 1;
   overflow: auto;
   flex: 1;
   min-height: 0;
@@ -1222,7 +1364,9 @@ button:active {
 }
 .inventory-page.page-content,
 .people-page.page-content,
-.docs-page.page-content {
+.docs-page.page-content,
+.daybook-page.page-content,
+.capital-page.page-content {
   max-width: 1100px;
   padding: 14px 14px;
 }
@@ -4696,26 +4840,340 @@ input[type="number"]::-webkit-inner-spin-button {
     height: 52px;
   }
 }
-.capital-layout {
-  display: grid;
-  grid-template-columns: minmax(280px, 1fr) minmax(280px, 1fr);
-  gap: 16px;
-  margin-bottom: 16px;
-}
-.capital-form {
-  padding: 0 20px 20px;
-  display: grid;
-  gap: 14px;
-}
-.capital-snapshot {
-  padding: 8px 20px 20px;
-}
 .report-inline-metrics {
   padding: 0 20px 12px;
 }
+.capital-page > .page-intro {
+  margin-bottom: 12px;
+}
+.capital-hero-metrics,
+.daybook-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.capital-hero-card,
+.daybook-metric {
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1.5px solid #e4e6df;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.capital-hero-card span,
+.daybook-metric span {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #8a8f84;
+}
+.capital-hero-card strong,
+.daybook-metric strong {
+  font-size: 24px;
+  font-weight: 780;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+.capital-hero-card.tone-worth {
+  background: linear-gradient(145deg, #f3f7ea, #fff);
+  border-color: #d5e0bc;
+}
+.capital-hero-card.tone-capital {
+  background: linear-gradient(145deg, #f8f3e6, #fff);
+  border-color: #e5d7b0;
+}
+.capital-hero-card.tone-earn {
+  background: linear-gradient(145deg, #eef8f3, #fff);
+  border-color: #c3e4d2;
+}
+.capital-hero-card.tone-cash {
+  background: linear-gradient(145deg, #eef6f9, #fff);
+  border-color: #c3dde8;
+}
+.daybook-metric.tone-sales {
+  background: linear-gradient(145deg, #f3f7ea, #fff);
+  border-color: #d5e0bc;
+}
+.daybook-metric.tone-gross {
+  background: linear-gradient(145deg, #eef8f3, #fff);
+  border-color: #c3e4d2;
+}
+.daybook-metric.tone-expense {
+  background: linear-gradient(145deg, #faf3ef, #fff);
+  border-color: #e8d8d0;
+}
+.daybook-metric.tone-net {
+  background: linear-gradient(145deg, #243038, #2f3d28);
+  border-color: #243038;
+}
+.daybook-metric.tone-net span {
+  color: #c5d18e;
+}
+.daybook-metric.tone-net strong {
+  color: #edff7d;
+}
+.capital-split {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.9fr) minmax(0, 1.3fr);
+  gap: 12px;
+  margin-bottom: 12px;
+  align-items: stretch;
+}
+.capital-sits,
+.capital-months {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.capital-sits-list {
+  padding: 4px 18px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.capital-sit-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid #eef0ea;
+}
+.capital-sit-row span {
+  font-size: 12px;
+  color: #5c6158;
+}
+.capital-sit-row strong {
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.capital-sit-row.sub {
+  background: #f6f8f0;
+  margin: 4px -10px;
+  padding: 10px;
+  border-radius: 10px;
+  border-bottom: 0;
+}
+.capital-sit-row.total {
+  border-bottom: 0;
+  padding-top: 14px;
+}
+.capital-sit-row.total strong {
+  font-size: 20px;
+}
+.capital-sits-note {
+  margin-top: 10px;
+  font-size: 11px;
+}
+.capital-months-table {
+  flex: 1;
+  max-height: 360px;
+  overflow: auto;
+}
+.capital-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 14px 8px;
+}
+.capital-history-row {
+  display: grid;
+  grid-template-columns:
+    96px 100px 110px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  text-align: left;
+  padding: 12px 14px;
+  border: 1.5px solid #e4e6df;
+  border-radius: 12px;
+  background: #fff;
+  border-left-width: 5px;
+  cursor: pointer;
+  color: inherit;
+}
+.capital-history-row.deposit {
+  border-left-color: #4c9f75;
+  background: linear-gradient(105deg, #f2faf5 0%, #fff 50%);
+}
+.capital-history-row.withdrawal {
+  border-left-color: #c45d6a;
+  background: linear-gradient(105deg, #fdf2f3 0%, #fff 50%);
+}
+.capital-history-row:hover {
+  box-shadow: 0 6px 16px #1e202314;
+}
+.capital-history-date,
+.capital-history-type,
+.capital-history-ref,
+.capital-history-note {
+  font-size: 12px;
+  color: #5c6158;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.capital-history-type {
+  font-weight: 650;
+  color: #2f3328;
+}
+.capital-history-row strong {
+  font-size: 14px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+.daybook-page > .page-intro {
+  margin-bottom: 12px;
+}
+.daybook-cash {
+  margin-bottom: 12px;
+  gap: 14px;
+  align-items: center;
+}
+.daybook-cash > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.daybook-cash > div span {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #8a8f84;
+}
+.daybook-cash > div strong {
+  font-size: 18px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+.daybook-tx .panel-heading h3 span {
+  font-weight: 500;
+  color: #8a8f84;
+  margin-left: 6px;
+}
+.daybook-tx-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 14px 14px;
+}
+.daybook-tx-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) auto auto auto;
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  text-align: left;
+  padding: 12px 14px;
+  border: 1.5px solid #e4e6df;
+  border-radius: 12px;
+  background: #fff;
+  border-left-width: 5px;
+  cursor: pointer;
+  color: inherit;
+}
+.daybook-tx-row.kind-sale {
+  border-left-color: #7a9448;
+  background: linear-gradient(105deg, #f3f7ea 0%, #fff 48%);
+}
+.daybook-tx-row.kind-expense {
+  border-left-color: #c4785a;
+  background: linear-gradient(105deg, #faf3ef 0%, #fff 48%);
+}
+.daybook-tx-row.kind-purchase,
+.daybook-tx-row.kind-payment,
+.daybook-tx-row.kind-receipt,
+.daybook-tx-row.kind-owner {
+  border-left-color: #4a90a8;
+  background: linear-gradient(105deg, #eef6f9 0%, #fff 48%);
+}
+.daybook-tx-row:hover {
+  box-shadow: 0 6px 16px #1e202314;
+}
+.daybook-tx-ref {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.daybook-tx-ref strong {
+  font-size: 13px;
+  color: #2f3328;
+}
+.daybook-tx-ref small {
+  font-size: 11px;
+  color: #8a8f84;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.daybook-tx-total {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.daybook-tx-cash {
+  font-size: 12px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  min-width: 72px;
+  text-align: right;
+}
 @media (max-width: 900px) {
-  .capital-layout {
+  .capital-split {
     grid-template-columns: 1fr;
+  }
+  .capital-hero-metrics,
+  .daybook-metrics {
+    grid-template-columns: 1fr 1fr;
+  }
+  .capital-history-row {
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "date type"
+      "note amount"
+      "ref ref";
+  }
+  .capital-history-date {
+    grid-area: date;
+  }
+  .capital-history-type {
+    grid-area: type;
+  }
+  .capital-history-note {
+    grid-area: note;
+  }
+  .capital-history-row strong {
+    grid-area: amount;
+    justify-self: end;
+  }
+  .capital-history-ref {
+    grid-area: ref;
+  }
+  .daybook-tx-row {
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "ref badge"
+      "total cash";
+  }
+  .daybook-tx-ref {
+    grid-area: ref;
+  }
+  .daybook-tx-row .badge {
+    grid-area: badge;
+  }
+  .daybook-tx-total {
+    grid-area: total;
+  }
+  .daybook-tx-cash {
+    grid-area: cash;
   }
 }
 .inventory-page {

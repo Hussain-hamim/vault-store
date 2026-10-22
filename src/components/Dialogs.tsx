@@ -2575,7 +2575,7 @@ export function OwnerMovement({ close, done }: DialogProps) {
   }
   return (
     <Modal
-      title="Owner cash movement"
+      title="Record investment"
       subtitle="Capital deposits and withdrawals affect cash and equity, not profit."
       onClose={close}
     >

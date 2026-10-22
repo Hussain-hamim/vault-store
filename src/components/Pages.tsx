@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   PlusIcon,
   ArrowUpRightIcon,
@@ -23,8 +23,6 @@ import {
   exportCSV,
   businessDate,
   getToken,
-  requestKey,
-  toMoney,
   Product,
   Party,
   User,
@@ -998,15 +996,8 @@ function monthLabel(ym: string) {
 export function CapitalPage({ refresh, open, toast, user }: PageProps) {
   const [data, setData] = useState<any>(null),
     [error, setError] = useState(""),
-    [formError, setFormError] = useState(""),
-    [busy, setBusy] = useState(false),
-    [direction, setDirection] = useState<"deposit" | "withdrawal">("deposit"),
-    [amount, setAmount] = useState(""),
-    [note, setNote] = useState(""),
-    [moveDate, setMoveDate] = useState(businessDate()),
     [historyAfter, setHistoryAfter] = useState(""),
     [historyStack, setHistoryStack] = useState<string[]>([]);
-  const key = useRef(requestKey());
   useEffect(() => {
     let active = true;
     setError("");
@@ -1025,44 +1016,23 @@ export function CapitalPage({ refresh, open, toast, user }: PageProps) {
     setHistoryAfter("");
     setHistoryStack([]);
   }, [refresh]);
-  async function submit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const invested = direction === "deposit";
-    setBusy(true);
-    setFormError("");
-    try {
-      await api("ownerMovement", {
-        direction,
-        amount: toMoney(amount),
-        note,
-        date: moveDate,
-        request_key: key.current,
-      });
-      key.current = requestKey();
-      setAmount("");
-      setNote("");
-      setMoveDate(businessDate());
-      setDirection("deposit");
-      toast(
-        invested
-          ? "Capital invested in the business."
-          : "Capital withdrawal recorded.",
-      );
-    } catch (err: any) {
-      setFormError(err.message);
-    } finally {
-      setBusy(false);
-    }
-  }
   const c = data?.current;
   return (
-    <div className="page-content">
+    <div className="page-content capital-page">
       <PageIntro
         eyebrow="Owner capital"
         title="Capital & net worth"
         description="Track money you invest in the business, withdrawals, and how your net worth changes each month."
         action={
-          user.permissions.includes("finance") ? undefined : (
+          user.permissions.includes("finance") ? (
+            <button
+              className="button button-dark"
+              onClick={() => open("owner")}
+            >
+              <PlusIcon size={16} />
+              Record investment
+            </button>
+          ) : (
             <Badge tone="yellow">View only</Badge>
           )
         }
@@ -1072,242 +1042,179 @@ export function CapitalPage({ refresh, open, toast, user }: PageProps) {
         <Loading />
       ) : (
         <>
-          <div className="metrics-row four">
-            <Metric label="Net worth" value={af(c.net_worth)} dark />
-            <Metric label="Owner capital" value={af(c.capital)} />
-            <Metric label="Earnings kept" value={af(c.earnings)} />
-            <Metric label="Cash on hand" value={af(c.cash)} />
+          <div className="capital-hero-metrics">
+            <div className="capital-hero-card tone-worth">
+              <span>Net worth</span>
+              <strong className="amt-worth">{af(c.net_worth)}</strong>
+            </div>
+            <div className="capital-hero-card tone-capital">
+              <span>Owner capital</span>
+              <strong className="amt-capital">{af(c.capital)}</strong>
+            </div>
+            <div className="capital-hero-card tone-earn">
+              <span>Earnings kept</span>
+              <strong
+                className={c.earnings >= 0 ? "amt-up" : "amt-down"}
+              >
+                {af(c.earnings)}
+              </strong>
+            </div>
+            <div className="capital-hero-card tone-cash">
+              <span>Cash on hand</span>
+              <strong className="amt-cash">{af(c.cash)}</strong>
+            </div>
           </div>
-          <div className="capital-layout">
-            {user.permissions.includes("finance") && (
-              <section className="panel">
-                <div className="panel-heading">
-                  <h3>Invest or withdraw</h3>
+          <div className="capital-split">
+            <section className="panel capital-sits">
+              <div className="panel-heading padded">
+                <div>
+                  <h3>Where the money sits</h3>
+                  <p className="subtle">Assets, payables and net worth today</p>
                 </div>
-                <form onSubmit={submit} className="capital-form">
-                  <Field label="What are you doing?">
-                    <select
-                      value={direction}
-                      onChange={(e) =>
-                        setDirection(e.target.value as "deposit" | "withdrawal")
-                      }
-                    >
-                      <option value="deposit">
-                        Put external cash into the business
-                      </option>
-                      <option value="withdrawal">
-                        Take capital out of the business
-                      </option>
-                    </select>
-                  </Field>
-                  <div className="form-grid">
-                    <Field label="Amount (AF)">
-                      <input
-                        type="number"
-                        min="0.01"
-                        step="0.01"
-                        required
-                        placeholder="0.00"
-                        value={amount}
-                        onChange={(e) => setAmount(e.target.value)}
-                      />
-                    </Field>
-                    <Field label="Date">
-                      <input
-                        type="date"
-                        required
-                        value={moveDate}
-                        max={businessDate()}
-                        onChange={(e) => setMoveDate(e.target.value)}
-                      />
-                    </Field>
-                  </div>
-                  <Field label="Note">
-                    <input
-                      minLength={2}
-                      required
-                      placeholder="Bank transfer, personal cash, family investment…"
-                      value={note}
-                      onChange={(e) => setNote(e.target.value)}
-                    />
-                  </Field>
-                  <p className="help-note">
-                    This updates cash and owner capital. It does not count as
-                    sales profit or an expense.
-                  </p>
-                  <ErrorMessage error={formError} />
-                  <button className="button button-dark" disabled={busy}>
-                    {busy
-                      ? "Saving…"
-                      : direction === "deposit"
-                        ? "Record investment"
-                        : "Record withdrawal"}
-                  </button>
-                </form>
-              </section>
-            )}
-            <section className="panel">
-              <div className="panel-heading">
-                <h3>Where the money sits</h3>
               </div>
-              <div className="profit-report capital-snapshot">
-                <div>
+              <div className="capital-sits-list">
+                <div className="capital-sit-row">
                   <span>Cash</span>
-                  <strong>{af(c.cash, 2)}</strong>
+                  <strong className="amt-cash">{af(c.cash, 2)}</strong>
                 </div>
-                <div>
+                <div className="capital-sit-row">
                   <span>Customer receivables</span>
-                  <strong>{af(c.receivables, 2)}</strong>
+                  <strong className="amt-recv">{af(c.receivables, 2)}</strong>
                 </div>
-                <div>
+                <div className="capital-sit-row">
                   <span>Inventory</span>
-                  <strong>{af(c.inventory, 2)}</strong>
+                  <strong className="amt-inv">{af(c.inventory, 2)}</strong>
                 </div>
-                <div className="subtotal">
+                <div className="capital-sit-row sub">
                   <span>Total assets</span>
-                  <strong>{af(c.assets, 2)}</strong>
+                  <strong className="amt-worth">{af(c.assets, 2)}</strong>
                 </div>
-                <div>
+                <div className="capital-sit-row">
                   <span>Supplier payables</span>
-                  <strong>{af(c.payables, 2)}</strong>
+                  <strong className="amt-down">{af(c.payables, 2)}</strong>
                 </div>
-                <div className="total">
+                <div className="capital-sit-row total">
                   <span>Net worth</span>
-                  <strong>{af(c.net_worth, 2)}</strong>
+                  <strong className="amt-worth">{af(c.net_worth, 2)}</strong>
                 </div>
-                <p className="subtle">
-                  Net worth = assets − payables = owner capital + earnings kept
-                  in the business.
+                <p className="subtle capital-sits-note">
+                  Net worth = assets − payables = owner capital + earnings kept.
                 </p>
               </div>
             </section>
-          </div>
-          <section className="panel">
-            <div className="panel-heading padded">
-              <div>
-                <h3>Monthly capital & net worth</h3>
-                <p className="subtle">
-                  How invested capital and business value changed each month
-                </p>
+            <section className="panel capital-months">
+              <div className="panel-heading padded">
+                <div>
+                  <h3>Monthly capital & net worth</h3>
+                  <p className="subtle">Invested, withdrawn and ending value</p>
+                </div>
+                <ExportButton
+                  onClick={() => {
+                    exportCSV(
+                      "vault-capital-months",
+                      data.months.map((m: any) => ({
+                        month: m.month,
+                        invested_AF: m.invested / 100,
+                        withdrawn_AF: m.withdrawn / 100,
+                        profit_AF: m.profit / 100,
+                        capital_AF: m.capital / 100,
+                        earnings_AF: m.earnings / 100,
+                        net_worth_AF: m.net_worth / 100,
+                        change_AF: m.change / 100,
+                        cash_AF: m.cash / 100,
+                      })),
+                    );
+                    toast("Monthly capital report exported.");
+                  }}
+                />
               </div>
-              <ExportButton
-                onClick={() => {
-                  exportCSV(
-                    "vault-capital-months",
-                    data.months.map((m: any) => ({
-                      month: m.month,
-                      invested_AF: m.invested / 100,
-                      withdrawn_AF: m.withdrawn / 100,
-                      profit_AF: m.profit / 100,
-                      capital_AF: m.capital / 100,
-                      earnings_AF: m.earnings / 100,
-                      net_worth_AF: m.net_worth / 100,
-                      change_AF: m.change / 100,
-                      cash_AF: m.cash / 100,
-                    })),
-                  );
-                  toast("Monthly capital report exported.");
-                }}
-              />
-            </div>
-            <div className="table-wrap">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Month</th>
-                    <th>Invested</th>
-                    <th>Withdrawn</th>
-                    <th>Profit</th>
-                    <th>Owner capital</th>
-                    <th>Net worth</th>
-                    <th>Change</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.months.map((m: any) => (
-                    <tr key={m.month}>
-                      <td>{monthLabel(m.month)}</td>
-                      <td className="money text-green">
-                        {m.invested ? af(m.invested) : "—"}
-                      </td>
-                      <td className="money text-red">
-                        {m.withdrawn ? af(m.withdrawn) : "—"}
-                      </td>
-                      <td
-                        className={`money ${m.profit >= 0 ? "text-green" : "text-red"}`}
-                      >
-                        {af(m.profit)}
-                      </td>
-                      <td>{af(m.capital)}</td>
-                      <td>
-                        <strong>{af(m.net_worth)}</strong>
-                      </td>
-                      <td
-                        className={`money ${m.change > 0 ? "text-green" : m.change < 0 ? "text-red" : ""}`}
-                      >
-                        {m.change > 0 ? "+" : ""}
-                        {af(m.change)}
-                      </td>
+              <div className="table-wrap capital-months-table">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Month</th>
+                      <th>In</th>
+                      <th>Out</th>
+                      <th>Profit</th>
+                      <th>Net worth</th>
+                      <th>Change</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {!data.months.length && (
-              <Empty
-                title="No capital history yet"
-                text="Invest cash or post sales to start the monthly trail."
-              />
-            )}
-          </section>
-          <section className="panel">
+                  </thead>
+                  <tbody>
+                    {data.months.map((m: any) => (
+                      <tr key={m.month}>
+                        <td>{monthLabel(m.month)}</td>
+                        <td className="money amt-up">
+                          {m.invested ? af(m.invested) : "—"}
+                        </td>
+                        <td className="money amt-down">
+                          {m.withdrawn ? af(m.withdrawn) : "—"}
+                        </td>
+                        <td
+                          className={`money ${m.profit >= 0 ? "amt-up" : "amt-down"}`}
+                        >
+                          {af(m.profit)}
+                        </td>
+                        <td>
+                          <strong className="amt-worth">{af(m.net_worth)}</strong>
+                        </td>
+                        <td
+                          className={`money ${m.change > 0 ? "amt-up" : m.change < 0 ? "amt-down" : ""}`}
+                        >
+                          {m.change > 0 ? "+" : ""}
+                          {af(m.change)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {!data.months.length && (
+                <Empty
+                  title="No capital history yet"
+                  text="Invest cash or post sales to start the monthly trail."
+                />
+              )}
+            </section>
+          </div>
+          <section className="panel capital-history">
             <div className="panel-heading padded">
               <div>
                 <h3>Investment & withdrawal history</h3>
                 <p className="subtle">
-                  Each cash investment or withdrawal on its own row, newest
-                  first
+                  Each cash investment or withdrawal on its own row, newest first
                 </p>
               </div>
             </div>
-            <div className="table-wrap">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Type</th>
-                    <th>Reference</th>
-                    <th>Note</th>
-                    <th>Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.movements.map((m: any) => (
-                    <tr
-                      key={m.id}
-                      onClick={() => open("invoice", { id: m.id })}
-                    >
-                      <td>{m.date}</td>
-                      <td>
-                        {m.direction === "deposit" ? "Investment" : "Withdrawal"}
-                      </td>
-                      <td>{m.number}</td>
-                      <td>{m.note || "—"}</td>
-                      <td
-                        className={`money ${m.direction === "deposit" ? "text-green" : "text-red"}`}
-                      >
-                        {m.direction === "deposit" ? "+" : "−"}
-                        {af(m.amount)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="capital-history-list">
+              {data.movements.map((m: any) => (
+                <button
+                  type="button"
+                  key={m.id}
+                  className={`capital-history-row ${m.direction}`}
+                  onClick={() => open("invoice", { id: m.id })}
+                >
+                  <span className="capital-history-date">{m.date}</span>
+                  <span className="capital-history-type">
+                    {m.direction === "deposit" ? "Investment" : "Withdrawal"}
+                  </span>
+                  <span className="capital-history-ref">{m.number}</span>
+                  <span className="capital-history-note">{m.note || "—"}</span>
+                  <strong
+                    className={
+                      m.direction === "deposit" ? "amt-up" : "amt-down"
+                    }
+                  >
+                    {m.direction === "deposit" ? "+" : "−"}
+                    {af(m.amount)}
+                  </strong>
+                </button>
+              ))}
             </div>
             {!data.movements.length && (
               <Empty
                 title="No capital cash yet"
-                text="Use the form above to put external cash into the business."
+                text="Use Record investment to put external cash into the business."
               />
             )}
             <div className="pagination">
@@ -1344,7 +1251,7 @@ export function DayBookPage({ refresh, open, toast, user }: PageProps) {
     [counted, setCounted] = useState("");
   const { data, error } = useLoad<any>("dayBook", { date: day }, refresh);
   return (
-    <div className="page-content">
+    <div className="page-content daybook-page">
       <PageIntro
         eyebrow="Finance"
         title="Daily book"
@@ -1376,33 +1283,58 @@ export function DayBookPage({ refresh, open, toast, user }: PageProps) {
         <Loading />
       ) : (
         <>
-          <div className="metrics-row four">
-            <Metric label="Daily sales" value={af(data.totals.sales)} />
+          <div className="daybook-metrics">
+            <div className="daybook-metric tone-sales">
+              <span>Daily sales</span>
+              <strong className="amt-up">{af(data.totals.sales)}</strong>
+            </div>
             {user.permissions.includes("view_costs") && (
-              <Metric
-                label="Gross trading profit"
-                value={af(data.totals.gross)}
-              />
+              <div className="daybook-metric tone-gross">
+                <span>Gross trading profit</span>
+                <strong
+                  className={
+                    data.totals.gross >= 0 ? "amt-up" : "amt-down"
+                  }
+                >
+                  {af(data.totals.gross)}
+                </strong>
+              </div>
             )}
-            <Metric label="Expenses" value={af(data.totals.expenses)} />
+            <div className="daybook-metric tone-expense">
+              <span>Expenses</span>
+              <strong className="amt-down">{af(data.totals.expenses)}</strong>
+            </div>
             {user.permissions.includes("view_costs") && (
-              <Metric label="Net profit" value={af(data.totals.net)} dark />
+              <div className="daybook-metric tone-net">
+                <span>Net profit</span>
+                <strong
+                  className={data.totals.net >= 0 ? "amt-worth" : "amt-down"}
+                >
+                  {af(data.totals.net)}
+                </strong>
+              </div>
             )}
           </div>
-          <section className="panel cash-reconciliation">
+          <section className="panel cash-reconciliation daybook-cash">
             <div>
               <span>Opening cash</span>
-              <strong>{af(data.opening)}</strong>
+              <strong className="amt-cash">{af(data.opening)}</strong>
             </div>
             <ArrowRightIcon size={18} />
             <div>
               <span>Net cash movement</span>
-              <strong>{af(data.totals.cash)}</strong>
+              <strong
+                className={
+                  data.totals.cash >= 0 ? "amt-up" : "amt-down"
+                }
+              >
+                {af(data.totals.cash)}
+              </strong>
             </div>
             <ArrowRightIcon size={18} />
             <div>
               <span>Expected closing cash</span>
-              <strong>{af(data.closing)}</strong>
+              <strong className="amt-cash">{af(data.closing)}</strong>
             </div>
             <Field label="Counted cash (AF)">
               <input
@@ -1427,7 +1359,7 @@ export function DayBookPage({ refresh, open, toast, user }: PageProps) {
               </Badge>
             )}
           </section>
-          <section className="panel">
+          <section className="panel daybook-tx">
             <div className="panel-heading padded">
               <h3>
                 Daily transactions <span>{day}</span>
@@ -1449,45 +1381,41 @@ export function DayBookPage({ refresh, open, toast, user }: PageProps) {
                 }}
               />
             </div>
-            <div className="table-wrap">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Reference</th>
-                    <th>Type</th>
-                    <th>Contact / description</th>
-                    <th>Amount</th>
-                    <th>Cash in</th>
-                    <th>Cash out</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.entries.map((d: any) => (
-                    <tr key={d.id} onClick={() => open("invoice", d)}>
-                      <td>
-                        <strong>{d.number}</strong>
-                      </td>
-                      <td>
-                        <Badge
-                          tone={
-                            d.kind === "sale"
-                              ? "green"
-                              : d.kind === "expense"
-                                ? "red"
-                                : "gray"
-                          }
-                        >
-                          {d.kind.replaceAll("_", " ")}
-                        </Badge>
-                      </td>
-                      <td>{d.party_name || d.note}</td>
-                      <td>{af(d.total)}</td>
-                      <td>{d.cash_change > 0 ? af(d.cash_change) : "—"}</td>
-                      <td>{d.cash_change < 0 ? af(-d.cash_change) : "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="daybook-tx-list">
+              {data.entries.map((d: any) => (
+                <button
+                  type="button"
+                  key={d.id}
+                  className={`daybook-tx-row kind-${d.kind}`}
+                  onClick={() => open("invoice", d)}
+                >
+                  <span className="daybook-tx-ref">
+                    <strong>{d.number}</strong>
+                    <small>{d.party_name || d.note || "—"}</small>
+                  </span>
+                  <Badge
+                    tone={
+                      d.kind === "sale"
+                        ? "green"
+                        : d.kind === "expense"
+                          ? "red"
+                          : "gray"
+                    }
+                  >
+                    {d.kind.replaceAll("_", " ")}
+                  </Badge>
+                  <strong className="daybook-tx-total">{af(d.total)}</strong>
+                  <span
+                    className={`daybook-tx-cash ${d.cash_change > 0 ? "amt-up" : d.cash_change < 0 ? "amt-down" : ""}`}
+                  >
+                    {d.cash_change > 0
+                      ? `+${af(d.cash_change)}`
+                      : d.cash_change < 0
+                        ? `−${af(-d.cash_change)}`
+                        : "—"}
+                  </span>
+                </button>
+              ))}
             </div>
             {!data.entries.length && (
               <Empty
