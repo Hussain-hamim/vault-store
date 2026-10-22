@@ -1,7 +1,9 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App.tsx";
+import { I18nProvider } from "./i18n";
 import "@fontsource-variable/plus-jakarta-sans";
+import "@fontsource-variable/vazirmatn";
 import "./styles.css";
 
 // Number fields must only change by typing digits — not scroll or stepper keys.
@@ -23,6 +25,8 @@ document.addEventListener("keydown", (event) => {
 
 createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <App />
+    <I18nProvider>
+      <App />
+    </I18nProvider>
   </React.StrictMode>,
 );

@@ -29,6 +29,7 @@ import {
   downloadInvoice,
   productSpecEntries,
 } from "../api";
+import { useT } from "../i18n";
 import {
   Modal,
   Field,
@@ -596,6 +597,7 @@ export function TradeForm({
   documentId?: string;
   seedProduct?: Product;
 } & DialogProps) {
+  const t = useT();
   const PAGE = 8;
   const [q, setQ] = useState(""),
     [products, setProducts] = useState<Product[]>([]),
@@ -919,11 +921,11 @@ export function TradeForm({
       done(
         purchase
           ? documentId
-            ? "Purchase updated. Stock and supplier ledger recalculated."
-            : "Purchase received. Stock and supplier ledger updated."
+            ? t("sales.purchaseUpdated")
+            : t("sales.purchasePosted")
           : documentId
-            ? "Invoice updated. Stock, payment and profit recalculated."
-            : "Sale posted. Invoice, stock and ledger saved.",
+            ? t("sales.saleUpdated")
+            : t("sales.salePosted"),
         {
           id: posted?.id,
           kind: posted?.kind || kind,
@@ -995,7 +997,7 @@ export function TradeForm({
                         </div>
                       </label>
                       <label className="sale-customer-date">
-                        <span>Date</span>
+                        <span>{t("common.date")}</span>
                         <input
                           type="date"
                           name="date"
@@ -1037,7 +1039,7 @@ export function TradeForm({
                             className={customerMode === "new" ? "active" : ""}
                             onClick={() => setCustomerMode("new")}
                           >
-                            Type name
+                            {t("sales.typeName")}
                           </button>
                           <button
                             type="button"
@@ -1048,16 +1050,16 @@ export function TradeForm({
                             }
                             onClick={() => setCustomerMode("existing")}
                           >
-                            Existing
+                            {t("sales.existing")}
                           </button>
                         </div>
                         {customerMode === "new" ? (
                           <label className="sale-customer-name">
-                            <span>Customer</span>
+                            <span>{t("sales.customer")}</span>
                             <input
                               value={customerName}
                               onChange={(e) => setCustomerName(e.target.value)}
-                              placeholder="Type customer name…"
+                              placeholder={t("sales.customerPh")}
                               minLength={2}
                               required
                               autoComplete="off"
@@ -1065,7 +1067,7 @@ export function TradeForm({
                           </label>
                         ) : (
                           <label className="sale-customer-name">
-                            <span>Customer</span>
+                            <span>{t("sales.customer")}</span>
                             <div className="inline-actions party-picker">
                               <select
                                 value={party}
@@ -1092,7 +1094,7 @@ export function TradeForm({
                           </label>
                         )}
                         <label className="sale-customer-date">
-                          <span>Date</span>
+                          <span>{t("common.date")}</span>
                           <input
                             type="date"
                             name="date"
@@ -1121,7 +1123,7 @@ export function TradeForm({
                 <div className="sale-catalog-panel">
                   <div className="trade-panel-head">
                     <div>
-                      <h3>Product catalog</h3>
+                      <h3>{t("sales.productCatalog")}</h3>
                     </div>
                     <div className="trade-catalog-actions">
                       {purchase && (
@@ -1145,7 +1147,7 @@ export function TradeForm({
                     <input
                       ref={barcodeRef}
                       aria-label="Scan product barcode"
-                      placeholder="Scan barcode to add…"
+                      placeholder={t("sales.scanPh")}
                       value={scanCode}
                       onChange={(e) => setScanCode(e.target.value)}
                       onKeyDown={(e) => {
@@ -1273,7 +1275,7 @@ export function TradeForm({
                 <div className="sale-bill-panel">
                   <div className="trade-panel-head">
                     <div>
-                      <h3>Bill lines</h3>
+                      <h3>{t("sales.billLines")}</h3>
                       <p>
                         {lines.length
                           ? `${lines.length} product${lines.length === 1 ? "" : "s"}`
@@ -1395,8 +1397,9 @@ export function TradeForm({
                     <div className="cart-empty">
                       <ShoppingIllustration />
                       <p>
-                        Add products from the left to build this{" "}
-                        {purchase ? "purchase" : "sale"}.
+                        {purchase
+                          ? t("sales.emptyPurchase")
+                          : t("sales.emptyBill")}
                       </p>
                     </div>
                   )}
@@ -1404,16 +1407,16 @@ export function TradeForm({
                 <div className="sale-pay-panel">
                   <div className="trade-totals">
                     <div>
-                      <span>Invoice total</span>
+                      <span>{t("sales.invoiceTotal")}</span>
                       <strong>{af(total, 2)}</strong>
                     </div>
                     <div>
-                      <span>Balance remaining</span>
+                      <span>{t("sales.balanceRemaining")}</span>
                       <strong>{af(Math.max(0, total - payment), 2)}</strong>
                     </div>
                     <Field
-                      label="Amount paid now (AF)"
-                      hint="Blank or 0 = unpaid / on account."
+                      label={t("sales.amountPaid")}
+                      hint={t("sales.amountPaidHint")}
                     >
                       <input
                         name="paid"
@@ -1436,14 +1439,14 @@ export function TradeForm({
                         onChange={(e) => setPrintAfter(e.target.checked)}
                       />
                       <PrinterIcon size={15} />
-                      Print bill after save
+                      {t("sales.printAfter")}
                     </label>
                     <button
                       type="button"
                       className="button"
                       onClick={close}
                     >
-                      Cancel
+                      {t("common.cancel")}
                     </button>
                     <button
                       className="button button-dark"
@@ -1455,14 +1458,14 @@ export function TradeForm({
                       }
                     >
                       {busy
-                        ? "Posting…"
+                        ? t("common.posting")
                         : purchase
                           ? documentId
-                            ? "Save purchase"
-                            : "Receive purchase"
+                            ? t("sales.savePurchase")
+                            : t("sales.receivePurchase")
                           : documentId
-                            ? "Save invoice"
-                            : "Create sale"}
+                            ? t("sales.saveInvoice")
+                            : t("sales.createSale")}
                       <ArrowRightIcon size={16} />
                     </button>
                   </div>
@@ -1543,7 +1546,7 @@ export function TradeForm({
                   <section className="trade-catalog">
                     <div className="trade-panel-head">
                       <div>
-                        <h3>Product catalog</h3>
+                        <h3>{t("sales.productCatalog")}</h3>
                         <p>
                           Search existing items, or add a new product for this
                           purchase.
@@ -1569,7 +1572,7 @@ export function TradeForm({
                       <input
                         ref={barcodeRef}
                         aria-label="Scan product barcode"
-                        placeholder="Scan barcode to add…"
+                        placeholder={t("sales.scanPh")}
                         value={scanCode}
                         onChange={(e) => setScanCode(e.target.value)}
                         onKeyDown={(e) => {
@@ -1685,7 +1688,7 @@ export function TradeForm({
                   <section className="trade-cart">
                     <div className="trade-panel-head">
                       <div>
-                        <h3>Bill lines</h3>
+                        <h3>{t("sales.billLines")}</h3>
                         <p>
                           {lines.length
                             ? `${lines.length} product${lines.length === 1 ? "" : "s"} on this invoice`
@@ -1790,7 +1793,7 @@ export function TradeForm({
                 <div className="trade-footer">
                   <div className="trade-totals">
                     <div>
-                      <span>Invoice total</span>
+                      <span>{t("sales.invoiceTotal")}</span>
                       <strong>{af(total, 2)}</strong>
                     </div>
                     <div>
@@ -1798,7 +1801,7 @@ export function TradeForm({
                       <strong>{af(Math.max(0, total - payment), 2)}</strong>
                     </div>
                     <Field
-                      label="Amount paid now (AF)"
+                      label={t("sales.amountPaid")}
                       hint="Leave blank for full payment. Enter 0 for credit."
                     >
                       <input
@@ -2184,6 +2187,7 @@ export function InvoiceDialog({
   remove?: () => void;
   autoPrint?: boolean;
 } & DialogProps) {
+  const t = useT();
   const [doc, setDoc] = useState<any>(null),
     [store, setStore] = useState<any>(null),
     [error, setError] = useState(""),
@@ -2204,8 +2208,8 @@ export function InvoiceDialog({
   useEffect(() => {
     if (!autoPrint || !doc || printed.current) return;
     printed.current = true;
-    const t = window.setTimeout(() => window.print(), 250);
-    return () => window.clearTimeout(t);
+    const timer = window.setTimeout(() => window.print(), 250);
+    return () => window.clearTimeout(timer);
   }, [autoPrint, doc]);
   async function postReturn(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -2222,7 +2226,7 @@ export function InvoiceDialog({
         note: new FormData(e.currentTarget).get("reason"),
         request_key: key.current,
       });
-      done("Return posted. Stock, payment and profit adjusted.");
+      done(t("invoice.returnItems"));
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -2231,11 +2235,11 @@ export function InvoiceDialog({
   }
   return (
     <Modal
-      title={doc?.number || "Invoice"}
+      title={doc?.number || t("invoice.title")}
       subtitle={
         doc
           ? `${doc.kind.replaceAll("_", " ")} · ${doc.date}`
-          : "Loading document…"
+          : t("invoice.loading")
       }
       onClose={close}
       wide
@@ -2268,20 +2272,24 @@ export function InvoiceDialog({
             </div>
             <div className="invoice-meta">
               <div>
-                <span>{doc.kind === "purchase" ? "Supplier" : "Customer"}</span>
+                <span>
+                  {doc.kind === "purchase"
+                    ? t("invoice.supplier")
+                    : t("invoice.customer")}
+                </span>
                 <strong>{doc.party_name || "—"}</strong>
               </div>
               <div>
-                <span>Recorded by</span>
+                <span>{t("invoice.recordedBy")}</span>
                 <strong>{doc.user_name}</strong>
               </div>
               <div>
-                <span>Due date</span>
+                <span>{t("invoice.dueDate")}</span>
                 <strong>{doc.due_date || "—"}</strong>
               </div>
               {doc.kind === "purchase" && !!doc.fx_rate && (
                 <div>
-                  <span>Exchange rate</span>
+                  <span>{t("product.fxRate")}</span>
                   <strong>{fxRateLabel(doc.fx_rate)}</strong>
                 </div>
               )}
@@ -2290,14 +2298,18 @@ export function InvoiceDialog({
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th>Product</th>
-                    <th>Quantity</th>
-                    {doc.kind === "purchase" && <th>Unit cost (AED)</th>}
+                    <th>{t("invoice.product")}</th>
+                    <th>{t("invoice.quantity")}</th>
+                    {doc.kind === "purchase" && (
+                      <th>{t("invoice.unitCostAed")}</th>
+                    )}
                     <th>
-                      {doc.kind === "purchase" ? "Unit cost (AF)" : "Unit price"}
+                      {doc.kind === "purchase"
+                        ? t("invoice.unitCostAf")
+                        : t("invoice.unitPrice")}
                     </th>
-                    <th>Discount</th>
-                    <th>Total</th>
+                    <th>{t("invoice.discount")}</th>
+                    <th>{t("invoice.total")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -2342,20 +2354,20 @@ export function InvoiceDialog({
             )}
             <div className="invoice-summary">
               <div>
-                <span>Total</span>
-                <strong>{af(doc.total, 2)}</strong>
+                <span>{t("invoice.total")}</span>
+                <strong className="money">{af(doc.total, 2)}</strong>
               </div>
               <div>
-                <span>Returned</span>
-                <strong>{af(doc.returned || 0, 2)}</strong>
+                <span>{t("invoice.returned")}</span>
+                <strong className="money">{af(doc.returned || 0, 2)}</strong>
               </div>
               <div>
-                <span>Paid</span>
-                <strong>{af(doc.paid, 2)}</strong>
+                <span>{t("invoice.paid")}</span>
+                <strong className="money">{af(doc.paid, 2)}</strong>
               </div>
               <div className="invoice-due">
-                <span>Outstanding</span>
-                <strong>
+                <span>{t("invoice.outstanding")}</span>
+                <strong className="money">
                   {af(
                     Math.max(0, doc.total - (doc.returned || 0) - doc.paid),
                     2,
@@ -2367,9 +2379,7 @@ export function InvoiceDialog({
             {store?.bill_footer ? (
               <p className="invoice-note">{store.bill_footer}</p>
             ) : null}
-            <p className="subtle">
-              All amounts in Afghan afghani (AFN). Tax disabled.
-            </p>
+            <p className="subtle">{t("invoice.afnNote")}</p>
           </div>
           {returning && (
             <form className="return-form" onSubmit={postReturn}>

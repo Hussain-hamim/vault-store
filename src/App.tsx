@@ -29,6 +29,7 @@ import {
   CommandIcon,
 } from "@phosphor-icons/react";
 import { api, setToken, Product, User } from "./api";
+import { useI18n, LOCALES, type Locale } from "./i18n";
 import { Dashboard } from "./components/Dashboard";
 import {
   ProductsPage,
@@ -66,26 +67,74 @@ type AppModal = {
   data?: any;
   returnTo?: { name: string; data?: any };
 };
+type PageId =
+  | "dashboard"
+  | "inventory"
+  | "sales"
+  | "purchases"
+  | "customers"
+  | "suppliers"
+  | "reports"
+  | "dailyBook"
+  | "capital"
+  | "expenses"
+  | "backups"
+  | "settings";
+
+const PAGE_ALIASES: Record<string, PageId> = {
+  Dashboard: "dashboard",
+  Inventory: "inventory",
+  Products: "inventory",
+  Sales: "sales",
+  Purchases: "purchases",
+  Customers: "customers",
+  Suppliers: "suppliers",
+  Reports: "reports",
+  "Daily book": "dailyBook",
+  Capital: "capital",
+  Expenses: "expenses",
+  Backups: "backups",
+  Settings: "settings",
+  dashboard: "dashboard",
+  inventory: "inventory",
+  sales: "sales",
+  purchases: "purchases",
+  customers: "customers",
+  suppliers: "suppliers",
+  reports: "reports",
+  dailyBook: "dailyBook",
+  capital: "capital",
+  expenses: "expenses",
+  backups: "backups",
+  settings: "settings",
+};
+
 const nav = [
-  { name: "Dashboard", icon: SquaresFourIcon, permission: "" },
-  { name: "Inventory", icon: PackageIcon, permission: "inventory" },
-  { name: "Sales", icon: ShoppingCartSimpleIcon, permission: "sales" },
-  { name: "Purchases", icon: TruckIcon, permission: "purchases" },
-  { name: "Customers", icon: UsersIcon, permission: "people" },
-  { name: "Suppliers", icon: BuildingsIcon, permission: "people" },
-  { name: "Reports", icon: ChartBarIcon, permission: "reports" },
+  { id: "dashboard" as PageId, labelKey: "nav.dashboard", icon: SquaresFourIcon, permission: "" },
+  { id: "inventory" as PageId, labelKey: "nav.inventory", icon: PackageIcon, permission: "inventory" },
+  { id: "sales" as PageId, labelKey: "nav.sales", icon: ShoppingCartSimpleIcon, permission: "sales" },
+  { id: "purchases" as PageId, labelKey: "nav.purchases", icon: TruckIcon, permission: "purchases" },
+  { id: "customers" as PageId, labelKey: "nav.customers", icon: UsersIcon, permission: "people" },
+  { id: "suppliers" as PageId, labelKey: "nav.suppliers", icon: BuildingsIcon, permission: "people" },
+  { id: "reports" as PageId, labelKey: "nav.reports", icon: ChartBarIcon, permission: "reports" },
 ];
 const general = [
-  { name: "Daily book", icon: BookOpenTextIcon, permission: "finance" },
-  { name: "Capital", icon: BankIcon, permission: "finance" },
-  { name: "Expenses", icon: ReceiptIcon, permission: "finance" },
-  { name: "Backups", icon: HardDrivesIcon, permission: "backups" },
-  { name: "Settings", icon: GearSixIcon, permission: "settings" },
+  { id: "dailyBook" as PageId, labelKey: "nav.dailyBook", icon: BookOpenTextIcon, permission: "finance" },
+  { id: "capital" as PageId, labelKey: "nav.capital", icon: BankIcon, permission: "finance" },
+  { id: "expenses" as PageId, labelKey: "nav.expenses", icon: ReceiptIcon, permission: "finance" },
+  { id: "backups" as PageId, labelKey: "nav.backups", icon: HardDrivesIcon, permission: "backups" },
+  { id: "settings" as PageId, labelKey: "nav.settings", icon: GearSixIcon, permission: "settings" },
 ];
+
+function normalizePage(name: string): PageId {
+  return PAGE_ALIASES[name] || "inventory";
+}
+
 export function App() {
+  const { t, locale, setLocale, dir } = useI18n();
   const [status, setStatus] = useState<any>(null),
     [user, setUser] = useState<User | null>(null),
-    [page, setPage] = useState("Inventory"),
+    [page, setPage] = useState<PageId>("inventory"),
     [saleTab, setSaleTab] = useState("bill"),
     [saleEditId, setSaleEditId] = useState<string | undefined>(),
     [purchaseTab, setPurchaseTab] = useState("bill"),
@@ -124,12 +173,14 @@ export function App() {
             }
             if (active) {
               setUser(u);
-              if (!u.permissions.includes("inventory")) setPage("Dashboard");
+              if (!u.permissions.includes("inventory")) setPage("dashboard");
             }
           } catch {
             setToken("");
           }
         }
+        const lang = s.store?.language;
+        if (lang === "en" || lang === "ps" || lang === "prs") setLocale(lang);
       })
       .catch((e) => {
         if (active) setFatal(e.message);
@@ -137,7 +188,7 @@ export function App() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [setLocale]);
   useEffect(() => {
     const expired = () => {
       setToken("");
@@ -168,7 +219,7 @@ export function App() {
     if (["sale", "saleEdit", "saleHistory"].includes(name)) {
       setModal(null);
       setGlobalOpen(false);
-      setPage("Sales");
+      setPage("sales");
       setSaleTab(name === "saleHistory" ? "history" : "bill");
       if (name !== "saleHistory") {
         setSaleEditId(name === "saleEdit" ? data?.id : undefined);
@@ -182,7 +233,7 @@ export function App() {
     if (["purchase", "purchaseEdit", "purchaseHistory"].includes(name)) {
       setModal(null);
       setGlobalOpen(false);
-      setPage("Purchases");
+      setPage("purchases");
       setPurchaseTab(name === "purchaseHistory" ? "history" : "bill");
       if (name !== "purchaseHistory") {
         setPurchaseEditId(name === "purchaseEdit" ? data.id : undefined);
@@ -191,7 +242,7 @@ export function App() {
       return;
     }
     if (name === "category") {
-      setPage("Products");
+      setPage("inventory");
       setSearch("");
       setCategoryFilter(data);
       return;
@@ -211,12 +262,33 @@ export function App() {
     });
   }, []);
   const navigate = useCallback((name: string) => {
-    setPage(name);
-    if (["Inventory", "Products"].includes(name))
-      setCategoryFilter("All products");
+    const id = normalizePage(name);
+    setPage(id);
+    if (id === "inventory") setCategoryFilter("All products");
     setSearch("");
     setProfile(false);
   }, []);
+  async function changeLanguage(next: Locale) {
+    setLocale(next);
+    try {
+      if (status?.store && user?.permissions.includes("settings")) {
+        await api("saveSettings", {
+          name: status.store.name,
+          phone: status.store.phone || "",
+          address: status.store.address || "",
+          email: status.store.email || "",
+          logo: status.store.logo || "",
+          bill_footer: status.store.bill_footer || "",
+          language: next,
+        });
+        setStatus((s: any) =>
+          s ? { ...s, store: { ...s.store, language: next } } : s,
+        );
+      }
+    } catch {
+      /* local preference still applied */
+    }
+  }
   const pickGlobalHit = useCallback(
     (hit: GlobalSearchHit) => {
       setGlobalOpen(false);
@@ -235,7 +307,7 @@ export function App() {
         setGlobalOpen(true);
         return;
       }
-      if ((e.metaKey || e.ctrlKey) && e.key === "k" && page === "Dashboard") {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k" && page === "dashboard") {
         e.preventDefault();
         searchRef.current?.focus();
       }
@@ -255,26 +327,26 @@ export function App() {
   }
   if (fatal)
     return (
-      <div className="boot-screen">
+      <div className="boot-screen" dir={dir}>
         <div className="brand">
           <HandbagIcon weight="fill" />
-          <span>vault</span>
+          <span>{t("app.brand")}</span>
         </div>
-        <h2>Couldn’t open your store</h2>
+        <h2>{t("app.fatalTitle")}</h2>
         <p>{fatal}</p>
         <button
           className="button button-dark"
           onClick={() => location.reload()}
         >
-          Try again
+          {t("app.tryAgain")}
         </button>
       </div>
     );
   if (!status)
     return (
-      <div className="boot-screen">
+      <div className="boot-screen" dir={dir}>
         <HandbagIcon size={36} weight="fill" />
-        <p>Opening your store…</p>
+        <p>{t("app.opening")}</p>
       </div>
     );
   if (!user)
@@ -286,15 +358,18 @@ export function App() {
           setToken(s.token);
           setUser(s.user);
           setStatus({ ...status, setup: false });
-          setPage("Inventory");
+          setPage("inventory");
         }}
       />
     );
   const props = { user, refresh, open, toast, globalSearch: search };
   const cost = user.permissions.includes("view_costs");
-  const current = page === "Products" ? "Inventory" : page;
+  const current = page;
   return (
-    <div className={`app-shell ${collapsed ? "sidebar-collapsed" : ""}`}>
+    <div
+      className={`app-shell ${collapsed ? "sidebar-collapsed" : ""}`}
+      dir={dir}
+    >
       <aside className="sidebar">
         <div className="sidebar-brand">
           <a
@@ -302,67 +377,67 @@ export function App() {
             className="brand"
             onClick={(e) => {
               e.preventDefault();
-              navigate("Inventory");
+              navigate("inventory");
             }}
-            aria-label="Vault inventory"
+            aria-label={t("nav.inventory")}
           >
             <HandbagIcon weight="fill" size={27} />
-            <span>vault</span>
+            <span>{t("app.brand")}</span>
             <span className="brand-dot">®</span>
           </a>
           <button
             className="sidebar-toggle"
-            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-label={collapsed ? t("nav.expand") : t("nav.collapse")}
             onClick={() => setCollapsed(!collapsed)}
           >
             <SidebarSimpleIcon size={18} />
           </button>
         </div>
         <div className="sidebar-scroll">
-          <span className="nav-label">MENU</span>
-          <nav aria-label="Main navigation">
+          <span className="nav-label">{t("app.menu")}</span>
+          <nav aria-label={t("app.menu")}>
             {nav
               .filter(
                 (n) => !n.permission || user.permissions.includes(n.permission),
               )
               .map((n) => (
                 <button
-                  key={n.name}
-                  className={`nav-item ${current === n.name ? "active" : ""}`}
-                  onClick={() => navigate(n.name)}
-                  title={n.name}
+                  key={n.id}
+                  className={`nav-item ${current === n.id ? "active" : ""}`}
+                  onClick={() => navigate(n.id)}
+                  title={t(n.labelKey)}
                 >
                   <n.icon
                     size={19}
-                    weight={current === n.name ? "duotone" : "regular"}
+                    weight={current === n.id ? "duotone" : "regular"}
                   />
-                  <span>{n.name}</span>
+                  <span>{t(n.labelKey)}</span>
                 </button>
               ))}
           </nav>
           <div className="nav-divider" />
-          <span className="nav-label">WORKSPACE</span>
-          <nav aria-label="Workspace navigation">
+          <span className="nav-label">{t("app.workspace")}</span>
+          <nav aria-label={t("app.workspace")}>
             {general
               .filter((n) => user.permissions.includes(n.permission))
               .map((n) => (
                 <button
-                  key={n.name}
-                  className={`nav-item ${current === n.name ? "active" : ""}`}
-                  onClick={() => navigate(n.name)}
-                  title={n.name}
+                  key={n.id}
+                  className={`nav-item ${current === n.id ? "active" : ""}`}
+                  onClick={() => navigate(n.id)}
+                  title={t(n.labelKey)}
                 >
                   <n.icon size={18} />
-                  <span>{n.name}</span>
+                  <span>{t(n.labelKey)}</span>
                 </button>
               ))}
             <button
               className="nav-item"
               onClick={() => open("help")}
-              title="Help"
+              title={t("nav.help")}
             >
               <QuestionIcon size={18} />
-              <span>Help & shortcuts</span>
+              <span>{t("nav.help")}</span>
             </button>
           </nav>
           <div className="sidebar-spacer" />
@@ -370,23 +445,23 @@ export function App() {
             <span className="promo-icon">
               <ShieldCheckIcon size={21} weight="duotone" />
             </span>
-            <h3>Your store. Protected.</h3>
-            <p>Keep your business safe with automatic daily backups.</p>
+            <h3>{t("backups.promoTitle")}</h3>
+            <p>{t("backups.promoBody")}</p>
             <button
               onClick={() =>
                 navigate(
                   user.permissions.includes("backups")
-                    ? "Backups"
-                    : "Dashboard",
+                    ? "backups"
+                    : "dashboard",
                 )
               }
             >
-              Manage backups <ArrowUpRightIcon size={13} />
+              {t("nav.backups")} <ArrowUpRightIcon size={13} />
             </button>
           </div>
           <div className="offline-status">
             <span className="live-dot" />
-            <span>Working offline</span>
+            <span>{t("app.offline")}</span>
             <WifiSlashIcon size={13} />
           </div>
         </div>
@@ -407,7 +482,7 @@ export function App() {
               <strong>{user.name}</strong>
               <small>
                 {user.role}
-                {status.store.demo ? " · Demo workspace" : ""}
+                {status.store.demo ? ` · ${t("app.demoWorkspace")}` : ""}
               </small>
             </span>
             <span className="profile-menu-dots">···</span>
@@ -418,9 +493,23 @@ export function App() {
               <small>
                 {user.username} · {user.role}
               </small>
+              <label className="profile-lang">
+                <span>{t("language.label")}</span>
+                <select
+                  value={locale}
+                  onChange={(e) => changeLanguage(e.target.value as Locale)}
+                  aria-label={t("language.label")}
+                >
+                  {LOCALES.map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.nativeLabel}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <button onClick={signOut}>
                 <SignOutIcon size={16} />
-                Sign out
+                {t("nav.signOut")}
               </button>
             </div>
           )}
@@ -428,10 +517,10 @@ export function App() {
       </aside>
       <main className="main-workspace">
         <StoreDecor />
-        {page === "Dashboard" && (
+        {page === "dashboard" && (
           <header className="topbar">
             <div className="page-title">
-              <h1>Dashboard</h1>
+              <h1>{t("dashboard.title")}</h1>
             </div>
             <form
               className="global-search"
@@ -439,16 +528,16 @@ export function App() {
                 e.preventDefault();
                 if (search.trim()) {
                   if (user.permissions.includes("inventory"))
-                    setPage("Products");
-                  else if (user.permissions.includes("sales")) setPage("Sales");
+                    setPage("inventory");
+                  else if (user.permissions.includes("sales")) setPage("sales");
                 }
               }}
             >
               <MagnifyingGlassIcon size={18} />
               <input
                 ref={searchRef}
-                aria-label="Search your store"
-                placeholder="Search here"
+                aria-label={t("topbar.searchStore")}
+                placeholder={t("topbar.searchHere")}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
@@ -457,13 +546,13 @@ export function App() {
             <div className="topbar-actions">
               <button
                 className="header-icon filter-icon"
-                aria-label="View inventory"
-                title="View inventory"
+                aria-label={t("topbar.viewInventory")}
+                title={t("topbar.viewInventory")}
                 onClick={() =>
                   navigate(
                     user.permissions.includes("inventory")
-                      ? "Products"
-                      : "Dashboard",
+                      ? "inventory"
+                      : "dashboard",
                   )
                 }
               >
@@ -472,21 +561,21 @@ export function App() {
               <span className="header-divider" />
               <button
                 className="header-icon"
-                aria-label="Stock alerts"
-                title="Stock alerts"
+                aria-label={t("topbar.stockAlerts")}
+                title={t("topbar.stockAlerts")}
                 onClick={() => open("lowStock")}
               >
                 <BellIcon size={20} />
               </button>
               <button
                 className="header-icon messages-icon"
-                aria-label="Backup status"
-                title="Backup status"
+                aria-label={t("topbar.backupStatus")}
+                title={t("topbar.backupStatus")}
                 onClick={() =>
                   navigate(
                     user.permissions.includes("backups")
-                      ? "Backups"
-                      : "Dashboard",
+                      ? "backups"
+                      : "dashboard",
                   )
                 }
               >
@@ -498,29 +587,29 @@ export function App() {
         )}
         <div
           className={`workspace-scroll${
-            (page === "Sales" && saleTab === "bill") ||
-            (page === "Purchases" && purchaseTab === "bill")
+            (page === "sales" && saleTab === "bill") ||
+            (page === "purchases" && purchaseTab === "bill")
               ? " no-page-scroll"
               : ""
           }`}
         >
-          {page === "Dashboard" ? (
+          {page === "dashboard" ? (
             <Dashboard
               user={user}
               refresh={refresh}
               open={open}
               navigate={navigate}
             />
-          ) : ["Products", "Inventory"].includes(page) ? (
+          ) : page === "inventory" ? (
             <ProductsPage {...props} initialCategory={categoryFilter} />
-          ) : page === "Sales" ? (
+          ) : page === "sales" ? (
             <div
               className={`sales-workspace${saleTab === "bill" ? " is-bill" : ""}`}
             >
               <div
                 className="sales-tabs"
                 role="tablist"
-                aria-label="Sales workspace"
+                aria-label={t("nav.sales")}
               >
                 <button
                   role="tab"
@@ -529,7 +618,7 @@ export function App() {
                   aria-selected={saleTab === "bill"}
                   onClick={() => setSaleTab("bill")}
                 >
-                  {saleEditId ? "Edit bill" : "New bill"}
+                  {saleEditId ? t("sales.editBill") : t("sales.newBill")}
                 </button>
                 <button
                   role="tab"
@@ -538,7 +627,7 @@ export function App() {
                   aria-selected={saleTab === "history"}
                   onClick={() => setSaleTab("history")}
                 >
-                  Invoice history
+                  {t("sales.invoiceHistory")}
                 </button>
               </div>
               <div
@@ -583,14 +672,14 @@ export function App() {
                 <DocumentsPage {...props} kind="sale" />
               </div>
             </div>
-          ) : page === "Purchases" ? (
+          ) : page === "purchases" ? (
             <div
               className={`sales-workspace${purchaseTab === "bill" ? " is-bill" : ""}`}
             >
               <div
                 className="sales-tabs"
                 role="tablist"
-                aria-label="Purchases workspace"
+                aria-label={t("nav.purchases")}
               >
                 <button
                   role="tab"
@@ -599,7 +688,9 @@ export function App() {
                   aria-selected={purchaseTab === "bill"}
                   onClick={() => setPurchaseTab("bill")}
                 >
-                  {purchaseEditId ? "Edit purchase" : "New purchase"}
+                  {purchaseEditId
+                    ? t("sales.editPurchase")
+                    : t("sales.newPurchase")}
                 </button>
                 <button
                   role="tab"
@@ -608,7 +699,7 @@ export function App() {
                   aria-selected={purchaseTab === "history"}
                   onClick={() => setPurchaseTab("history")}
                 >
-                  Purchase history
+                  {t("sales.purchaseHistory")}
                 </button>
               </div>
               <div
@@ -650,25 +741,25 @@ export function App() {
                 <DocumentsPage {...props} kind="purchase" />
               </div>
             </div>
-          ) : page === "Customers" ? (
+          ) : page === "customers" ? (
             <PeoplePage {...props} kind="customer" />
-          ) : page === "Suppliers" ? (
+          ) : page === "suppliers" ? (
             <PeoplePage {...props} kind="supplier" />
-          ) : page === "Daily book" ? (
+          ) : page === "dailyBook" ? (
             <DayBookPage {...props} />
-          ) : page === "Capital" ? (
+          ) : page === "capital" ? (
             <CapitalPage {...props} />
-          ) : page === "Expenses" ? (
+          ) : page === "expenses" ? (
             <DocumentsPage {...props} kind="expense" />
-          ) : page === "Reports" ? (
+          ) : page === "reports" ? (
             cost ? (
               <ReportsPage {...props} />
             ) : (
               <div className="page-content">
-                <h2>Profit reports require permission to view costs.</h2>
+                <h2>{t("reports.title")}</h2>
               </div>
             )
-          ) : page === "Backups" ? (
+          ) : page === "backups" ? (
             <BackupsPage {...props} />
           ) : (
             <SettingsPage {...props} />
@@ -701,7 +792,7 @@ export function App() {
       {modal?.name === "payment" && (
         <PaymentForm party={modal.data} close={close} done={done} />
       )}
-      {["saleDelete", "purchaseDelete"].includes(modal?.name || "") && (
+      {["saleDelete", "purchaseDelete"].includes(modal?.name || "") && modal && (
         <DeleteInvoiceDialog
           documentId={modal.data.id}
           close={close}
@@ -763,74 +854,67 @@ export function App() {
       )}
       {modal?.name === "lowStock" && (
         <Modal
-          title="Low stock alerts"
-          subtitle="Keep the products your customers need on the shelf."
+          title={t("alerts.lowStockTitle")}
+          subtitle={t("alerts.lowStockSubtitle")}
           onClose={close}
           wide
         >
           <AlertsDialogContent refresh={refresh} open={open} />
           <div className="modal-actions">
             <button className="button" onClick={close}>
-              Close
+              {t("common.close")}
             </button>
             {user.permissions.includes("purchases") && (
               <button
                 className="button button-dark"
                 onClick={() => open("purchase")}
               >
-                Receive a purchase <ArrowRightIcon size={15} />
+                {t("alerts.receivePurchase")} <ArrowRightIcon size={15} />
               </button>
             )}
           </div>
         </Modal>
       )}
       {modal?.name === "categoryInfo" && (
-        <Modal title={`${modal.data} inventory`} onClose={close}>
+        <Modal
+          title={t("alerts.categoryInventory", {
+            category: String(modal.data),
+          })}
+          onClose={close}
+        >
           <div className="form-body">
             <p>
-              Use the category filter on the inventory screen to view{" "}
-              {String(modal.data).toLowerCase()}.
+              {t("alerts.categoryHint", {
+                category: String(modal.data).toLowerCase(),
+              })}
             </p>
             <button className="button button-dark" onClick={close}>
-              View inventory
+              {t("alerts.viewInventory")}
             </button>
           </div>
         </Modal>
       )}
       {modal?.name === "help" && (
         <Modal
-          title="A little help, right here."
-          subtitle="Everything you need to run your store, even without internet."
+          title={t("help.title")}
+          subtitle={t("help.subtitle")}
           onClose={close}
         >
           <div className="form-body help-content">
-            <h3>Start with your products</h3>
-            <p>
-              Add products with their cost and opening stock in Inventory.
-              Receive purchases to add more stock at actual costs.
-            </p>
-            <h3>Make a sale</h3>
-            <p>
-              Search for products, review their details, then add them to the
-              bill. Add or choose a named customer for credit or partial
-              payment; walk-in customers must pay in full.
-            </p>
-            <h3>Understand your profit</h3>
-            <p>
-              Reports use the recorded cost of sold items. Customer debt
-              collections affect cash, not sales profit.
-            </p>
-            <h3>Protect your data</h3>
-            <p>
-              Add backup folders on a connected drive. Install the daily
-              schedule from the desktop app and test a recovery copy regularly.
-            </p>
+            <h3>{t("help.productsTitle")}</h3>
+            <p>{t("help.productsBody")}</p>
+            <h3>{t("help.saleTitle")}</h3>
+            <p>{t("help.saleBody")}</p>
+            <h3>{t("help.profitTitle")}</h3>
+            <p>{t("help.profitBody")}</p>
+            <h3>{t("help.dataTitle")}</h3>
+            <p>{t("help.dataBody")}</p>
             <div className="shortcut-row">
-              <span>Search your store</span>
+              <span>{t("help.searchShortcut")}</span>
               <kbd>⌘ / Ctrl + K</kbd>
             </div>
             <div className="shortcut-row">
-              <span>Close a dialog</span>
+              <span>{t("help.closeShortcut")}</span>
               <kbd>Esc</kbd>
             </div>
           </div>
@@ -848,6 +932,7 @@ function Auth({
   storeName: string;
   onSuccess: (s: any) => void;
 }) {
+  const { t, dir } = useI18n();
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
   async function submit(e: React.FormEvent<HTMLFormElement>) {
@@ -867,57 +952,58 @@ function Auth({
     }
   }
   return (
-    <div className="auth-screen">
+    <div className="auth-screen" dir={dir}>
       <div className="auth-story">
         <div className="brand">
           <HandbagIcon size={35} weight="fill" />
-          <span>vault</span>
+          <span>{t("app.brand")}</span>
         </div>
         <div>
-          <span className="auth-eyebrow">BUILT FOR YOUR EVERYDAY</span>
+          <span className="auth-eyebrow">{t("auth.eyebrow")}</span>
           <h1>
-            A clear view.
-            <br />A better business.
+            {t("auth.headline1")}
+            <br />
+            {t("auth.headline2")}
           </h1>
           <p>
-            Your products, customers and numbers.
+            {t("auth.story")}
             <br />
-            Together, on your computer.
+            {t("auth.story2")}
           </p>
           <span className="auth-offline">
             <WifiSlashIcon size={17} />
-            Always available. Completely offline.
+            {t("auth.alwaysOffline")}
           </span>
         </div>
-        <small>Vault Store · Inventory & accounting</small>
+        <small>{t("auth.footer")}</small>
       </div>
       <div className="auth-form-container">
         <form className="auth-form" onSubmit={submit}>
           <span className="auth-form-icon">
             <ShieldCheckIcon size={30} />
           </span>
-          <h2>{setup ? "Make yourself at home." : "Welcome back."}</h2>
+          <h2>{setup ? t("auth.makeHome") : t("auth.welcomeBack")}</h2>
           <p>
             {setup
-              ? "Set up your store and create the owner account."
-              : `Sign in to ${storeName}.`}
+              ? t("auth.setupHint")
+              : t("auth.signInHint", { store: storeName })}
           </p>
           {setup && (
             <>
-              <Field label="Store name">
+              <Field label={t("auth.storeName")}>
                 <input
                   name="storeName"
-                  placeholder="Your store name"
+                  placeholder={t("auth.storeNamePh")}
                   required
                   minLength={2}
                 />
               </Field>
-              <Field label="Your full name">
+              <Field label={t("auth.fullName")}>
                 <input name="name" required minLength={2} />
               </Field>
             </>
           )}
-          <Field label="Username">
+          <Field label={t("auth.username")}>
             <input
               name="username"
               required
@@ -926,8 +1012,8 @@ function Auth({
             />
           </Field>
           <Field
-            label="Password"
-            hint={setup ? "Use at least 10 characters." : ""}
+            label={t("auth.password")}
+            hint={setup ? t("auth.passwordHint") : ""}
           >
             <input
               name="password"
@@ -939,12 +1025,16 @@ function Auth({
           </Field>
           <ErrorMessage error={error} />
           <button className="button button-dark full" disabled={busy}>
-            {busy ? "Opening…" : setup ? "Create your store" : "Sign in"}
+            {busy
+              ? t("common.opening")
+              : setup
+                ? t("auth.createStore")
+                : t("auth.signIn")}
             <ArrowRightIcon size={16} />
           </button>
           <p className="auth-note">
             <ShieldCheckIcon size={14} />
-            Your data stays on this computer.
+            {t("auth.dataStays")}
           </p>
         </form>
       </div>

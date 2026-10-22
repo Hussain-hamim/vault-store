@@ -28,6 +28,7 @@ import {
   Party,
   User,
 } from "../api";
+import { useI18n, useT, LOCALES, type Locale } from "../i18n";
 import {
   Search,
   PageIntro,
@@ -83,6 +84,7 @@ export function ProductsPage({
   initialCategory = "All products",
   user,
 }: PageProps & { initialFilter?: string; initialCategory?: string }) {
+  const t = useT();
   const [q, setQ] = useState(globalSearch),
     [category, setCategory] = useState(initialCategory),
     [filter, setFilter] = useState("all"),
@@ -160,16 +162,16 @@ export function ProductsPage({
     <div className="page-content inventory-page">
       <PageIntro
         compact
-        eyebrow="Your catalog"
-        title="Inventory"
-        description="Browse stock with full specs — RAM, storage, and the rest — beside cost and price."
+        eyebrow={t("inventory.eyebrow")}
+        title={t("inventory.title")}
+        description={t("inventory.description")}
         action={
           <button
             className="button button-dark"
             onClick={() => open("product")}
           >
             <PlusIcon size={16} />
-            Add product
+            {t("inventory.addProduct")}
           </button>
         }
       />
@@ -368,6 +370,7 @@ export function DocumentsPage({
   globalSearch = "",
   user,
 }: PageProps & { kind: "sale" | "purchase" | "expense" }) {
+  const t = useT();
   const [q, setQ] = useState(globalSearch),
     [rows, setRows] = useState<any[]>([]),
     [next, setNext] = useState<string | null>(null),
@@ -420,36 +423,46 @@ export function DocumentsPage({
     }
   }
   const label =
-    kind === "sale" ? "Sales" : kind === "purchase" ? "Purchases" : "Expenses";
+    kind === "sale"
+      ? t("nav.sales")
+      : kind === "purchase"
+        ? t("nav.purchases")
+        : t("nav.expenses");
   const partyLabel =
     kind === "expense"
-      ? "Category"
+      ? t("expenses.category")
       : kind === "sale"
-        ? "Customer"
-        : "Supplier";
+        ? t("sales.customer")
+        : t("sales.supplier");
   function docStatus(d: any) {
     if (kind === "expense") {
-      return { tone: "green" as const, label: "Recorded" };
+      return { tone: "green" as const, label: t("common.save") };
     }
     if (d.returned === d.total)
-      return { tone: "gray" as const, label: "Returned" };
+      return { tone: "gray" as const, label: t("documents.returned") };
     if (d.paid + d.returned >= d.total)
-      return { tone: "green" as const, label: "Paid" };
-    if (d.paid) return { tone: "yellow" as const, label: "Partial" };
-    return { tone: "red" as const, label: "Unpaid" };
+      return { tone: "green" as const, label: t("common.paid") };
+    if (d.paid) return { tone: "yellow" as const, label: t("common.partial") };
+    return { tone: "red" as const, label: t("common.unpaid") };
   }
   return (
     <div className={`page-content docs-page docs-${kind}`}>
       <PageIntro
         compact
-        eyebrow="Transactions"
-        title={kind === "sale" ? "Invoice history" : label}
+        eyebrow={label}
+        title={
+          kind === "sale"
+            ? t("documents.saleHistory")
+            : kind === "purchase"
+              ? t("documents.purchaseHistory")
+              : t("documents.expenseHistory")
+        }
         description={
           kind === "sale"
-            ? "Invoices, payments and returns, with stock and profit kept in sync."
+            ? t("documents.saleHistory")
             : kind === "purchase"
-              ? "Receive products, track costs and manage supplier credit."
-              : "Keep a clear record of what it costs to run your store."
+              ? t("documents.purchaseHistory")
+              : t("expenses.description")
         }
         action={
           <button className="button button-dark" onClick={() => open(kind)}>
@@ -670,6 +683,7 @@ export function PeoplePage({
   toast,
   user,
 }: PageProps & { kind: "customer" | "supplier" }) {
+  const t = useT();
   const [q, setQ] = useState(""),
     [selected, setSelected] = useState<string | null>(null),
     [rows, setRows] = useState<Party[]>([]),
@@ -750,17 +764,27 @@ export function PeoplePage({
     <div className={`page-content people-page people-${kind}`}>
       <PageIntro
         compact
-        eyebrow="People & balances"
-        title={kind === "customer" ? "Customers" : "Suppliers"}
+        eyebrow={
+          kind === "customer"
+            ? t("people.customersEyebrow")
+            : t("people.suppliersEyebrow")
+        }
+        title={
+          kind === "customer"
+            ? t("people.customersTitle")
+            : t("people.suppliersTitle")
+        }
         description={
           kind === "customer"
-            ? "Who bought from you, what they still owe, and their full ledger."
-            : "Who you buy from, what you still owe, and payment history."
+            ? t("people.customersDesc")
+            : t("people.suppliersDesc")
         }
         action={
           <button className="button button-dark" onClick={() => open(kind)}>
             <PlusIcon size={16} />
-            Add {kind}
+            {kind === "customer"
+              ? t("people.addCustomer")
+              : t("people.addSupplier")}
           </button>
         }
       />
@@ -1046,6 +1070,7 @@ function monthLabel(ym: string) {
   });
 }
 export function CapitalPage({ refresh, open, toast, user }: PageProps) {
+  const t = useT();
   const [data, setData] = useState<any>(null),
     [error, setError] = useState(""),
     [historyAfter, setHistoryAfter] = useState(""),
@@ -1073,9 +1098,9 @@ export function CapitalPage({ refresh, open, toast, user }: PageProps) {
     <div className="page-content capital-page">
       <PageIntro
         compact
-        eyebrow="Owner capital"
-        title="Capital & net worth"
-        description="Track money you invest in the business, withdrawals, and how your net worth changes each month."
+        eyebrow={t("capital.eyebrow")}
+        title={t("capital.title")}
+        description={t("capital.description")}
         action={
           user.permissions.includes("finance") ? (
             <button
@@ -1083,7 +1108,7 @@ export function CapitalPage({ refresh, open, toast, user }: PageProps) {
               onClick={() => open("owner")}
             >
               <PlusIcon size={16} />
-              Record investment
+              {t("capital.record")}
             </button>
           ) : (
             <Badge tone="yellow">View only</Badge>
@@ -1300,6 +1325,7 @@ export function CapitalPage({ refresh, open, toast, user }: PageProps) {
   );
 }
 export function DayBookPage({ refresh, open, toast, user }: PageProps) {
+  const t = useT();
   const [day, setDay] = useState(businessDate()),
     [counted, setCounted] = useState("");
   const { data, error } = useLoad<any>("dayBook", { date: day }, refresh);
@@ -1307,9 +1333,9 @@ export function DayBookPage({ refresh, open, toast, user }: PageProps) {
     <div className="page-content daybook-page">
       <PageIntro
         compact
-        eyebrow="Finance"
-        title="Daily book"
-        description="Sales, trading profit, expenses and cash, all for one day."
+        eyebrow={t("daybook.eyebrow")}
+        title={t("daybook.title")}
+        description={t("daybook.description")}
         action={
           <div className="inline-actions">
             <input
@@ -1496,6 +1522,7 @@ const accountName = (s: string) =>
     other_income: "Other income",
   })[s] || s;
 export function ReportsPage({ refresh, open, toast }: PageProps) {
+  const t = useT();
   const [from, setFrom] = useState(businessDate().slice(0, 7) + "-01"),
     [to, setTo] = useState(businessDate()),
     [tab, setTab] = useState("Profit & loss");
@@ -1613,9 +1640,9 @@ export function ReportsPage({ refresh, open, toast }: PageProps) {
   return (
     <div className="page-content">
       <PageIntro
-        eyebrow="Know your numbers"
-        title="Reports"
-        description="Reconciled reports from posted stock and accounting entries."
+        eyebrow={t("reports.title")}
+        title={t("reports.title")}
+        description={t("reports.description")}
         action={
           <div className="date-range">
             <input
@@ -1648,13 +1675,13 @@ export function ReportsPage({ refresh, open, toast }: PageProps) {
           </div>
           <section className="panel report-panel">
             <div className="report-tabs">
-              {tabs.map((t) => (
+              {tabs.map((tabName) => (
                 <button
-                  key={t}
-                  className={t === tab ? "active" : ""}
-                  onClick={() => setTab(t)}
+                  key={tabName}
+                  className={tabName === tab ? "active" : ""}
+                  onClick={() => setTab(tabName)}
                 >
-                  {t}
+                  {tabName}
                 </button>
               ))}
             </div>
@@ -2073,6 +2100,7 @@ export function ReportsPage({ refresh, open, toast }: PageProps) {
   );
 }
 export function BackupsPage({ refresh, toast }: PageProps) {
+  const t = useT();
   const { data, error } = useLoad<any>("backups", {}, refresh);
   const [destinations, setDestinations] = useState<string[]>([]),
     [path, setPath] = useState(""),
@@ -2168,9 +2196,9 @@ export function BackupsPage({ refresh, toast }: PageProps) {
   return (
     <div className="page-content">
       <PageIntro
-        eyebrow="Protect your store"
-        title="Backups & recovery"
-        description="A daily recovery copy, verified before old backups are rotated."
+        eyebrow={t("backups.eyebrow")}
+        title={t("backups.title")}
+        description={t("backups.description")}
         action={
           <button
             className="button button-dark"
@@ -2178,7 +2206,7 @@ export function BackupsPage({ refresh, toast }: PageProps) {
             onClick={run}
           >
             <ArrowClockwiseIcon size={16} className={busy ? "spin" : ""} />
-            {busy ? "Backing up…" : "Back up now"}
+            {busy ? t("common.loading") : t("backups.runNow")}
           </button>
         }
       />
@@ -2354,20 +2382,24 @@ export function BackupsPage({ refresh, toast }: PageProps) {
   );
 }
 export function SettingsPage({ refresh, open, toast, user }: PageProps) {
+  const { t, locale, setLocale } = useI18n();
   const { data, error } = useLoad<any>("settings", {}, refresh),
     { data: users } = useLoad<any[]>(
       user.permissions.includes("users") ? "users" : "status",
       {},
       refresh,
     );
-  const [tab, setTab] = useState("Store"),
+  const [tab, setTab] = useState("store"),
     [localError, setLocalError] = useState(""),
     [busy, setBusy] = useState(false),
     [audit, setAudit] = useState<any[]>([]),
-    [logo, setLogo] = useState("");
+    [logo, setLogo] = useState(""),
+    [language, setLanguage] = useState<Locale>(locale);
   useEffect(() => {
     setLogo(data?.store?.logo || "");
-  }, [data?.store?.logo, refresh]);
+    const lang = data?.store?.language;
+    if (lang === "en" || lang === "ps" || lang === "prs") setLanguage(lang);
+  }, [data?.store?.logo, data?.store?.language, refresh]);
   async function save(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setBusy(true);
@@ -2381,8 +2413,10 @@ export function SettingsPage({ refresh, open, toast, user }: PageProps) {
         email: f.get("email"),
         bill_footer: f.get("bill_footer"),
         logo,
+        language,
       });
-      toast("Store settings saved.");
+      setLocale(language);
+      toast(t("settings.saved"));
     } catch (e: any) {
       setLocalError(e.message);
     } finally {
@@ -2420,45 +2454,63 @@ export function SettingsPage({ refresh, open, toast, user }: PageProps) {
       setLocalError(e.message);
     }
   }
+  const settingsTabs = [
+    { id: "store", label: t("settings.tabStore") },
+    ...(user.permissions.includes("users")
+      ? [
+          { id: "users", label: t("settings.tabUsers") },
+          { id: "audit", label: t("settings.tabAudit") },
+        ]
+      : []),
+    { id: "accounting", label: t("settings.tabAccounting") },
+  ];
   return (
     <div className="page-content">
       <PageIntro
-        eyebrow="Administration"
-        title="Store settings"
-        description="Your store details, team access, and accounting controls."
+        eyebrow={t("settings.eyebrow")}
+        title={t("settings.title")}
+        description={t("settings.description")}
       />
       <ErrorMessage error={error || localError} />
       <section className="panel">
         <div className="report-tabs">
-          {[
-            "Store",
-            ...(user.permissions.includes("users")
-              ? ["Users & access", "Audit history"]
-              : []),
-            "Accounting",
-          ].map((t) => (
+          {settingsTabs.map((tabItem) => (
             <button
-              key={t}
-              className={tab === t ? "active" : ""}
+              key={tabItem.id}
+              className={tab === tabItem.id ? "active" : ""}
               onClick={() => {
-                setTab(t);
-                if (t === "Audit history")
+                setTab(tabItem.id);
+                if (tabItem.id === "audit")
                   api<any[]>("audit")
                     .then(setAudit)
                     .catch((e) => setLocalError(e.message));
               }}
             >
-              {t}
+              {tabItem.label}
             </button>
           ))}
         </div>
-        {tab === "Store" && data && (
+        {tab === "store" && data && (
           <form className="settings-form" onSubmit={save} key={refresh}>
-            <h3>Bill design</h3>
-            <p className="muted">
-              These details appear on printed and downloaded invoices.
-            </p>
-            <Field label="Business name">
+            <Field label={t("language.label")} hint={t("language.hint")}>
+              <select
+                value={language}
+                onChange={(e) => {
+                  const next = e.target.value as Locale;
+                  setLanguage(next);
+                  setLocale(next);
+                }}
+              >
+                {LOCALES.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.nativeLabel} — {t(`language.${l.id}`)}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <h3>{t("settings.billDesign")}</h3>
+            <p className="muted">{t("settings.billDesignHint")}</p>
+            <Field label={t("settings.businessName")}>
               <input
                 name="name"
                 defaultValue={data.store.name}
@@ -2466,17 +2518,17 @@ export function SettingsPage({ refresh, open, toast, user }: PageProps) {
                 minLength={2}
               />
             </Field>
-            <Field label="Logo">
+            <Field label={t("settings.logo")}>
               <div className="bill-logo-preview">
                 {logo ? (
-                  <img src={logo} alt="Store logo preview" />
+                  <img src={logo} alt="" />
                 ) : (
-                  <span className="muted">No logo</span>
+                  <span className="muted">{t("settings.noLogo")}</span>
                 )}
               </div>
               <div className="bill-logo-actions">
                 <label className="button">
-                  Choose image
+                  {t("settings.chooseImage")}
                   <input
                     type="file"
                     accept="image/png,image/jpeg,image/webp,image/gif"
@@ -2493,16 +2545,16 @@ export function SettingsPage({ refresh, open, toast, user }: PageProps) {
                     className="button"
                     onClick={() => setLogo("")}
                   >
-                    Remove logo
+                    {t("settings.removeLogo")}
                   </button>
                 ) : null}
               </div>
             </Field>
             <div className="form-grid">
-              <Field label="Phone">
+              <Field label={t("common.phone")}>
                 <input name="phone" defaultValue={data.store.phone || ""} />
               </Field>
-              <Field label="Email">
+              <Field label={t("common.email")}>
                 <input
                   name="email"
                   type="email"
@@ -2510,7 +2562,7 @@ export function SettingsPage({ refresh, open, toast, user }: PageProps) {
                 />
               </Field>
             </div>
-            <Field label="Address">
+            <Field label={t("common.address")}>
               <textarea
                 name="address"
                 defaultValue={data.store.address || ""}
@@ -2518,54 +2570,51 @@ export function SettingsPage({ refresh, open, toast, user }: PageProps) {
               />
             </Field>
             <Field
-              label="Bill footer"
-              hint="Optional thank-you or return note under the totals."
+              label={t("settings.billFooter")}
+              hint={t("settings.billFooterHint")}
             >
               <textarea
                 name="bill_footer"
                 defaultValue={data.store.bill_footer || ""}
                 rows={2}
-                placeholder="Thank you for shopping with us."
+                placeholder={t("settings.billFooterPh")}
               />
             </Field>
             <div className="form-grid">
-              <Field label="Currency">
-                <input value="Afghan afghani · AFN (AF)" readOnly />
+              <Field label={t("common.currency")}>
+                <input value={t("common.afn")} readOnly />
               </Field>
             </div>
             <div className="info-box">
               <CheckCircleIcon size={18} />
-              <p>
-                Tax is disabled. Business dates use Asia/Kabul. All application
-                data is stored on this computer.
-              </p>
+              <p>{t("settings.taxNote")}</p>
             </div>
             <button className="button button-dark" disabled={busy}>
-              {busy ? "Saving…" : "Save bill design"}
+              {busy ? t("common.saving") : t("settings.saveBill")}
             </button>
           </form>
         )}
-        {tab === "Users & access" && (
+        {tab === "users" && (
           <>
             <div className="panel-heading padded">
-              <h3>Your team</h3>
+              <h3>{t("settings.team")}</h3>
               <button
                 className="button button-dark"
                 onClick={() => open("user")}
               >
                 <PlusIcon size={15} />
-                Create user
+                {t("settings.createUser")}
               </button>
             </div>
             <div className="table-wrap">
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th>User</th>
-                    <th>Username</th>
-                    <th>Role</th>
-                    <th>Permissions</th>
-                    <th>Status</th>
+                    <th>{t("common.name")}</th>
+                    <th>{t("settings.username")}</th>
+                    <th>{t("settings.role")}</th>
+                    <th>{t("settings.permissions")}</th>
+                    <th>{t("common.status")}</th>
                     <th />
                   </tr>
                 </thead>
@@ -2588,7 +2637,9 @@ export function SettingsPage({ refresh, open, toast, user }: PageProps) {
                         </td>
                         <td>
                           <Badge tone={u.active ? "green" : "gray"}>
-                            {u.active ? "Active" : "Disabled"}
+                            {u.active
+                              ? t("settings.active")
+                              : t("settings.disabled")}
                           </Badge>
                         </td>
                         <td>
@@ -2596,14 +2647,16 @@ export function SettingsPage({ refresh, open, toast, user }: PageProps) {
                             className="text-button"
                             onClick={() => open("user", u)}
                           >
-                            Edit access
+                            {t("common.edit")}
                           </button>
                           {u.id !== user.id && (
                             <button
                               className="text-button"
                               onClick={() => toggle(u)}
                             >
-                              {u.active ? "Disable" : "Enable"}
+                              {u.active
+                                ? t("settings.disabled")
+                                : t("settings.active")}
                             </button>
                           )}
                         </td>
@@ -2614,7 +2667,7 @@ export function SettingsPage({ refresh, open, toast, user }: PageProps) {
             </div>
           </>
         )}
-        {tab === "Audit history" && (
+        {tab === "audit" && (
           <div className="table-wrap">
             <table className="data-table">
               <thead>
@@ -2643,7 +2696,7 @@ export function SettingsPage({ refresh, open, toast, user }: PageProps) {
             </p>
           </div>
         )}
-        {tab === "Accounting" && (
+        {tab === "accounting" && (
           <div className="settings-form">
             <h3>Accounting period lock</h3>
             <p className="muted">

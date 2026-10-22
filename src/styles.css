@@ -1,5 +1,5 @@
 :root {
-  font-family: "Plus Jakarta Sans Variable", sans-serif;
+  font-family: "Plus Jakarta Sans Variable", "Vazirmatn Variable", sans-serif;
   color: #252527;
   background: #f4f4f3;
   font-synthesis: none;
@@ -186,7 +186,7 @@ button:active {
   display: flex;
   align-items: center;
   gap: 11px;
-  text-align: left;
+  text-align: start;
   color: #a7a7ac;
   font-size: 11px;
   position: relative;
@@ -202,15 +202,18 @@ button:active {
 .nav-item.active:before {
   content: "";
   position: absolute;
-  left: 0;
+  inset-inline-start: 0;
   width: 3px;
   height: 24px;
   background: #d8f342;
-  border-radius: 0 3px 3px 0;
+  border-start-start-radius: 0;
+  border-start-end-radius: 3px;
+  border-end-end-radius: 3px;
+  border-end-start-radius: 0;
 }
 .nav-count {
   font-size: 8px;
-  margin-left: auto;
+  margin-inline-start: auto;
   background: #d6ee4b18;
   color: #cce54a;
   padding: 2px 5px;
@@ -6922,4 +6925,118 @@ img {
   .store-decor-orb {
     animation: none !important;
   }
+}
+
+/* —— Pashto / Dari: clean Arabic-script type + RTL chrome —— */
+html[dir="rtl"],
+html[data-locale="ps"],
+html[data-locale="prs"] {
+  font-family: "Vazirmatn Variable", "Plus Jakarta Sans Variable", sans-serif;
+  letter-spacing: 0;
+}
+html[dir="rtl"] body {
+  font-feature-settings: "ss01" 0;
+}
+.money,
+.af-amount,
+[data-money],
+.invoice-summary strong,
+.sale-pay-panel .trade-totals strong,
+.metric strong,
+.inventory-row-money,
+.docs-row-money,
+.people-row-balance,
+.global-search-meta small {
+  direction: ltr;
+  unicode-bidi: isolate;
+  font-variant-numeric: tabular-nums;
+}
+.profile-lang {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-top: 1px solid #ecece8;
+  border-bottom: 1px solid #ecece8;
+  margin: 8px 0;
+  font-size: 11px;
+  color: #6d7268;
+}
+.profile-lang select {
+  width: 100%;
+  border: 1.5px solid #d5dfbc;
+  border-radius: 8px;
+  padding: 7px 9px;
+  background: #fff;
+}
+html[dir="rtl"] .sidebar {
+  border-right: 0;
+  border-left: 1px solid #363638;
+}
+html[dir="rtl"] .people-row,
+html[dir="rtl"] .inventory-row,
+html[dir="rtl"] .docs-card,
+html[dir="rtl"] .expense-card,
+html[dir="rtl"] .docs-list-card {
+  border-left-width: 1.5px;
+  border-right-width: 4px;
+  border-right-style: solid;
+}
+html[dir="rtl"] .people-customer .people-row,
+html[dir="rtl"] .people-customer .people-row.balance-settled {
+  border-right-color: #4a90a8;
+}
+html[dir="rtl"] .people-customer .people-row.balance-owed {
+  border-right-color: #c45d6a;
+}
+html[dir="rtl"] .people-customer .people-row.balance-credit,
+html[dir="rtl"] .people-supplier .people-row.balance-credit {
+  border-right-color: #3f9a78;
+}
+html[dir="rtl"] .people-supplier .people-row {
+  border-right-color: #a67c52;
+}
+html[dir="rtl"] .people-supplier .people-row.balance-owed {
+  border-right-color: #b86b3c;
+}
+html[dir="rtl"] .people-supplier .people-row.balance-settled {
+  border-right-color: #8a9a6e;
+}
+html[dir="rtl"] .invoice-top > div:last-child {
+  text-align: left;
+}
+html[dir="rtl"] .invoice-top > div:first-child {
+  text-align: right;
+}
+html[dir="rtl"] .page-title-tag {
+  border-left: 0;
+  border-right: 3px solid currentColor;
+  padding-left: 0;
+  padding-right: 10px;
+}
+html[dir="rtl"] .data-table th,
+html[dir="rtl"] .data-table td {
+  text-align: start;
+}
+html[dir="rtl"] .sale-actions {
+  flex-direction: row-reverse;
+}
+html[dir="rtl"] .sale-print-check {
+  margin-right: 0;
+  margin-left: auto;
+}
+html[dir="rtl"] .modal-actions {
+  flex-direction: row-reverse;
+}
+html[dir="rtl"] .field > span,
+html[dir="rtl"] .sale-customer-name > span,
+html[dir="rtl"] .sale-customer-date > span {
+  text-align: start;
+}
+html[dir="rtl"] .auth-story {
+  text-align: right;
+}
+html[dir="rtl"] kbd {
+  direction: ltr;
+  unicode-bidi: isolate;
 }

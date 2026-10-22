@@ -219,6 +219,7 @@ export class Store {
         taxEnabled: false,
         timezone: "Asia/Kabul",
         demo: false,
+        language: "en",
       }),
     );
     this.run(
@@ -2709,6 +2710,7 @@ export class Store {
                 "Logo must be a PNG, JPG, WEBP or GIF image.",
               ),
             bill_footer: text.default(""),
+            language: z.enum(["en", "ps", "prs"]).default("en"),
           })
           .parse(args);
         this.saveSetting("store", { ...this.setting("store"), ...d });
@@ -2718,6 +2720,7 @@ export class Store {
           address: d.address,
           email: d.email,
           bill_footer: d.bill_footer,
+          language: d.language,
           logo: d.logo ? "[logo updated]" : "",
         });
         return { ok: true };

@@ -7,6 +7,7 @@ import {
   XIcon,
 } from "@phosphor-icons/react";
 import { api, af, Product, Party } from "../api";
+import { useT } from "../i18n";
 
 export type GlobalSearchHit = {
   type: "product" | "customer" | "supplier";
@@ -25,6 +26,7 @@ export function GlobalSearch({
   onClose: () => void;
   onSelect: (hit: GlobalSearchHit) => void;
 }) {
+  const t = useT();
   const [q, setQ] = useState("");
   const [results, setResults] = useState<GlobalSearchHit[]>([]);
   const [active, setActive] = useState(0);
@@ -114,7 +116,7 @@ export function GlobalSearch({
         className="global-search-panel"
         role="dialog"
         aria-modal="true"
-        aria-label="Search store"
+        aria-label={t("globalSearch.title")}
         onKeyDown={onKeyDown}
       >
         <div className="global-search-field">
@@ -123,15 +125,15 @@ export function GlobalSearch({
             ref={inputRef}
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search products, customers, suppliers…"
-            aria-label="Search products, customers, and suppliers"
+            placeholder={t("globalSearch.placeholder")}
+            aria-label={t("globalSearch.title")}
             autoComplete="off"
           />
           <kbd>Ctrl F</kbd>
           <button
             type="button"
             className="icon-button"
-            aria-label="Close search"
+            aria-label={t("common.close")}
             onClick={onClose}
           >
             <XIcon size={18} />
@@ -140,15 +142,13 @@ export function GlobalSearch({
         <div className="global-search-results" ref={listRef} role="listbox">
           {error && <p className="global-search-empty text-red">{error}</p>}
           {!error && !q.trim() && (
-            <p className="global-search-empty">
-              Type a name, SKU, brand, phone, or email.
-            </p>
+            <p className="global-search-empty">{t("globalSearch.empty")}</p>
           )}
           {!error && q.trim() && busy && !results.length && (
-            <p className="global-search-empty">Searching…</p>
+            <p className="global-search-empty">{t("common.loading")}</p>
           )}
           {!error && q.trim() && !busy && !results.length && (
-            <p className="global-search-empty">No matches for “{q.trim()}”.</p>
+            <p className="global-search-empty">{t("globalSearch.noHits")}</p>
           )}
           {results.map((hit, i) => {
             const Icon =
@@ -159,17 +159,17 @@ export function GlobalSearch({
                   : BuildingsIcon;
             const label =
               hit.type === "product"
-                ? "Product"
+                ? t("globalSearch.products")
                 : hit.type === "customer"
-                  ? "Customer"
-                  : "Supplier";
+                  ? t("globalSearch.customers")
+                  : t("globalSearch.suppliers");
             const meta =
               hit.type === "product"
                 ? String(hit.meta)
                 : typeof hit.meta === "number"
                   ? hit.meta > 0
-                    ? `Outstanding ${af(hit.meta)}`
-                    : "Settled"
+                    ? `${t("common.outstanding")} ${af(hit.meta)}`
+                    : t("people.settled")
                   : String(hit.meta || "");
             return (
               <button
