@@ -156,19 +156,19 @@ export function Modal({
         aria-label={title}
       >
         <div className="modal-head">
-          <div>
+          <div className="modal-head-copy">
             <h2>{title}</h2>
             {subtitle && <p>{subtitle}</p>}
           </div>
           <button
-            className="icon-button"
+            className="icon-button modal-close"
             aria-label={t("ui.closeDialog")}
             onClick={onClose}
           >
-            <XIcon size={20} />
+            <XIcon size={18} weight="bold" aria-hidden />
           </button>
         </div>
-        {children}
+        <div className="modal-content">{children}</div>
       </div>
     </div>
   );

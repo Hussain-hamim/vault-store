@@ -984,7 +984,7 @@ export const ps: MessageTree = {
     barcodeScanHint: "USB سکینر یا لاسي ولیکئ",
     barcodeHint: "په پلور کې د چټک موندلو لپاره.",
     barcodePh: "بارکوډ سکین یا ولیکئ",
-    unitCostAedHint: "هغه څه چې دوبۍ عرضه کوونکي ته په درham ورکړي.",
+    unitCostAedHint: "هغه څه چې دوبۍ عرضه کوونکي ته په درهم ورکړي.",
     fxRateAtPurchase: "د تبادلې نرخ (AFN په 1 AED)",
     fxRateDayHint: "د هغې ورځې افغانۍ نرخ چې ذخیره مو اخیستې.",
     unitCostAfHint: "له AED × نرخ څخه محاسبه کېږي.",
