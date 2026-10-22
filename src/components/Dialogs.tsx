@@ -9,6 +9,7 @@ import {
   CheckCircleIcon,
   WarningCircleIcon,
   DownloadSimpleIcon,
+  BarcodeIcon,
 } from "@phosphor-icons/react";
 import {
   api,
@@ -396,11 +397,24 @@ export function ProductForm({
                 required
               />
             </Field>
-            <Field label="Barcode (optional)">
+          </div>
+          <div className="form-section-title">
+            Barcode <small>Scan with a USB scanner or type it in</small>
+          </div>
+          <div className="barcode-field-row">
+            <span className="barcode-field-icon" aria-hidden="true">
+              <BarcodeIcon size={22} />
+            </span>
+            <Field
+              label="Product barcode"
+              hint="Used to find and add this product quickly when selling."
+            >
               <input
                 name="barcode"
                 defaultValue={product?.barcode}
                 placeholder="Scan or type barcode"
+                inputMode="numeric"
+                autoComplete="off"
               />
             </Field>
           </div>
@@ -597,8 +611,11 @@ export function TradeForm({
     [addingParty, setAddingParty] = useState(false),
     [addingProduct, setAddingProduct] = useState(false),
     [searching, setSearching] = useState(true),
-    [loadingMore, setLoadingMore] = useState(false);
+    [loadingMore, setLoadingMore] = useState(false),
+    [scanCode, setScanCode] = useState(""),
+    [scanBusy, setScanBusy] = useState(false);
   const key = useRef(requestKey());
+  const barcodeRef = useRef<HTMLInputElement>(null);
   const Frame = inline ? BillFrame : Modal;
   const purchase = kind === "purchase";
   const selectedParty = parties.find((p) => p.id === party);
@@ -742,6 +759,33 @@ export function TradeForm({
           ],
     );
     if (q) setQ("");
+  }
+  async function scanBarcode() {
+    const code = scanCode.trim();
+    if (!code || scanBusy) return;
+    setScanBusy(true);
+    setError("");
+    try {
+      const d = await api<{ rows: Product[] }>("catalog", {
+        barcode: code,
+        limit: 1,
+      });
+      const p = d.rows[0];
+      if (!p)
+        throw new Error(`No product found for barcode “${code}”.`);
+      if (!purchase && p.stock <= 0)
+        throw new Error(`${p.name} is out of stock.`);
+      if (lines.some((l) => l.product.id === p.id))
+        throw new Error(`${p.name} is already on this bill.`);
+      add(p);
+      setScanCode("");
+      barcodeRef.current?.focus();
+    } catch (e: any) {
+      setError(e.message);
+      barcodeRef.current?.select();
+    } finally {
+      setScanBusy(false);
+    }
   }
   useEffect(() => {
     if (!seedProduct || documentId) return;
@@ -978,6 +1022,32 @@ export function TradeForm({
                     </span>
                   </div>
                 </div>
+                <div className="trade-barcode-scan">
+                  <BarcodeIcon size={18} />
+                  <input
+                    ref={barcodeRef}
+                    aria-label="Scan product barcode"
+                    placeholder="Scan barcode to add…"
+                    value={scanCode}
+                    onChange={(e) => setScanCode(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        scanBarcode();
+                      }
+                    }}
+                    inputMode="numeric"
+                    autoComplete="off"
+                  />
+                  <button
+                    type="button"
+                    className="button"
+                    disabled={scanBusy || !scanCode.trim()}
+                    onClick={scanBarcode}
+                  >
+                    {scanBusy ? "Looking…" : "Add"}
+                  </button>
+                </div>
                 <Search
                   value={q}
                   onChange={setQ}
@@ -1024,6 +1094,7 @@ export function TradeForm({
                                 {[p.brand, p.model, p.sku]
                                   .filter(Boolean)
                                   .join(" · ")}
+                                {p.barcode ? ` · ⌗ ${p.barcode}` : ""}
                               </small>
                               <small>
                                 {[

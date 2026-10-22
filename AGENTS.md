@@ -12,6 +12,7 @@ Desktop testing: keep `npm run dev` running, then use `npm run desktop:dev` (not
 
 ## Store workflow decisions
 - Inventory opens a colored card-style product list (category accent borders, stock badges) with a sticky search/header while the rows scroll; each card shows brand/model/SKU plus full saved specs (CPU/RAM/Storage/etc. by category), quantity, unit cost and selling price.
+- Products can store a barcode on add/edit; New Sale/Purchase has a barcode scan field that looks up the product and adds it to the bill (Enter or Add). Catalog search also matches barcode.
 - Customers use a teal/sky card list (rose when they owe); suppliers use a warmer clay/olive card list. Sticky search/header while contacts scroll; status chips show Owes you / Settled / Credit.
 - Page content uses the full workspace width (no centered max-width gutters); keep side padding minimal.
 - New products support unit cost and opening stock in the same form; unit cost and selling price sit side by side. Minimum price and shelf location are not collected on the product form for now.

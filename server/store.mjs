@@ -1525,6 +1525,7 @@ export class Store {
     const d = z
       .object({
         q: z.string().max(100).default(""),
+        barcode: z.string().max(80).optional(),
         id: z.string().optional(),
         category: z.string().max(30).default("All products"),
         filter: z.string().default("all"),
@@ -1538,12 +1539,15 @@ export class Store {
       clauses.push("p.id=?");
       params.push(d.id);
     }
-    if (d.q) {
+    if (d.barcode) {
+      clauses.push("p.barcode=?");
+      params.push(d.barcode);
+    } else if (d.q) {
       clauses.push(
-        "(p.name LIKE ? ESCAPE '\\' OR p.sku LIKE ? ESCAPE '\\' OR p.barcode=?)",
+        "(p.name LIKE ? ESCAPE '\\' OR p.sku LIKE ? ESCAPE '\\' OR p.barcode=? OR p.barcode LIKE ? ESCAPE '\\')",
       );
       const q = d.q.replace(/[\\%_]/g, "\\$&") + "%";
-      params.push(q, q, d.q);
+      params.push(q, q, d.q, q);
     }
     if (d.category !== "All products") {
       clauses.push("p.category=?");

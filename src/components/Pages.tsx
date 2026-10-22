@@ -290,6 +290,7 @@ export function ProductsPage({
                             {[p.brand, p.model, p.sku]
                               .filter(Boolean)
                               .join(" · ") || "No brand / model"}
+                            {p.barcode ? ` · ⌗ ${p.barcode}` : ""}
                           </small>
                           <span className="inventory-chip category-chip">
                             {p.category}
