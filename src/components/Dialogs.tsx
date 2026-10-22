@@ -27,6 +27,7 @@ import {
   Party,
   User,
   downloadInvoice,
+  productSpecEntries,
 } from "../api";
 import {
   Modal,
@@ -618,7 +619,7 @@ export function TradeForm({
       documentId ? "existing" : "new",
     ),
     [customerName, setCustomerName] = useState(""),
-    [printAfter, setPrintAfter] = useState(true);
+    [printAfter, setPrintAfter] = useState(false);
   const key = useRef(requestKey());
   const barcodeRef = useRef<HTMLInputElement>(null);
   const Frame = inline ? BillFrame : Modal;
@@ -2300,27 +2301,42 @@ export function InvoiceDialog({
                   </tr>
                 </thead>
                 <tbody>
-                  {doc.lines.map((l: any) => (
-                    <tr key={l.id}>
-                      <td>
-                        <ProductName product={l} />
-                      </td>
-                      <td>
-                        {l.quantity}
-                        {l.returned_quantity > 0 && (
-                          <small className="block muted">
-                            {l.returned_quantity} returned
-                          </small>
+                  {doc.lines.map((l: any) => {
+                    const specs = productSpecEntries(l);
+                    const identity = [l.brand, l.model, l.sku]
+                      .filter(Boolean)
+                      .join(" · ");
+                    return (
+                      <tr key={l.id}>
+                        <td>
+                          <ProductName product={l} sub={identity || l.sku} />
+                          {specs.length > 0 ? (
+                            <div className="invoice-line-specs">
+                              {specs.map((s) => (
+                                <span key={s.key}>
+                                  <em>{s.key}</em> {s.value}
+                                </span>
+                              ))}
+                            </div>
+                          ) : null}
+                        </td>
+                        <td>
+                          {l.quantity}
+                          {l.returned_quantity > 0 && (
+                            <small className="block muted">
+                              {l.returned_quantity} returned
+                            </small>
+                          )}
+                        </td>
+                        {doc.kind === "purchase" && (
+                          <td>{l.cost_aed ? aed(l.cost_aed) : "—"}</td>
                         )}
-                      </td>
-                      {doc.kind === "purchase" && (
-                        <td>{l.cost_aed ? aed(l.cost_aed) : "—"}</td>
-                      )}
-                      <td>{af(l.price, 2)}</td>
-                      <td>{af(l.discount, 2)}</td>
-                      <td>{af(l.quantity * l.price - l.discount, 2)}</td>
-                    </tr>
-                  ))}
+                        <td>{af(l.price, 2)}</td>
+                        <td>{af(l.discount, 2)}</td>
+                        <td>{af(l.quantity * l.price - l.discount, 2)}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             )}

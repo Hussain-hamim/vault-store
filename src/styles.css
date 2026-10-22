@@ -2851,6 +2851,27 @@ input[type="number"]::-webkit-inner-spin-button {
   font-weight: 700;
   font-size: 13px;
 }
+.invoice-line-specs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin-top: 6px;
+  max-width: 420px;
+}
+.invoice-line-specs span {
+  font-size: 10px;
+  color: #6d7268;
+  line-height: 1.35;
+}
+.invoice-line-specs em {
+  font-style: normal;
+  font-weight: 650;
+  color: #8a8f84;
+  margin-right: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  font-size: 9px;
+}
 .invoice-note {
   font-size: 11px;
   line-height: 1.8;
@@ -4828,28 +4849,80 @@ input[type="number"]::-webkit-inner-spin-button {
   font-size: 11px;
   color: #8a8f84;
 }
-.sale-bill-panel .cart-lines {
+.bill-editor .sale-bill-panel .cart-lines {
   flex: 1;
   min-height: 0;
   max-height: none;
   overflow-y: auto;
-  gap: 8px;
+  gap: 6px;
+  padding-right: 2px;
 }
-.sale-bill-panel .cart-empty {
+.bill-editor .sale-bill-panel .cart-empty {
   flex: 1;
-  min-height: 120px;
-  padding: 18px;
+  min-height: 0;
+  max-height: none;
+  padding: 12px;
+  place-content: center;
 }
-.sale-bill-panel .cart-line {
-  padding: 10px 12px;
+.bill-editor .sale-bill-panel .cart-line {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(168px, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
   margin: 0;
+  border-radius: 8px;
+}
+.bill-editor .sale-bill-panel .cart-line-title {
+  margin-bottom: 0;
+  gap: 6px;
+  min-width: 0;
+}
+.bill-editor .sale-bill-panel .cart-line-title .product-image {
+  width: 24px;
+  height: 24px;
+}
+.bill-editor .sale-bill-panel .cart-line-title .product-name {
+  min-width: 0;
+}
+.bill-editor .sale-bill-panel .cart-line-title .product-name strong {
+  font-size: 11px;
+}
+.bill-editor .sale-bill-panel .cart-line .field {
+  margin-bottom: 0;
+  gap: 1px;
+}
+.bill-editor .sale-bill-panel .cart-line .field > span {
+  font-size: 8px;
+  margin: 0;
+  letter-spacing: 0.02em;
+}
+.bill-editor .sale-bill-panel .cart-line .form-grid {
+  gap: 5px;
+  margin: 0;
+}
+.bill-editor .sale-bill-panel .cart-line .form-grid.three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.bill-editor .sale-bill-panel .cart-line > .form-grid {
+  /* purchase discount row under qty/cost */
+  grid-column: 1 / -1;
+}
+.bill-editor .sale-bill-panel .cart-line > .form-grid.three {
+  grid-column: auto;
+}
+.bill-editor .sale-bill-panel .cart-line input {
+  padding: 4px 6px;
+  font-size: 11px;
+  min-height: 0;
+  height: 28px;
 }
 .sale-pay-panel {
   flex: none;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 10px 12px;
+  gap: 4px;
+  padding: 6px 10px;
   background: linear-gradient(160deg, #f3f7ea 0%, #fff 55%);
   border-color: #d7e0c0;
 }
@@ -4898,16 +4971,25 @@ input[type="number"]::-webkit-inner-spin-button {
   margin: 0;
 }
 .bill-editor .sale-pay-panel .trade-totals > .field input {
-  padding: 7px 9px;
+  padding: 6px 8px;
   font-size: 12px;
+}
+.bill-editor .sale-pay-panel .trade-totals > .field small {
+  font-size: 9px;
+  line-height: 1.2;
+  margin-top: 2px;
 }
 .sale-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
   justify-content: flex-end;
-  padding-top: 2px;
+  padding-top: 0;
+}
+.sale-actions .button {
+  padding: 7px 12px;
+  font-size: 12px;
 }
 .sale-print-check {
   display: inline-flex;
@@ -4965,11 +5047,12 @@ input[type="number"]::-webkit-inner-spin-button {
   }
   .sale-board-left,
   .sale-board-right {
-    overflow: visible;
+    overflow: hidden;
+    min-height: 320px;
   }
   .sale-catalog-panel,
   .sale-bill-panel {
-    min-height: 280px;
+    min-height: 220px;
   }
   .sale-customer-row {
     grid-template-columns: 1fr;
@@ -5351,6 +5434,9 @@ input[type="number"]::-webkit-inner-spin-button {
   .product-browser-list,
   .bill-editor .cart-lines {
     max-height: 320px;
+  }
+  .bill-editor .sale-bill-panel .cart-lines {
+    max-height: none;
   }
   .bill-editor .trade-totals {
     grid-template-columns: 1fr;
@@ -6705,6 +6791,9 @@ img {
   .product-browser-list,
   .bill-editor .cart-lines {
     max-height: min(260px, 38vh);
+  }
+  .bill-editor .sale-bill-panel .cart-lines {
+    max-height: none;
   }
   .modal {
     max-height: calc(100dvh - 16px);

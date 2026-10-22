@@ -1075,9 +1075,15 @@ export class Store {
     );
     if (!doc) throw new Error("Document not found.");
     doc.lines = this.all(
-      "SELECT l.*,COALESCE(s.name,p.name) name,COALESCE(s.sku,p.sku) sku,COALESCE(s.image,p.image) image,COALESCE((SELECT SUM(quantity) FROM document_lines r WHERE r.original_line_id=l.id),0) returned_quantity FROM document_lines l JOIN products p ON p.id=l.product_id LEFT JOIN document_product_snapshots s ON s.line_id=l.id WHERE document_id=?",
+      "SELECT l.*,COALESCE(s.name,p.name) name,COALESCE(s.sku,p.sku) sku,COALESCE(s.brand,p.brand) brand,COALESCE(s.model,p.model) model,COALESCE(s.attributes,p.attributes) attributes,COALESCE(s.image,p.image) image,p.category,COALESCE((SELECT SUM(quantity) FROM document_lines r WHERE r.original_line_id=l.id),0) returned_quantity FROM document_lines l JOIN products p ON p.id=l.product_id LEFT JOIN document_product_snapshots s ON s.line_id=l.id WHERE document_id=?",
       did,
-    );
+    ).map((line) => ({
+      ...line,
+      attributes:
+        typeof line.attributes === "string"
+          ? JSON.parse(line.attributes || "{}")
+          : line.attributes || {},
+    }));
     doc.revision =
       this.one(
         "SELECT revision FROM invoice_revisions WHERE document_id=?",

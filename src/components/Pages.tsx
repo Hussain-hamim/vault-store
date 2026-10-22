@@ -23,6 +23,7 @@ import {
   exportCSV,
   businessDate,
   getToken,
+  productSpecEntries,
   Product,
   Party,
   User,
@@ -152,32 +153,8 @@ export function ProductsPage({
     })[c] || "cat-default";
   const stockTone = (p: Product) =>
     p.stock === 0 ? "red" : p.stock <= p.reorder_level ? "yellow" : "green";
-  const specOrder = (c: string) =>
-    c === "Computers"
-      ? ["CPU", "RAM", "Storage", "GPU", "Display", "Color"]
-      : ["Mobiles", "Tablets"].includes(c)
-        ? ["RAM", "Storage", "Color", "Connectivity"]
-        : c === "Storage"
-          ? ["Storage", "Interface"]
-          : c === "Accessories"
-            ? ["Type"]
-            : [];
   function productSpecs(p: Product) {
-    const attrs = p.attributes || {};
-    const ordered = specOrder(p.category);
-    const seen = new Set<string>();
-    const specs: { key: string; value: string }[] = [];
-    for (const key of ordered) {
-      const value = attrs[key];
-      if (value) {
-        specs.push({ key, value });
-        seen.add(key);
-      }
-    }
-    for (const [key, value] of Object.entries(attrs)) {
-      if (value && !seen.has(key)) specs.push({ key, value });
-    }
-    return specs;
+    return productSpecEntries(p);
   }
   return (
     <div className="page-content inventory-page">

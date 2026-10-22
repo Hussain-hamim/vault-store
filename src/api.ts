@@ -39,6 +39,58 @@ export type Party = {
   balance: number;
   walk_in: number;
 };
+
+/** Ordered attribute keys by product category for bills / inventory. */
+export function specOrder(category?: string) {
+  if (category === "Computers")
+    return ["CPU", "RAM", "Storage", "GPU", "Display", "Color"];
+  if (category === "Mobiles" || category === "Tablets")
+    return ["RAM", "Storage", "Color", "Connectivity"];
+  if (category === "Storage") return ["Storage", "Interface"];
+  if (category === "Accessories") return ["Type"];
+  return [] as string[];
+}
+
+export function productSpecEntries(product: {
+  category?: string;
+  attributes?: Record<string, string> | string | null;
+}) {
+  const raw = product.attributes;
+  const attrs =
+    typeof raw === "string"
+      ? (JSON.parse(raw || "{}") as Record<string, string>)
+      : raw || {};
+  const ordered = specOrder(product.category);
+  const seen = new Set<string>();
+  const specs: { key: string; value: string }[] = [];
+  for (const key of ordered) {
+    const value = attrs[key];
+    if (value) {
+      specs.push({ key, value });
+      seen.add(key);
+    }
+  }
+  for (const [key, value] of Object.entries(attrs)) {
+    if (value && !seen.has(key)) specs.push({ key, value });
+  }
+  return specs;
+}
+
+export function productDetailLine(product: {
+  brand?: string;
+  model?: string;
+  sku?: string;
+  category?: string;
+  attributes?: Record<string, string> | string | null;
+}) {
+  const identity = [product.brand, product.model, product.sku]
+    .filter(Boolean)
+    .join(" · ");
+  const specs = productSpecEntries(product)
+    .map((s) => `${s.key}: ${s.value}`)
+    .join(" · ");
+  return [identity, specs].filter(Boolean).join(" · ");
+}
 declare global {
   interface Window {
     vault?: {
@@ -196,10 +248,10 @@ export async function downloadInvoice(doc: any) {
         })[c]!,
     );
   const rows = doc.lines
-    .map(
-      (l: any) =>
-        `<tr><td>${esc(l.name)}<small>${esc(l.sku)}</small></td><td>${l.quantity}</td><td>${af(l.price, 2)}</td><td>${af(l.discount, 2)}</td><td>${af(l.price * l.quantity - l.discount, 2)}</td></tr>`,
-    )
+    .map((l: any) => {
+      const detail = productDetailLine(l);
+      return `<tr><td><strong>${esc(l.name)}</strong>${detail ? `<small>${esc(detail)}</small>` : ""}</td><td>${l.quantity}</td><td>${af(l.price, 2)}</td><td>${af(l.discount, 2)}</td><td>${af(l.price * l.quantity - l.discount, 2)}</td></tr>`;
+    })
     .join("");
   const store = status.store || {};
   const contact = [store.phone, store.email].filter(Boolean).join(" · ");
@@ -209,7 +261,7 @@ export async function downloadInvoice(doc: any) {
   const footer = store.bill_footer
     ? `<p class="footer">${esc(store.bill_footer)}</p>`
     : "";
-  const html = `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'"><title>${esc(doc.number)}</title><style>body{font:14px system-ui,sans-serif;color:#252528;max-width:850px;margin:48px auto;padding:24px}header{display:flex;justify-content:space-between;gap:24px}.logo{max-height:56px;max-width:160px;object-fit:contain;display:block;margin-bottom:8px}h1{font-size:24px;margin:0 0 6px}p,small{color:#64646a}small{display:block}table{width:100%;border-collapse:collapse;margin:32px 0}th,td{padding:14px 8px;border-bottom:1px solid #ddd;text-align:left}.total{text-align:right;font-size:18px}.footer{margin-top:20px}@media print{body{margin:0}}</style></head><body><header><div>${logo}<h1>${esc(store.name)}</h1><p>${esc(store.address)}${store.address && contact ? "<br>" : ""}${esc(contact)}</p></div><div><h2>${esc(doc.number)}</h2><p>${esc(doc.date)}</p></div></header><p>${doc.kind === "purchase" ? "Supplier" : "Customer"}: <strong>${esc(doc.party_name)}</strong></p><table><thead><tr><th>Product</th><th>Qty</th><th>Unit price</th><th>Discount</th><th>Total</th></tr></thead><tbody>${rows}</tbody></table><div class="total"><p>Total: <strong>${af(doc.total, 2)}</strong></p><p>Paid: ${af(doc.paid, 2)}</p><p>Returned: ${af(doc.returned || 0, 2)}</p><p>Outstanding: ${af(Math.max(0, doc.total - doc.paid - (doc.returned || 0)), 2)}</p></div>${doc.note ? `<p>${esc(doc.note)}</p>` : ""}${footer}<small>AFN · No tax · Open this file in a browser to print or save as PDF.</small></body></html>`;
+  const html = `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'"><title>${esc(doc.number)}</title><style>body{font:14px system-ui,sans-serif;color:#252528;max-width:850px;margin:48px auto;padding:24px}header{display:flex;justify-content:space-between;gap:24px}.logo{max-height:56px;max-width:160px;object-fit:contain;display:block;margin-bottom:8px}h1{font-size:24px;margin:0 0 6px}p,small{color:#64646a}small{display:block;margin-top:4px;line-height:1.45}table{width:100%;border-collapse:collapse;margin:32px 0}th,td{padding:14px 8px;border-bottom:1px solid #ddd;text-align:left;vertical-align:top}.total{text-align:right;font-size:18px}.footer{margin-top:20px}@media print{body{margin:0}}</style></head><body><header><div>${logo}<h1>${esc(store.name)}</h1><p>${esc(store.address)}${store.address && contact ? "<br>" : ""}${esc(contact)}</p></div><div><h2>${esc(doc.number)}</h2><p>${esc(doc.date)}</p></div></header><p>${doc.kind === "purchase" ? "Supplier" : "Customer"}: <strong>${esc(doc.party_name)}</strong></p><table><thead><tr><th>Product</th><th>Qty</th><th>Unit price</th><th>Discount</th><th>Total</th></tr></thead><tbody>${rows}</tbody></table><div class="total"><p>Total: <strong>${af(doc.total, 2)}</strong></p><p>Paid: ${af(doc.paid, 2)}</p><p>Returned: ${af(doc.returned || 0, 2)}</p><p>Outstanding: ${af(Math.max(0, doc.total - doc.paid - (doc.returned || 0)), 2)}</p></div>${doc.note ? `<p>${esc(doc.note)}</p>` : ""}${footer}<small>AFN · No tax · Open this file in a browser to print or save as PDF.</small></body></html>`;
   const url = URL.createObjectURL(
     new Blob([html], { type: "text/html;charset=utf-8" }),
   );
