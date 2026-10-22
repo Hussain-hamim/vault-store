@@ -29,6 +29,8 @@ import {
   User,
 } from "../api";
 import { useI18n, useT, LOCALES, type Locale } from "../i18n";
+
+const EM_DASH = "—";
 import {
   Search,
   PageIntro,
@@ -68,14 +70,55 @@ function useLoad<T = any>(command: string, args: unknown, refresh: number) {
   return { data, error };
 }
 function Loading() {
+  const t = useT();
   return (
     <div className="loading-state">
       <ArrowClockwiseIcon size={22} className="spin" />
-      Loading your records…
+      {t("ui.loadingRecords")}
     </div>
   );
 }
 const LIST_PAGE = 10;
+const INVENTORY_CATEGORIES = [
+  ["All products", "allProducts"],
+  ["Computers", "computers"],
+  ["Mobiles", "mobiles"],
+  ["Tablets", "tablets"],
+  ["Storage", "storage"],
+  ["Accessories", "accessories"],
+] as const;
+const REPORT_TAB_IDS = [
+  "profitLoss",
+  "daily",
+  "productProfit",
+  "trialBalance",
+  "balanceSheet",
+  "capitalNet",
+  "expenseBreak",
+  "inventoryVal",
+  "stockAging",
+  "receivables",
+  "payables",
+] as const;
+type ReportTabId = (typeof REPORT_TAB_IDS)[number];
+function localizedAccountName(
+  s: string,
+  t: ReturnType<typeof useT>,
+): string {
+  const keys: Record<string, string> = {
+    cash: "accounts.cash",
+    receivables: "accounts.receivables",
+    payables: "accounts.payables",
+    inventory: "accounts.inventory",
+    equity: "accounts.equity",
+    sales: "accounts.sales",
+    cost_of_goods: "accounts.cogs",
+    expenses: "accounts.expenses",
+    other_income: "accounts.otherIncome",
+  };
+  const key = keys[s];
+  return key ? t(key) : s;
+}
 export function ProductsPage({
   refresh,
   open,
@@ -180,31 +223,30 @@ export function ProductsPage({
       >
         <div className="inventory-list-sticky">
           <div className="list-toolbar">
-            <Search value={q} onChange={setQ} />
+            <Search
+              value={q}
+              onChange={setQ}
+              placeholder={t("inventory.searchPh")}
+            />
             <div className="toolbar-right">
               <select
-                aria-label="Product category"
+                aria-label={t("inventory.category")}
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
               >
-                {[
-                  "All products",
-                  "Computers",
-                  "Mobiles",
-                  "Tablets",
-                  "Storage",
-                  "Accessories",
-                ].map((c) => (
-                  <option key={c}>{c}</option>
+                {INVENTORY_CATEGORIES.map(([value, key]) => (
+                  <option key={value} value={value}>
+                    {t(`inventory.${key}`)}
+                  </option>
                 ))}
               </select>
               <select
-                aria-label="Stock filter"
+                aria-label={t("inventory.stockFilter")}
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
               >
-                <option value="all">All stock levels</option>
-                <option value="low">Low stock</option>
+                <option value="all">{t("inventory.allStock")}</option>
+                <option value="low">{t("inventory.lowStock")}</option>
               </select>
               <ExportButton
                 onClick={() => {
@@ -245,16 +287,16 @@ export function ProductsPage({
                       }),
                     ),
                   );
-                  toast("Loaded products exported.");
+                  toast(t("inventory.exported"));
                 }}
               />
             </div>
           </div>
           <div className="inventory-list-cols" role="row">
-            <span>Product & specs</span>
-            <span>Qty</span>
-            {showCost && <span>Unit cost</span>}
-            <span>Selling price</span>
+            <span>{t("inventory.productSpecs")}</span>
+            <span>{t("inventory.qty")}</span>
+            {showCost && <span>{t("inventory.unitCost")}</span>}
+            <span>{t("inventory.sellingPrice")}</span>
             <span aria-hidden="true" />
           </div>
         </div>
@@ -292,7 +334,7 @@ export function ProductsPage({
                           <small>
                             {[p.brand, p.model, p.sku]
                               .filter(Boolean)
-                              .join(" · ") || "No brand / model"}
+                              .join(" · ") || t("inventory.noBrand")}
                             {p.barcode ? ` · ⌗ ${p.barcode}` : ""}
                           </small>
                           <span className="inventory-chip category-chip">
@@ -303,13 +345,15 @@ export function ProductsPage({
                         </span>
                       </div>
                       <div className="inventory-row-meta">
-                        <Badge tone={tone}>{p.stock} units</Badge>
+                        <Badge tone={tone}>
+                          {p.stock} {t("dashboard.units")}
+                        </Badge>
                       </div>
                       {showCost && (
                         <div className="inventory-row-meta inventory-row-cost">
                           <strong>{af(unitCost, 2)}</strong>
                           <small>
-                            {p.stock ? "FIFO avg on hand" : "Last buy"}
+                            {p.stock ? t("inventory.fifoAvg") : t("inventory.lastBuy")}
                           </small>
                         </div>
                       )}
@@ -335,14 +379,14 @@ export function ProductsPage({
               })}
               {!rows.length && (
                 <Empty
-                  title="No matching products"
-                  text="Try a different search, or add a new product."
+                  title={t("inventory.noMatchTitle")}
+                  text={t("inventory.noMatchText")}
                 />
               )}
             </div>
             <div className="pagination inventory-list-pager">
               <span>
-                Showing {rows.length} product{rows.length === 1 ? "" : "s"}
+                {t("inventory.showingProducts", { n: rows.length })}
               </span>
               {next ? (
                 <button
@@ -350,10 +394,14 @@ export function ProductsPage({
                   disabled={loadingMore}
                   onClick={loadMore}
                 >
-                  {loadingMore ? "Loading…" : "Load more"}
+                  {loadingMore
+                    ? t("common.loading")
+                    : t("pagination.loadMore")}
                 </button>
               ) : (
-                rows.length > 0 && <span className="subtle">All loaded</span>
+                rows.length > 0 && (
+                  <span className="subtle">{t("ui.allLoaded")}</span>
+                )
               )}
             </div>
           </>
@@ -468,10 +516,10 @@ export function DocumentsPage({
           <button className="button button-dark" onClick={() => open(kind)}>
             <PlusIcon size={16} />
             {kind === "sale"
-              ? "New sale"
+              ? t("documents.newSale")
               : kind === "purchase"
-                ? "Receive purchase"
-                : "Record expense"}
+                ? t("documents.receivePurchase")
+                : t("documents.recordExpense")}
           </button>
         }
       />
@@ -483,8 +531,10 @@ export function DocumentsPage({
               onChange={setQ}
               placeholder={
                 kind === "expense"
-                  ? "Search expense number or category…"
-                  : "Search invoice number or contact…"
+                  ? t("documents.searchExpense")
+                  : kind === "purchase"
+                    ? t("documents.searchPurchase")
+                    : t("documents.searchSale")
               }
             />
             <ExportButton
@@ -504,17 +554,17 @@ export function DocumentsPage({
                     note: d.note,
                   })),
                 );
-                toast("Loaded records exported.");
+                toast(t("documents.exported"));
               }}
             />
           </div>
           <div className="docs-list-cols" role="row">
-            <span>Reference</span>
-            <span>Date</span>
+            <span>{t("documents.reference")}</span>
+            <span>{t("common.date")}</span>
             <span>{partyLabel}</span>
-            <span>Total</span>
-            {kind !== "expense" && <span>Outstanding</span>}
-            <span>Status</span>
+            <span>{t("common.total")}</span>
+            {kind !== "expense" && <span>{t("common.outstanding")}</span>}
+            <span>{t("common.status")}</span>
             <span aria-hidden="true" />
           </div>
         </div>
@@ -540,7 +590,9 @@ export function DocumentsPage({
                       {d.note ? <small>{d.note}</small> : null}
                       {d.returned > 0 && (
                         <small className="docs-return-note">
-                          {af(d.returned)} returned
+                          {t("invoiceActions.returnedQty", {
+                            n: af(d.returned),
+                          })}
                         </small>
                       )}
                     </div>
@@ -550,14 +602,16 @@ export function DocumentsPage({
                     <div className="docs-row-meta">
                       <span className="docs-row-party">
                         {kind === "expense"
-                          ? d.category || "Expense"
-                          : d.party_name || "—"}
+                          ? d.category || t("expenses.title")
+                          : d.party_name || EM_DASH}
                       </span>
                     </div>
                     <div className="docs-row-meta docs-row-money">
                       <strong>{af(d.total)}</strong>
                       {kind !== "expense" && (
-                        <small>Paid {af(d.paid)}</small>
+                        <small>
+                          {t("documents.paidAmount", { amount: af(d.paid) })}
+                        </small>
                       )}
                     </div>
                     {kind !== "expense" && (
@@ -585,7 +639,7 @@ export function DocumentsPage({
                             className="text-button"
                             onClick={() => open("invoice", d)}
                           >
-                            View
+                            {t("common.view")}
                           </button>
                           {["Owner", "Manager"].includes(user.role) && (
                             <>
@@ -601,7 +655,7 @@ export function DocumentsPage({
                                   )
                                 }
                               >
-                                Edit
+                                {t("common.edit")}
                               </button>
                               <button
                                 type="button"
@@ -615,7 +669,7 @@ export function DocumentsPage({
                                   )
                                 }
                               >
-                                Delete
+                                {t("common.delete")}
                               </button>
                             </>
                           )}
@@ -631,14 +685,20 @@ export function DocumentsPage({
               })}
               {!rows.length && (
                 <Empty
-                  title={`No ${label.toLowerCase()} yet`}
-                  text="Your posted transactions will appear here."
+                  title={
+                    kind === "sale"
+                      ? t("empty.sales")
+                      : kind === "purchase"
+                        ? t("empty.purchases")
+                        : t("empty.expenses")
+                  }
+                  text={t("documents.emptyText")}
                 />
               )}
             </div>
             <div className="pagination docs-list-pager">
               <span>
-                Showing {rows.length} record{rows.length === 1 ? "" : "s"}
+                {t("ui.showing", { n: rows.length })}
               </span>
               {next ? (
                 <button
@@ -646,10 +706,14 @@ export function DocumentsPage({
                   disabled={loadingMore}
                   onClick={loadMore}
                 >
-                  {loadingMore ? "Loading…" : "Load more"}
+                  {loadingMore
+                    ? t("common.loading")
+                    : t("pagination.loadMore")}
                 </button>
               ) : (
-                rows.length > 0 && <span className="subtle">All loaded</span>
+                rows.length > 0 && (
+                  <span className="subtle">{t("ui.allLoaded")}</span>
+                )
               )}
             </div>
           </>
@@ -658,23 +722,47 @@ export function DocumentsPage({
     </div>
   );
 }
-function ledgerLabel(e: {
-  category?: string;
-  kind?: string;
-  note?: string;
-  number?: string;
-}) {
+function ledgerLabel(
+  e: {
+    category?: string;
+    kind?: string;
+    note?: string;
+    number?: string;
+  },
+  t: ReturnType<typeof useT>,
+) {
   if (e.category === "Opening balance" || /opening balance/i.test(e.note || ""))
-    return "Opening balance";
-  const labels: Record<string, string> = {
-    sale: "Sale",
-    purchase: "Purchase",
-    receipt: "Payment received",
-    payment: "Payment made",
-    sale_return: "Sale return",
-    purchase_return: "Purchase return",
+    return t("ledger.opening");
+  const keys: Record<string, string> = {
+    sale: "ledger.sale",
+    purchase: "ledger.purchase",
+    receipt: "ledger.paymentIn",
+    payment: "ledger.paymentOut",
+    sale_return: "ledger.returnSale",
+    purchase_return: "ledger.returnPurchase",
   };
-  return labels[e.kind || ""] || e.kind || "Entry";
+  const key = keys[e.kind || ""];
+  return key ? t(key) : e.kind || t("ledger.entry");
+}
+function daybookKindLabel(kind: string, t: ReturnType<typeof useT>) {
+  const keys: Record<string, string> = {
+    sale: "ledger.sale",
+    purchase: "ledger.purchase",
+    expense: "ledger.expense",
+    payment: "ledger.paymentOut",
+    receipt: "ledger.paymentIn",
+    sale_return: "ledger.returnSale",
+    purchase_return: "ledger.returnPurchase",
+    capital_in: "ledger.capitalIn",
+    capital_out: "ledger.capitalOut",
+  };
+  const key = keys[kind];
+  return key ? t(key) : kind.replaceAll("_", " ");
+}
+function backupStatusLabel(status: string, t: ReturnType<typeof useT>) {
+  if (status === "verified") return t("backups.statusVerified");
+  if (status === "failed") return t("backups.statusFailed");
+  return status;
 }
 export function PeoplePage({
   kind,
@@ -748,7 +836,7 @@ export function PeoplePage({
     kind === "customer" ? e.debit - e.credit : e.credit - e.debit;
   let running = detail?.page_start_balance ?? detail?.party?.balance ?? 0;
   const ledgerRows = (detail?.entries || []).map((e: any) => {
-    const row = { ...e, running, label: ledgerLabel(e) };
+    const row = { ...e, running, label: ledgerLabel(e, t) };
     running -= signed(e);
     return row;
   });
@@ -791,19 +879,25 @@ export function PeoplePage({
       <div className="metrics-row people-metrics">
         <Metric
           label={
-            kind === "customer" ? "Customers loaded" : "Suppliers loaded"
+            kind === "customer"
+              ? t("people.customersLoaded")
+              : t("people.suppliersLoaded")
           }
           value={String(rows.length)}
         />
         <Metric
           label={
             kind === "customer"
-              ? "Receivables loaded"
-              : "Payables loaded"
+              ? t("people.receivablesLoaded")
+              : t("people.payablesLoaded")
           }
           value={af(total)}
         />
-        <Metric label="Currency" value="AFN" detail="Afghan afghani · No tax" />
+        <Metric
+          label={t("people.currency")}
+          value="AFN"
+          detail={t("people.currencyDetail")}
+        />
       </div>
       <div className={`people-layout ${selected ? "has-detail" : ""}`}>
         <section className="panel people-list">
@@ -812,7 +906,11 @@ export function PeoplePage({
               <Search
                 value={q}
                 onChange={setQ}
-                placeholder={`Search ${kind}s by name…`}
+                placeholder={
+                  kind === "customer"
+                    ? t("people.searchCustomers")
+                    : t("people.searchSuppliers")
+                }
               />
               <ExportButton
                 onClick={() => {
@@ -825,15 +923,19 @@ export function PeoplePage({
                       balance_AF: p.balance / 100,
                     })),
                   );
-                  toast("Contacts exported.");
+                  toast(t("people.contactsExported"));
                 }}
               />
             </div>
             <div className="people-list-cols" role="row">
-              <span>{kind === "customer" ? "Customer" : "Supplier"}</span>
-              <span>Phone</span>
-              <span>Status</span>
-              <span>Outstanding</span>
+              <span>
+                {kind === "customer"
+                  ? t("sales.customer")
+                  : t("sales.supplier")}
+              </span>
+              <span>{t("common.phone")}</span>
+              <span>{t("common.status")}</span>
+              <span>{t("common.outstanding")}</span>
               <span aria-hidden="true" />
             </div>
           </div>
@@ -861,28 +963,28 @@ export function PeoplePage({
                           <strong>{p.name}</strong>
                           <small>
                             {p.walk_in
-                              ? "Walk-in account"
+                              ? t("people.walkIn")
                               : p.email ||
                                 (kind === "customer"
-                                  ? "Customer account"
-                                  : "Supplier account")}
+                                  ? t("people.customerAccount")
+                                  : t("people.supplierAccount"))}
                           </small>
                         </span>
                       </div>
                       <div className="people-row-meta">
                         <span className="people-row-phone">
-                          {p.phone || "No phone"}
+                          {p.phone || t("people.noPhone")}
                         </span>
                       </div>
                       <div className="people-row-meta">
                         <span className={`people-status status-${tone}`}>
                           {tone === "owed"
                             ? kind === "customer"
-                              ? "Owes you"
-                              : "You owe"
+                              ? t("people.owesYou")
+                              : t("people.youOwe")
                             : tone === "credit"
-                              ? "Credit"
-                              : "Settled"}
+                              ? t("people.credit")
+                              : t("people.settled")}
                         </span>
                       </div>
                       <div className="people-row-meta people-row-balance">
@@ -898,14 +1000,18 @@ export function PeoplePage({
                 })}
                 {!rows.length && (
                   <Empty
-                    title={`No ${kind}s found`}
-                    text="Add a contact or try a different search."
+                    title={
+                      kind === "customer"
+                        ? t("empty.customers")
+                        : t("empty.suppliers")
+                    }
+                    text={t("people.emptyText")}
                   />
                 )}
               </div>
               <div className="pagination people-list-pager">
                 <span>
-                  Showing {rows.length} contact{rows.length === 1 ? "" : "s"}
+                  {t("people.showingContacts", { n: rows.length })}
                 </span>
                 {next ? (
                   <button
@@ -913,10 +1019,14 @@ export function PeoplePage({
                     disabled={loadingMore}
                     onClick={loadMore}
                   >
-                    {loadingMore ? "Loading…" : "Load more"}
+                    {loadingMore
+                      ? t("common.loading")
+                      : t("pagination.loadMore")}
                   </button>
                 ) : (
-                  rows.length > 0 && <span className="subtle">All loaded</span>
+                  rows.length > 0 && (
+                    <span className="subtle">{t("ui.allLoaded")}</span>
+                  )
                 )}
               </div>
             </>
@@ -925,9 +1035,9 @@ export function PeoplePage({
         {selected && (
           <section className="panel contact-detail people-detail">
             <div className="panel-heading">
-              <h3>Contact & ledger</h3>
+              <h3>{t("people.contactLedger")}</h3>
               <button className="text-button" onClick={() => setSelected(null)}>
-                Close
+                {t("common.close")}
               </button>
             </div>
             <ErrorMessage error={detailError} />
@@ -938,20 +1048,20 @@ export function PeoplePage({
                     {detail.party.name.slice(0, 1)}
                   </span>
                   <h2>{detail.party.name}</h2>
-                  <p>{detail.party.phone || "No phone number"}</p>
-                  <p>{detail.party.address || "No address saved"}</p>
+                  <p>{detail.party.phone || t("people.noPhone")}</p>
+                  <p>{detail.party.address || t("people.noAddress")}</p>
                   {user.role === "Owner" && !detail.party.walk_in && (
                     <button
                       className="text-button"
                       onClick={() => open("openingBalance", detail.party)}
                     >
-                      Enter opening balance
+                      {t("people.enterOpeningBalance")}
                     </button>
                   )}
                   <div
                     className={`contact-balance balance-${balanceTone(detail.party.balance)}`}
                   >
-                    <span>Outstanding balance</span>
+                    <span>{t("people.outstandingBalance")}</span>
                     <strong
                       className={
                         detail.party.balance > 0 ? "text-red" : "text-green"
@@ -967,25 +1077,22 @@ export function PeoplePage({
                         onClick={() => open("payment", detail.party)}
                       >
                         {kind === "customer"
-                          ? "Receive payment"
-                          : "Pay supplier"}
+                          ? t("people.receivePayment")
+                          : t("people.paySupplier")}
                         <ArrowRightIcon size={15} />
                       </button>
                     )}
                 </div>
                 <div className="contact-ledger">
-                  <h3>Account ledger</h3>
-                  <p className="subtle ledger-hint">
-                    Newest activity first. Opening balances and payments appear
-                    here with the running outstanding.
-                  </p>
+                  <h3>{t("ledger.title")}</h3>
+                  <p className="subtle ledger-hint">{t("ledger.hint")}</p>
                   <table className="data-table">
                     <thead>
                       <tr>
-                        <th>Date / reference</th>
-                        <th>Debit</th>
-                        <th>Credit</th>
-                        <th>Balance</th>
+                        <th>{t("ledger.dateReference")}</th>
+                        <th>{t("ledger.debit")}</th>
+                        <th>{t("ledger.credit")}</th>
+                        <th>{t("ledger.balance")}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1006,12 +1113,12 @@ export function PeoplePage({
                           <td
                             className={`money ${e.debit ? (kind === "customer" ? "text-red" : "text-green") : "muted"}`}
                           >
-                            {e.debit ? af(e.debit) : "—"}
+                            {e.debit ? af(e.debit) : EM_DASH}
                           </td>
                           <td
                             className={`money ${e.credit ? (kind === "customer" ? "text-green" : "text-red") : "muted"}`}
                           >
-                            {e.credit ? af(e.credit) : "—"}
+                            {e.credit ? af(e.credit) : EM_DASH}
                           </td>
                           <td
                             className={`money ${e.running > 0 ? "text-red" : "text-green"}`}
@@ -1023,12 +1130,10 @@ export function PeoplePage({
                     </tbody>
                   </table>
                   {!detail.entries.length && (
-                    <p className="muted">
-                      No ledger activity for this account yet.
-                    </p>
+                    <p className="muted">{t("people.noLedgerActivity")}</p>
                   )}
                   <div className="pagination ledger-pagination">
-                    <span>25 entries per page</span>
+                    <span>{t("ui.perPage", { n: 25 })}</span>
                     <button
                       className="button"
                       disabled={!ledgerHistory.length}
@@ -1037,7 +1142,7 @@ export function PeoplePage({
                         setLedgerHistory((h) => h.slice(0, -1));
                       }}
                     >
-                      Newer
+                      {t("ui.newer")}
                     </button>
                     <button
                       className="button"
@@ -1047,7 +1152,7 @@ export function PeoplePage({
                         setLedgerAfter(detail.next || "");
                       }}
                     >
-                      Older
+                      {t("ui.older")}
                     </button>
                   </div>
                 </div>
@@ -1061,16 +1166,17 @@ export function PeoplePage({
     </div>
   );
 }
-function monthLabel(ym: string) {
+function monthLabel(ym: string, locale: Locale) {
   const [y, m] = ym.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, 1)).toLocaleString("en", {
+  const tag = locale === "en" ? "en" : locale === "ps" ? "ps-AF" : "fa-AF";
+  return new Date(Date.UTC(y, m - 1, 1)).toLocaleString(tag, {
     month: "short",
     year: "numeric",
     timeZone: "UTC",
   });
 }
 export function CapitalPage({ refresh, open, toast, user }: PageProps) {
-  const t = useT();
+  const { t, locale } = useI18n();
   const [data, setData] = useState<any>(null),
     [error, setError] = useState(""),
     [historyAfter, setHistoryAfter] = useState(""),
@@ -1111,7 +1217,7 @@ export function CapitalPage({ refresh, open, toast, user }: PageProps) {
               {t("capital.record")}
             </button>
           ) : (
-            <Badge tone="yellow">View only</Badge>
+            <Badge tone="yellow">{t("ui.viewOnly")}</Badge>
           )
         }
       />
@@ -1122,15 +1228,15 @@ export function CapitalPage({ refresh, open, toast, user }: PageProps) {
         <>
           <div className="capital-hero-metrics">
             <div className="capital-hero-card tone-worth">
-              <span>Net worth</span>
+              <span>{t("capital.netWorth")}</span>
               <strong className="amt-worth">{af(c.net_worth)}</strong>
             </div>
             <div className="capital-hero-card tone-capital">
-              <span>Owner capital</span>
+              <span>{t("reports.ownerCapital")}</span>
               <strong className="amt-capital">{af(c.capital)}</strong>
             </div>
             <div className="capital-hero-card tone-earn">
-              <span>Earnings kept</span>
+              <span>{t("reports.earningsKept")}</span>
               <strong
                 className={c.earnings >= 0 ? "amt-up" : "amt-down"}
               >
@@ -1138,7 +1244,7 @@ export function CapitalPage({ refresh, open, toast, user }: PageProps) {
               </strong>
             </div>
             <div className="capital-hero-card tone-cash">
-              <span>Cash on hand</span>
+              <span>{t("capital.cashOnHand")}</span>
               <strong className="amt-cash">{af(c.cash)}</strong>
             </div>
           </div>
@@ -1146,45 +1252,45 @@ export function CapitalPage({ refresh, open, toast, user }: PageProps) {
             <section className="panel capital-sits">
               <div className="panel-heading padded">
                 <div>
-                  <h3>Where the money sits</h3>
-                  <p className="subtle">Assets, payables and net worth today</p>
+                  <h3>{t("capital.whereSits")}</h3>
+                  <p className="subtle">{t("capital.whereSitsSub")}</p>
                 </div>
               </div>
               <div className="capital-sits-list">
                 <div className="capital-sit-row">
-                  <span>Cash</span>
+                  <span>{t("capital.cash")}</span>
                   <strong className="amt-cash">{af(c.cash, 2)}</strong>
                 </div>
                 <div className="capital-sit-row">
-                  <span>Customer receivables</span>
+                  <span>{t("dashboard.customerReceivables")}</span>
                   <strong className="amt-recv">{af(c.receivables, 2)}</strong>
                 </div>
                 <div className="capital-sit-row">
-                  <span>Inventory</span>
+                  <span>{t("capital.inventory")}</span>
                   <strong className="amt-inv">{af(c.inventory, 2)}</strong>
                 </div>
                 <div className="capital-sit-row sub">
-                  <span>Total assets</span>
+                  <span>{t("capital.totalAssets")}</span>
                   <strong className="amt-worth">{af(c.assets, 2)}</strong>
                 </div>
                 <div className="capital-sit-row">
-                  <span>Supplier payables</span>
+                  <span>{t("capital.supplierPayables")}</span>
                   <strong className="amt-down">{af(c.payables, 2)}</strong>
                 </div>
                 <div className="capital-sit-row total">
-                  <span>Net worth</span>
+                  <span>{t("capital.netWorth")}</span>
                   <strong className="amt-worth">{af(c.net_worth, 2)}</strong>
                 </div>
                 <p className="subtle capital-sits-note">
-                  Net worth = assets − payables = owner capital + earnings kept.
+                  {t("capital.netWorthNote")}
                 </p>
               </div>
             </section>
             <section className="panel capital-months">
               <div className="panel-heading padded">
                 <div>
-                  <h3>Monthly capital & net worth</h3>
-                  <p className="subtle">Invested, withdrawn and ending value</p>
+                  <h3>{t("capital.monthlyNetWorth")}</h3>
+                  <p className="subtle">{t("capital.monthlyNetWorthSub")}</p>
                 </div>
                 <ExportButton
                   onClick={() => {
@@ -1202,7 +1308,7 @@ export function CapitalPage({ refresh, open, toast, user }: PageProps) {
                         cash_AF: m.cash / 100,
                       })),
                     );
-                    toast("Monthly capital report exported.");
+                    toast(t("capital.exported"));
                   }}
                 />
               </div>
@@ -1210,23 +1316,23 @@ export function CapitalPage({ refresh, open, toast, user }: PageProps) {
                 <table className="data-table">
                   <thead>
                     <tr>
-                      <th>Month</th>
-                      <th>In</th>
-                      <th>Out</th>
-                      <th>Profit</th>
-                      <th>Net worth</th>
-                      <th>Change</th>
+                      <th>{t("capital.month")}</th>
+                      <th>{t("capital.colIn")}</th>
+                      <th>{t("capital.colOut")}</th>
+                      <th>{t("capital.profit")}</th>
+                      <th>{t("capital.netWorth")}</th>
+                      <th>{t("capital.change")}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {data.months.map((m: any) => (
                       <tr key={m.month}>
-                        <td>{monthLabel(m.month)}</td>
+                        <td>{monthLabel(m.month, locale)}</td>
                         <td className="money amt-up">
-                          {m.invested ? af(m.invested) : "—"}
+                          {m.invested ? af(m.invested) : EM_DASH}
                         </td>
                         <td className="money amt-down">
-                          {m.withdrawn ? af(m.withdrawn) : "—"}
+                          {m.withdrawn ? af(m.withdrawn) : EM_DASH}
                         </td>
                         <td
                           className={`money ${m.profit >= 0 ? "amt-up" : "amt-down"}`}
@@ -1249,8 +1355,8 @@ export function CapitalPage({ refresh, open, toast, user }: PageProps) {
               </div>
               {!data.months.length && (
                 <Empty
-                  title="No capital history yet"
-                  text="Invest cash or post sales to start the monthly trail."
+                  title={t("capital.noHistoryTitle")}
+                  text={t("capital.noHistoryText")}
                 />
               )}
             </section>
@@ -1258,10 +1364,8 @@ export function CapitalPage({ refresh, open, toast, user }: PageProps) {
           <section className="panel capital-history">
             <div className="panel-heading padded">
               <div>
-                <h3>Investment & withdrawal history</h3>
-                <p className="subtle">
-                  Each cash investment or withdrawal on its own row, newest first
-                </p>
+                <h3>{t("capital.movementHistory")}</h3>
+                <p className="subtle">{t("capital.movementHistorySub")}</p>
               </div>
             </div>
             <div className="capital-history-list">
@@ -1274,10 +1378,14 @@ export function CapitalPage({ refresh, open, toast, user }: PageProps) {
                 >
                   <span className="capital-history-date">{m.date}</span>
                   <span className="capital-history-type">
-                    {m.direction === "deposit" ? "Investment" : "Withdrawal"}
+                    {m.direction === "deposit"
+                      ? t("capital.investment")
+                      : t("capital.withdrawal")}
                   </span>
                   <span className="capital-history-ref">{m.number}</span>
-                  <span className="capital-history-note">{m.note || "—"}</span>
+                  <span className="capital-history-note">
+                    {m.note || EM_DASH}
+                  </span>
                   <strong
                     className={
                       m.direction === "deposit" ? "amt-up" : "amt-down"
@@ -1291,12 +1399,12 @@ export function CapitalPage({ refresh, open, toast, user }: PageProps) {
             </div>
             {!data.movements.length && (
               <Empty
-                title="No capital cash yet"
-                text="Use Record investment to put external cash into the business."
+                title={t("capital.noCashTitle")}
+                text={t("capital.noCashText")}
               />
             )}
             <div className="pagination">
-              <span>25 entries per page</span>
+              <span>{t("ui.perPage", { n: 25 })}</span>
               <button
                 className="button"
                 disabled={!historyStack.length}
@@ -1305,7 +1413,7 @@ export function CapitalPage({ refresh, open, toast, user }: PageProps) {
                   setHistoryStack((h) => h.slice(0, -1));
                 }}
               >
-                Newer
+                {t("ui.newer")}
               </button>
               <button
                 className="button"
@@ -1315,7 +1423,7 @@ export function CapitalPage({ refresh, open, toast, user }: PageProps) {
                   setHistoryAfter(data.next || "");
                 }}
               >
-                Older
+                {t("ui.older")}
               </button>
             </div>
           </section>
@@ -1339,21 +1447,21 @@ export function DayBookPage({ refresh, open, toast, user }: PageProps) {
         action={
           <div className="inline-actions">
             <input
-              aria-label="Daily book date"
+              aria-label={t("daybook.dateLabel")}
               type="date"
               value={day}
               max={businessDate()}
               onChange={(e) => setDay(e.target.value)}
             />
             <button className="button" onClick={() => open("owner")}>
-              Owner cash movement
+              {t("daybook.ownerCash")}
             </button>
             <button
               className="button button-dark"
               onClick={() => open("expense")}
             >
               <PlusIcon size={16} />
-              Record expense
+              {t("documents.recordExpense")}
             </button>
           </div>
         }
@@ -1365,12 +1473,12 @@ export function DayBookPage({ refresh, open, toast, user }: PageProps) {
         <>
           <div className="daybook-metrics">
             <div className="daybook-metric tone-sales">
-              <span>Daily sales</span>
+              <span>{t("daybook.dailySales")}</span>
               <strong className="amt-up">{af(data.totals.sales)}</strong>
             </div>
             {user.permissions.includes("view_costs") && (
               <div className="daybook-metric tone-gross">
-                <span>Gross trading profit</span>
+                <span>{t("daybook.grossTrading")}</span>
                 <strong
                   className={
                     data.totals.gross >= 0 ? "amt-up" : "amt-down"
@@ -1381,12 +1489,12 @@ export function DayBookPage({ refresh, open, toast, user }: PageProps) {
               </div>
             )}
             <div className="daybook-metric tone-expense">
-              <span>Expenses</span>
+              <span>{t("daybook.expenses")}</span>
               <strong className="amt-down">{af(data.totals.expenses)}</strong>
             </div>
             {user.permissions.includes("view_costs") && (
               <div className="daybook-metric tone-net">
-                <span>Net profit</span>
+                <span>{t("reports.netProfit")}</span>
                 <strong
                   className={data.totals.net >= 0 ? "amt-worth" : "amt-down"}
                 >
@@ -1397,12 +1505,12 @@ export function DayBookPage({ refresh, open, toast, user }: PageProps) {
           </div>
           <section className="panel cash-reconciliation daybook-cash">
             <div>
-              <span>Opening cash</span>
+              <span>{t("daybook.openingCash")}</span>
               <strong className="amt-cash">{af(data.opening)}</strong>
             </div>
             <ArrowRightIcon size={18} />
             <div>
-              <span>Net cash movement</span>
+              <span>{t("daybook.netCashMovement")}</span>
               <strong
                 className={
                   data.totals.cash >= 0 ? "amt-up" : "amt-down"
@@ -1413,15 +1521,15 @@ export function DayBookPage({ refresh, open, toast, user }: PageProps) {
             </div>
             <ArrowRightIcon size={18} />
             <div>
-              <span>Expected closing cash</span>
+              <span>{t("daybook.expectedClosing")}</span>
               <strong className="amt-cash">{af(data.closing)}</strong>
             </div>
-            <Field label="Counted cash (AF)">
+            <Field label={t("daybook.countedCash")}>
               <input
                 type="number"
                 min="0"
                 step="0.01"
-                placeholder="Enter counted amount"
+                placeholder={t("daybook.countedPh")}
                 value={counted}
                 onChange={(e) => setCounted(e.target.value)}
               />
@@ -1434,7 +1542,7 @@ export function DayBookPage({ refresh, open, toast, user }: PageProps) {
                     : "red"
                 }
               >
-                Difference:{" "}
+                {t("daybook.difference")}:{" "}
                 {af(Math.round(Number(counted) * 100) - data.closing, 2)}
               </Badge>
             )}
@@ -1442,7 +1550,7 @@ export function DayBookPage({ refresh, open, toast, user }: PageProps) {
           <section className="panel daybook-tx">
             <div className="panel-heading padded">
               <h3>
-                Daily transactions <span>{day}</span>
+                {t("daybook.dailyTransactions")} <span>{day}</span>
               </h3>
               <ExportButton
                 onClick={() => {
@@ -1457,7 +1565,7 @@ export function DayBookPage({ refresh, open, toast, user }: PageProps) {
                       note: d.note,
                     })),
                   );
-                  toast("Daily book exported.");
+                  toast(t("daybook.exported"));
                 }}
               />
             </div>
@@ -1471,7 +1579,7 @@ export function DayBookPage({ refresh, open, toast, user }: PageProps) {
                 >
                   <span className="daybook-tx-ref">
                     <strong>{d.number}</strong>
-                    <small>{d.party_name || d.note || "—"}</small>
+                    <small>{d.party_name || d.note || EM_DASH}</small>
                   </span>
                   <Badge
                     tone={
@@ -1482,7 +1590,7 @@ export function DayBookPage({ refresh, open, toast, user }: PageProps) {
                           : "gray"
                     }
                   >
-                    {d.kind.replaceAll("_", " ")}
+                    {daybookKindLabel(d.kind, t)}
                   </Badge>
                   <strong className="daybook-tx-total">{af(d.total)}</strong>
                   <span
@@ -1492,15 +1600,15 @@ export function DayBookPage({ refresh, open, toast, user }: PageProps) {
                       ? `+${af(d.cash_change)}`
                       : d.cash_change < 0
                         ? `−${af(-d.cash_change)}`
-                        : "—"}
+                        : EM_DASH}
                   </span>
                 </button>
               ))}
             </div>
             {!data.entries.length && (
               <Empty
-                title="A quiet day so far"
-                text="Sales, payments and expenses for this date will appear here."
+                title={t("daybook.quietTitle")}
+                text={t("daybook.quietText")}
               />
             )}
           </section>
@@ -1509,52 +1617,27 @@ export function DayBookPage({ refresh, open, toast, user }: PageProps) {
     </div>
   );
 }
-const accountName = (s: string) =>
-  ({
-    cash: "Cash",
-    receivables: "Customer receivables",
-    payables: "Supplier payables",
-    inventory: "Inventory",
-    equity: "Owner equity",
-    sales: "Sales revenue",
-    cost_of_goods: "Cost of goods sold",
-    expenses: "Operating expenses",
-    other_income: "Other income",
-  })[s] || s;
 export function ReportsPage({ refresh, open, toast }: PageProps) {
-  const t = useT();
+  const { t, locale } = useI18n();
   const [from, setFrom] = useState(businessDate().slice(0, 7) + "-01"),
     [to, setTo] = useState(businessDate()),
-    [tab, setTab] = useState("Profit & loss");
+    [tab, setTab] = useState<ReportTabId>("profitLoss");
   const { data, error } = useLoad<any>("reports", { from, to }, refresh);
   const { data: inventoryReport, error: inventoryError } = useLoad<any>(
     "inventoryReports",
     {},
     refresh,
   );
-  const tabs = [
-    "Profit & loss",
-    "Daily performance",
-    "Product profitability",
-    "Trial balance",
-    "Balance sheet",
-    "Capital & net worth",
-    "Expense breakdown",
-    "Inventory valuation",
-    "Stock aging",
-    "Receivables",
-    "Payables",
-  ];
   const { data: capitalReport, error: capitalError } = useLoad<any>(
-    tab === "Capital & net worth" ? "capitalReport" : "status",
-    tab === "Capital & net worth" ? { to } : {},
+    tab === "capitalNet" ? "capitalReport" : "status",
+    tab === "capitalNet" ? { to } : {},
     refresh,
   );
   function exportReport() {
     let rows: any[] = [];
-    if (["Inventory valuation", "Stock aging"].includes(tab)) {
+    if (tab === "inventoryVal" || tab === "stockAging") {
       exportCSV(
-        "vault-" + tab.toLowerCase().replaceAll(" ", "-"),
+        "vault-" + tab,
         inventoryReport?.stock.map((p: any) => ({
           name: p.name,
           sku: p.sku,
@@ -1563,13 +1646,13 @@ export function ReportsPage({ refresh, open, toast }: PageProps) {
           oldest_receipt: p.oldest || "",
         })) || [],
       );
-      toast("Current inventory report exported.");
+      toast(t("reports.inventoryExported"));
       return;
     }
-    if (["Receivables", "Payables"].includes(tab)) {
+    if (tab === "receivables" || tab === "payables") {
       exportCSV(
-        "vault-" + tab.toLowerCase(),
-        (tab === "Receivables"
+        "vault-" + tab,
+        (tab === "receivables"
           ? inventoryReport?.customers
           : inventoryReport?.suppliers
         )?.map((p: any) => ({
@@ -1579,10 +1662,10 @@ export function ReportsPage({ refresh, open, toast }: PageProps) {
           overdue_AF: p.overdue / 100,
         })) || [],
       );
-      toast("Current balance report exported.");
+      toast(t("reports.balanceExported"));
       return;
     }
-    if (tab === "Profit & loss")
+    if (tab === "profitLoss")
       rows = [
         { metric: "Net sales", amount_AF: data.totals.sales / 100 },
         { metric: "Cost of goods sold", amount_AF: data.totals.cogs / 100 },
@@ -1591,7 +1674,7 @@ export function ReportsPage({ refresh, open, toast }: PageProps) {
         { metric: "Other income", amount_AF: data.totals.other / 100 },
         { metric: "Net profit", amount_AF: data.totals.net / 100 },
       ];
-    else if (tab === "Daily performance")
+    else if (tab === "daily")
       rows = data.days.map((d: any) => ({
         date: d.date,
         sales_AF: d.sales / 100,
@@ -1599,7 +1682,7 @@ export function ReportsPage({ refresh, open, toast }: PageProps) {
         expenses_AF: d.expenses / 100,
         net_profit_AF: (d.sales - d.cogs - d.expenses + d.other) / 100,
       }));
-    else if (tab === "Product profitability")
+    else if (tab === "productProfit")
       rows = data.best.map((p: any) => ({
         product: p.name,
         quantity: p.quantity,
@@ -1607,12 +1690,12 @@ export function ReportsPage({ refresh, open, toast }: PageProps) {
         cost_AF: p.cost / 100,
         profit_AF: (p.revenue - p.cost) / 100,
       }));
-    else if (tab === "Expense breakdown")
+    else if (tab === "expenseBreak")
       rows = data.expenses.map((r: any) => ({
         category: r.category,
         amount_AF: r.amount / 100,
       }));
-    else if (tab === "Capital & net worth") {
+    else if (tab === "capitalNet") {
       exportCSV(
         "vault-capital-net-worth",
         capitalReport?.months.map((m: any) => ({
@@ -1625,17 +1708,17 @@ export function ReportsPage({ refresh, open, toast }: PageProps) {
           change_AF: m.change / 100,
         })) || [],
       );
-      toast("Capital report exported.");
+      toast(t("reports.capitalExported"));
       return;
     } else
       rows = data.trial.map((r: any) => ({
-        account: accountName(r.account),
+        account: localizedAccountName(r.account, t),
         debit_AF: r.debit / 100,
         credit_AF: r.credit / 100,
         balance_AF: r.balance / 100,
       }));
-    exportCSV("vault-" + tab.toLowerCase().replaceAll(" ", "-"), rows);
-    toast("Report exported.");
+    exportCSV("vault-" + tab, rows);
+    toast(t("reports.exported"));
   }
   return (
     <div className="page-content">
@@ -1646,14 +1729,14 @@ export function ReportsPage({ refresh, open, toast }: PageProps) {
         action={
           <div className="date-range">
             <input
-              aria-label="Report start date"
+              aria-label={t("reports.startDate")}
               type="date"
               value={from}
               onChange={(e) => setFrom(e.target.value)}
             />
-            <span>to</span>
+            <span>{t("ui.to")}</span>
             <input
-              aria-label="Report end date"
+              aria-label={t("reports.endDate")}
               type="date"
               value={to}
               max={businessDate()}
@@ -1668,53 +1751,60 @@ export function ReportsPage({ refresh, open, toast }: PageProps) {
       ) : (
         <>
           <div className="metrics-row four">
-            <Metric label="Net sales" value={af(data.totals.sales)} />
-            <Metric label="Cost of goods sold" value={af(data.totals.cogs)} />
-            <Metric label="Gross profit" value={af(data.totals.gross)} />
-            <Metric label="Net profit" value={af(data.totals.net)} dark />
+            <Metric
+              label={t("reports.netSales")}
+              value={af(data.totals.sales)}
+            />
+            <Metric label={t("reports.cogs")} value={af(data.totals.cogs)} />
+            <Metric
+              label={t("reports.grossProfit")}
+              value={af(data.totals.gross)}
+            />
+            <Metric
+              label={t("reports.netProfit")}
+              value={af(data.totals.net)}
+              dark
+            />
           </div>
           <section className="panel report-panel">
             <div className="report-tabs">
-              {tabs.map((tabName) => (
+              {REPORT_TAB_IDS.map((tabId) => (
                 <button
-                  key={tabName}
-                  className={tabName === tab ? "active" : ""}
-                  onClick={() => setTab(tabName)}
+                  key={tabId}
+                  className={tabId === tab ? "active" : ""}
+                  onClick={() => setTab(tabId)}
                 >
-                  {tabName}
+                  {t(`reports.${tabId}`)}
                 </button>
               ))}
             </div>
             <div className="panel-heading padded">
               <div>
-                <h3>{tab}</h3>
+                <h3>{t(`reports.${tab}`)}</h3>
                 <p className="subtle">
-                  {tab === "Balance sheet" ||
-                  tab === "Trial balance" ||
-                  tab === "Capital & net worth"
-                    ? `As of ${to}`
+                  {tab === "balanceSheet" ||
+                  tab === "trialBalance" ||
+                  tab === "capitalNet"
+                    ? t("ui.asOf", { date: to })
                     : `${from} — ${to}`}{" "}
-                  · Afghan afghani
+                  · {t("common.afn")}
                 </p>
               </div>
               <ExportButton onClick={exportReport} />
             </div>
-            {["Inventory valuation", "Stock aging"].includes(tab) && (
+            {(tab === "inventoryVal" || tab === "stockAging") && (
               <>
                 <ErrorMessage error={inventoryError} />
-                <p className="table-note">
-                  Current stock · up to 100 products with the highest inventory
-                  value. The date range applies to financial reports.
-                </p>
+                <p className="table-note">{t("reports.stockNote")}</p>
                 <div className="table-wrap">
                   <table className="data-table">
                     <thead>
                       <tr>
-                        <th>Product</th>
-                        <th>Quantity</th>
-                        <th>Inventory value</th>
-                        <th>Oldest available receipt</th>
-                        <th>Age</th>
+                        <th>{t("reports.colProduct")}</th>
+                        <th>{t("reports.colQuantity")}</th>
+                        <th>{t("reports.colInventoryValue")}</th>
+                        <th>{t("reports.colOldestReceipt")}</th>
+                        <th>{t("reports.colAge")}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1725,18 +1815,20 @@ export function ReportsPage({ refresh, open, toast }: PageProps) {
                           </td>
                           <td>{p.stock}</td>
                           <td>{af(p.value, 2)}</td>
-                          <td>{p.oldest || "—"}</td>
+                          <td>{p.oldest || EM_DASH}</td>
                           <td>
                             {p.oldest
-                              ? Math.max(
-                                  0,
-                                  Math.floor(
-                                    (Date.parse(businessDate()) -
-                                      Date.parse(p.oldest)) /
-                                      86400000,
+                              ? t("reports.ageDays", {
+                                  n: Math.max(
+                                    0,
+                                    Math.floor(
+                                      (Date.parse(businessDate()) -
+                                        Date.parse(p.oldest)) /
+                                        86400000,
+                                    ),
                                   ),
-                                ) + " days"
-                              : "—"}
+                                })
+                              : EM_DASH}
                           </td>
                         </tr>
                       ))}
@@ -1745,30 +1837,27 @@ export function ReportsPage({ refresh, open, toast }: PageProps) {
                 </div>
               </>
             )}
-            {["Receivables", "Payables"].includes(tab) && (
+            {(tab === "receivables" || tab === "payables") && (
               <>
                 <ErrorMessage error={inventoryError} />
-                <p className="table-note">
-                  Current outstanding debt · up to 100 contacts with the highest
-                  balance. Overdue means an unpaid invoice past its due date.
-                </p>
+                <p className="table-note">{t("reports.debtNote")}</p>
                 <table className="data-table">
                   <thead>
                     <tr>
-                      <th>Contact</th>
-                      <th>Phone</th>
-                      <th>Outstanding</th>
-                      <th>Overdue</th>
+                      <th>{t("reports.colContact")}</th>
+                      <th>{t("common.phone")}</th>
+                      <th>{t("common.outstanding")}</th>
+                      <th>{t("reports.colOverdue")}</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {(tab === "Receivables"
+                    {(tab === "receivables"
                       ? inventoryReport?.customers
                       : inventoryReport?.suppliers
                     )?.map((p: any) => (
                       <tr key={p.id}>
                         <td>{p.name}</td>
-                        <td>{p.phone || "—"}</td>
+                        <td>{p.phone || EM_DASH}</td>
                         <td>{af(p.balance, 2)}</td>
                         <td className={p.overdue ? "text-red" : ""}>
                           {af(p.overdue, 2)}
@@ -1779,50 +1868,46 @@ export function ReportsPage({ refresh, open, toast }: PageProps) {
                 </table>
               </>
             )}
-            {tab === "Profit & loss" && (
+            {tab === "profitLoss" && (
               <div className="profit-report">
                 <div>
-                  <span>Net sales revenue</span>
+                  <span>{t("reports.plNetSalesRevenue")}</span>
                   <strong>{af(data.totals.sales, 2)}</strong>
                 </div>
                 <div>
-                  <span>Less: cost of goods sold</span>
+                  <span>{t("reports.plLessCogs")}</span>
                   <strong>({af(data.totals.cogs, 2)})</strong>
                 </div>
                 <div className="subtotal">
-                  <span>Gross trading profit</span>
+                  <span>{t("reports.plGrossTrading")}</span>
                   <strong>{af(data.totals.gross, 2)}</strong>
                 </div>
                 <div>
-                  <span>Other income / stock gains</span>
+                  <span>{t("reports.plOtherIncomeStock")}</span>
                   <strong>{af(data.totals.other, 2)}</strong>
                 </div>
                 <div>
-                  <span>Operating expenses & stock losses</span>
+                  <span>{t("reports.plOpExpensesStock")}</span>
                   <strong>({af(data.totals.expenses, 2)})</strong>
                 </div>
                 <div className="total">
-                  <span>Net profit</span>
+                  <span>{t("reports.netProfit")}</span>
                   <strong>{af(data.totals.net, 2)}</strong>
                 </div>
-                <p>
-                  Customer collections and supplier payments affect cash and
-                  balances. Profit uses the revenue and cost recognized on
-                  posted transactions.
-                </p>
+                <p>{t("reports.plFootnote")}</p>
               </div>
             )}
-            {tab === "Daily performance" && (
+            {tab === "daily" && (
               <div className="table-wrap">
                 <table className="data-table">
                   <thead>
                     <tr>
-                      <th>Date</th>
-                      <th>Sales</th>
-                      <th>Cost of goods</th>
-                      <th>Gross profit</th>
-                      <th>Expenses</th>
-                      <th>Net profit</th>
+                      <th>{t("common.date")}</th>
+                      <th>{t("reports.colSales")}</th>
+                      <th>{t("reports.colCogsShort")}</th>
+                      <th>{t("reports.grossProfit")}</th>
+                      <th>{t("reports.operatingExpenses")}</th>
+                      <th>{t("reports.netProfit")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1844,17 +1929,17 @@ export function ReportsPage({ refresh, open, toast }: PageProps) {
                 </table>
               </div>
             )}
-            {tab === "Product profitability" && (
+            {tab === "productProfit" && (
               <div className="table-wrap">
                 <table className="data-table">
                   <thead>
                     <tr>
-                      <th>Product</th>
-                      <th>Units sold, net</th>
-                      <th>Revenue</th>
-                      <th>Cost of goods</th>
-                      <th>Gross profit</th>
-                      <th>Margin</th>
+                      <th>{t("reports.colProduct")}</th>
+                      <th>{t("reports.colUnitsSoldNet")}</th>
+                      <th>{t("reports.colRevenue")}</th>
+                      <th>{t("reports.colCogsShort")}</th>
+                      <th>{t("reports.grossProfit")}</th>
+                      <th>{t("reports.colMargin")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1880,26 +1965,24 @@ export function ReportsPage({ refresh, open, toast }: PageProps) {
                     ))}
                   </tbody>
                 </table>
-                <p className="table-note">
-                  Top 100 products by net revenue for this period.
-                </p>
+                <p className="table-note">{t("reports.topProductsNote")}</p>
               </div>
             )}
-            {tab === "Trial balance" && (
+            {tab === "trialBalance" && (
               <>
                 <table className="data-table">
                   <thead>
                     <tr>
-                      <th>Account</th>
-                      <th>Total debits</th>
-                      <th>Total credits</th>
-                      <th>Net balance</th>
+                      <th>{t("reports.colAccount")}</th>
+                      <th>{t("reports.colTotalDebits")}</th>
+                      <th>{t("reports.colTotalCredits")}</th>
+                      <th>{t("reports.colNetBalance")}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {data.trial.map((r: any) => (
                       <tr key={r.account}>
-                        <td>{accountName(r.account)}</td>
+                        <td>{localizedAccountName(r.account, t)}</td>
                         <td>{af(r.debit, 2)}</td>
                         <td>{af(r.credit, 2)}</td>
                         <td>{af(r.balance, 2)}</td>
@@ -1908,7 +1991,7 @@ export function ReportsPage({ refresh, open, toast }: PageProps) {
                   </tbody>
                   <tfoot>
                     <tr>
-                      <td>Total</td>
+                      <td>{t("common.total")}</td>
                       <td>
                         {af(
                           data.trial.reduce(
@@ -1941,7 +2024,7 @@ export function ReportsPage({ refresh, open, toast }: PageProps) {
                 </table>
               </>
             )}
-            {tab === "Balance sheet" && (
+            {tab === "balanceSheet" && (
               <div className="balance-sheet">
                 {(() => {
                   const bal = (a: string) =>
@@ -1959,32 +2042,32 @@ export function ReportsPage({ refresh, open, toast }: PageProps) {
                   return (
                     <>
                       <div className="profit-report">
-                        <h3>Assets</h3>
+                        <h3>{t("reports.bsAssets")}</h3>
                         {["cash", "receivables", "inventory"].map((a) => (
                           <div key={a}>
-                            <span>{accountName(a)}</span>
+                            <span>{localizedAccountName(a, t)}</span>
                             <strong>{af(bal(a), 2)}</strong>
                           </div>
                         ))}
                         <div className="subtotal">
-                          <span>Total assets</span>
+                          <span>{t("capital.totalAssets")}</span>
                           <strong>{af(assets, 2)}</strong>
                         </div>
-                        <h3>Liabilities & equity</h3>
+                        <h3>{t("reports.bsLiabilitiesEquity")}</h3>
                         <div>
-                          <span>Supplier payables</span>
+                          <span>{t("reports.bsSupplierPayables")}</span>
                           <strong>{af(liabilities, 2)}</strong>
                         </div>
                         <div>
-                          <span>Owner equity</span>
+                          <span>{t("reports.bsOwnerEquity")}</span>
                           <strong>{af(-bal("equity"), 2)}</strong>
                         </div>
                         <div>
-                          <span>Cumulative earnings</span>
+                          <span>{t("reports.bsCumulativeEarnings")}</span>
                           <strong>{af(profit, 2)}</strong>
                         </div>
                         <div className="total">
-                          <span>Total liabilities & equity</span>
+                          <span>{t("reports.bsTotalLiabEquity")}</span>
                           <strong>{af(liabilities + equity, 2)}</strong>
                         </div>
                         <Badge
@@ -1993,8 +2076,8 @@ export function ReportsPage({ refresh, open, toast }: PageProps) {
                           }
                         >
                           {assets === liabilities + equity
-                            ? "Balanced"
-                            : "Reconciliation needed"}
+                            ? t("reports.balanced")
+                            : t("reports.reconNeeded")}
                         </Badge>
                       </div>
                     </>
@@ -2002,7 +2085,7 @@ export function ReportsPage({ refresh, open, toast }: PageProps) {
                 })()}
               </div>
             )}
-            {tab === "Capital & net worth" && (
+            {tab === "capitalNet" && (
               <>
                 <ErrorMessage error={capitalError} />
                 {!capitalReport?.current ? (
@@ -2011,45 +2094,42 @@ export function ReportsPage({ refresh, open, toast }: PageProps) {
                   <>
                     <div className="metrics-row four report-inline-metrics">
                       <Metric
-                        label="Net worth"
+                        label={t("capital.netWorth")}
                         value={af(capitalReport.current.net_worth)}
                         dark
                       />
                       <Metric
-                        label="Owner capital"
+                        label={t("reports.ownerCapital")}
                         value={af(capitalReport.current.capital)}
                       />
                       <Metric
-                        label="Earnings kept"
+                        label={t("reports.earningsKept")}
                         value={af(capitalReport.current.earnings)}
                       />
                       <Metric
-                        label="Cash"
+                        label={t("capital.cash")}
                         value={af(capitalReport.current.cash)}
                       />
                     </div>
-                    <p className="table-note">
-                      Monthly change in capital invested and business net worth.
-                      Record investments on the Capital screen.
-                    </p>
+                    <p className="table-note">{t("reports.capitalNetNote")}</p>
                     <div className="table-wrap">
                       <table className="data-table">
                         <thead>
                           <tr>
-                            <th>Month</th>
-                            <th>Invested</th>
-                            <th>Withdrawn</th>
-                            <th>Profit</th>
-                            <th>Net worth</th>
-                            <th>Change</th>
+                            <th>{t("capital.month")}</th>
+                            <th>{t("reports.colInvested")}</th>
+                            <th>{t("reports.colWithdrawn")}</th>
+                            <th>{t("capital.profit")}</th>
+                            <th>{t("capital.netWorth")}</th>
+                            <th>{t("capital.change")}</th>
                           </tr>
                         </thead>
                         <tbody>
                           {capitalReport.months.map((m: any) => (
                             <tr key={m.month}>
-                              <td>{monthLabel(m.month)}</td>
-                              <td>{m.invested ? af(m.invested) : "—"}</td>
-                              <td>{m.withdrawn ? af(m.withdrawn) : "—"}</td>
+                              <td>{monthLabel(m.month, locale)}</td>
+                              <td>{m.invested ? af(m.invested) : EM_DASH}</td>
+                              <td>{m.withdrawn ? af(m.withdrawn) : EM_DASH}</td>
                               <td>{af(m.profit)}</td>
                               <td>
                                 <strong>{af(m.net_worth)}</strong>
@@ -2075,12 +2155,12 @@ export function ReportsPage({ refresh, open, toast }: PageProps) {
                 )}
               </>
             )}
-            {tab === "Expense breakdown" && (
+            {tab === "expenseBreak" && (
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th>Category</th>
-                    <th>Amount</th>
+                    <th>{t("expenses.category")}</th>
+                    <th>{t("dashboard.amount")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -2122,7 +2202,7 @@ export function BackupsPage({ refresh, toast }: PageProps) {
     try {
       await api("backupSettings", { destinations: list });
       setDestinations(list);
-      toast("Backup destinations saved.");
+      toast(t("backups.destinationsSaved"));
     } catch (e: any) {
       setLocalError(e.message);
     }
@@ -2137,7 +2217,7 @@ export function BackupsPage({ refresh, toast }: PageProps) {
         setLocalError(
           failed.map((r: any) => `${r.path}: ${r.message}`).join(" · "),
         );
-      else toast("Backup verified and copied to all destinations.");
+      else toast(t("backups.verified"));
       setVersion((v) => v + 1);
     } catch (e: any) {
       setLocalError(e.message);
@@ -2157,11 +2237,9 @@ export function BackupsPage({ refresh, toast }: PageProps) {
     setBusy(true);
     try {
       if (!window.vault)
-        throw new Error(
-          "Open the desktop application to install the operating system backup schedule.",
-        );
+        throw new Error(t("backups.scheduleDesktop"));
       await window.vault.installSchedule(getToken());
-      toast("Daily backup schedule installed for this desktop account.");
+      toast(t("backups.scheduleInstalled"));
     } catch (e: any) {
       setLocalError(e.message);
     } finally {
@@ -2172,7 +2250,10 @@ export function BackupsPage({ refresh, toast }: PageProps) {
     try {
       const result = await api("backupVerify", { path: r.path });
       toast(
-        `Verified: ${result.products} products and ${result.documents} documents.`,
+        t("backups.verifyDetail", {
+          products: result.products,
+          documents: result.documents,
+        }),
       );
     } catch (e: any) {
       setLocalError(e.message);
@@ -2182,13 +2263,11 @@ export function BackupsPage({ refresh, toast }: PageProps) {
     setLocalError("");
     try {
       if (!window.vault)
-        throw new Error(
-          "Restoration is available in the desktop application, where the database can be closed safely.",
-        );
+        throw new Error(t("backups.restoreDesktop"));
       const backup = await window.vault.pickBackup();
       if (!backup) return;
       const result = await window.vault.restore(backup, getToken());
-      if (!result.cancelled) toast("Backup restored. Restarting…");
+      if (!result.cancelled) toast(t("toast.backupRestored"));
     } catch (e: any) {
       setLocalError(e.message);
     }
@@ -2213,23 +2292,23 @@ export function BackupsPage({ refresh, toast }: PageProps) {
       <ErrorMessage error={error || localError} />
       <div className="metrics-row">
         <Metric
-          label="Automatic schedule"
-          value="Every 24 hours"
-          detail="Runs on wake if the computer was off"
+          label={t("backups.schedule")}
+          value={t("backups.every24")}
+          detail={t("backups.scheduleDetail")}
         />
         <Metric
-          label="Daily history"
-          value="30 days"
-          detail="One automatic snapshot per day per destination"
+          label={t("backups.dailyHistory")}
+          value={t("backups.retentionDays")}
+          detail={t("backups.oneSnapshot")}
         />
         <Metric
-          label="Last fully successful copy"
+          label={t("backups.lastFullCopy")}
           value={
             data?.config.lastSuccess
               ? new Date(data.config.lastSuccess).toLocaleDateString()
-              : "Not yet"
+              : t("backups.never")
           }
-          detail="All configured destinations must verify"
+          detail={t("backups.destinationsVerifyHint")}
         />
       </div>
       <div className="settings-grid">
@@ -2237,14 +2316,13 @@ export function BackupsPage({ refresh, toast }: PageProps) {
           <div className="panel-heading">
             <h3>
               <HardDrivesIcon size={18} />
-              Backup destinations
+              {t("backups.destinations")}
             </h3>
-            <Badge tone="gray">{destinations.length} folders</Badge>
+            <Badge tone="gray">
+              {t("backups.foldersCount", { n: destinations.length })}
+            </Badge>
           </div>
-          <p className="muted">
-            Add folders on this computer or a connected external drive.
-            Disconnected destinations are retried.
-          </p>
+          <p className="muted">{t("backups.destinationsIntro")}</p>
           <div className="destination-list">
             {destinations.map((d, i) => (
               <div key={d}>
@@ -2254,7 +2332,7 @@ export function BackupsPage({ refresh, toast }: PageProps) {
                   className="text-button"
                   onClick={() => save(destinations.filter((_, j) => j !== i))}
                 >
-                  Remove
+                  {t("common.remove")}
                 </button>
               </div>
             ))}
@@ -2262,7 +2340,7 @@ export function BackupsPage({ refresh, toast }: PageProps) {
           {window.vault ? (
             <button className="button" onClick={pick}>
               <PlusIcon size={15} />
-              Choose a folder
+              {t("backups.chooseFolder")}
             </button>
           ) : (
             <form
@@ -2276,70 +2354,57 @@ export function BackupsPage({ refresh, toast }: PageProps) {
               }}
             >
               <input
-                aria-label="Backup folder path"
-                placeholder="Absolute folder path on this computer"
+                aria-label={t("backups.folderPathAria")}
+                placeholder={t("backups.folderPathPh")}
                 value={path}
                 onChange={(e) => setPath(e.target.value)}
                 required
               />
               <button className="button" type="submit">
                 <PlusIcon size={15} />
-                Add folder
+                {t("backups.addFolder")}
               </button>
             </form>
           )}
           <div className="info-box">
             <ShieldCheckIcon size={18} />
-            <p>
-              Use a separate physical drive for protection against disk failure.
-              Backups contain store data; protect access to the destination.
-            </p>
+            <p>{t("backups.securityTip")}</p>
           </div>
         </section>
         <section className="panel settings-card">
           <div className="panel-heading">
             <h3>
               <ClockIcon size={18} />
-              Scheduling & restore
+              {t("backups.scheduleRestore")}
             </h3>
           </div>
-          <p className="muted">
-            The desktop scheduler runs backups even when the app window is
-            closed. The computer and destination drives must be available.
-          </p>
+          <p className="muted">{t("backups.scheduleRestoreHint")}</p>
           <button className="button full" disabled={busy} onClick={schedule}>
-            Install daily desktop schedule <ArrowRightIcon size={15} />
+            {t("backups.installScheduleBtn")} <ArrowRightIcon size={15} />
           </button>
           <div className="divider" />
-          <h3>Restore a recovery copy</h3>
-          <p className="muted">
-            Restore checks the database, creates a safety copy, closes the
-            current database, and restarts the app. The desktop app asks for
-            final confirmation.
-          </p>
+          <h3>{t("backups.restoreSectionTitle")}</h3>
+          <p className="muted">{t("backups.restoreSectionHint")}</p>
           <button className="button full" onClick={restore}>
             <DatabaseIcon size={16} />
-            Choose backup to restore
+            {t("backups.chooseBackupRestore")}
           </button>
-          <small className="subtle">
-            Backup files are currently unencrypted SQLite snapshots. Full-disk
-            or destination encryption is recommended.
-          </small>
+          <small className="subtle">{t("backups.encryptionTip")}</small>
         </section>
       </div>
       <section className="panel">
         <div className="panel-heading padded">
-          <h3>Backup history</h3>
-          <span className="subtle">Latest 60 attempts</span>
+          <h3>{t("backups.historyTitle")}</h3>
+          <span className="subtle">{t("backups.historyLatest")}</span>
         </div>
         <div className="table-wrap">
           <table className="data-table">
             <thead>
               <tr>
-                <th>Created</th>
-                <th>Destination</th>
-                <th>Size</th>
-                <th>Status</th>
+                <th>{t("backups.colCreated")}</th>
+                <th>{t("backups.colDestination")}</th>
+                <th>{t("backups.colSize")}</th>
+                <th>{t("common.status")}</th>
                 <th />
               </tr>
             </thead>
@@ -2352,17 +2417,21 @@ export function BackupsPage({ refresh, toast }: PageProps) {
                     <small className="block muted">{r.message}</small>
                   </td>
                   <td>
-                    {r.size ? (r.size / 1024 / 1024).toFixed(2) + " MB" : "—"}
+                    {r.size
+                      ? t("backups.sizeMb", {
+                          size: (r.size / 1024 / 1024).toFixed(2),
+                        })
+                      : EM_DASH}
                   </td>
                   <td>
                     <Badge tone={r.status === "verified" ? "green" : "red"}>
-                      {r.status}
+                      {backupStatusLabel(r.status, t)}
                     </Badge>
                   </td>
                   <td>
                     {r.status === "verified" && (
                       <button className="text-button" onClick={() => verify(r)}>
-                        Verify
+                        {t("backups.verifyBtn")}
                       </button>
                     )}
                   </td>
@@ -2373,8 +2442,8 @@ export function BackupsPage({ refresh, toast }: PageProps) {
         </div>
         {!runs.length && (
           <Empty
-            title="No recovery copies yet"
-            text="Add a destination, then create your first backup."
+            title={t("backups.emptyRecoveryTitle")}
+            text={t("backups.emptyRecoveryText")}
           />
         )}
       </section>
@@ -2426,30 +2495,30 @@ export function SettingsPage({ refresh, open, toast, user }: PageProps) {
   function onLogoFile(file: File | null) {
     if (!file) return;
     if (!/^image\/(png|jpeg|jpg|webp|gif)$/i.test(file.type)) {
-      setLocalError("Logo must be a PNG, JPG, WEBP or GIF image.");
+      setLocalError(t("settings.logoFileType"));
       return;
     }
     if (file.size > 600_000) {
-      setLocalError("Logo image is too large (max about 600 KB).");
+      setLocalError(t("settings.logoTooLarge"));
       return;
     }
     const reader = new FileReader();
     reader.onload = () => {
       const result = String(reader.result || "");
       if (result.length > 900_000) {
-        setLocalError("Logo image is too large after encoding.");
+        setLocalError(t("settings.logoEncodeLarge"));
         return;
       }
       setLocalError("");
       setLogo(result);
     };
-    reader.onerror = () => setLocalError("Could not read logo image.");
+    reader.onerror = () => setLocalError(t("settings.logoReadFailed"));
     reader.readAsDataURL(file);
   }
   async function toggle(u: any) {
     try {
       await api("userUpdate", { id: u.id, active: !u.active });
-      toast(u.active ? "User disabled." : "User enabled.");
+      toast(u.active ? t("toast.userDisabled") : t("toast.userEnabled"));
     } catch (e: any) {
       setLocalError(e.message);
     }
@@ -2625,7 +2694,7 @@ export function SettingsPage({ refresh, open, toast, user }: PageProps) {
                         <td>
                           <strong>{u.name}</strong>
                           {u.id === user.id && (
-                            <small className="block muted">You</small>
+                            <small className="block muted">{t("ui.you")}</small>
                           )}
                         </td>
                         <td>{u.username}</td>
@@ -2672,17 +2741,17 @@ export function SettingsPage({ refresh, open, toast, user }: PageProps) {
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>Time</th>
-                  <th>User</th>
-                  <th>Action</th>
-                  <th>Details</th>
+                  <th>{t("settings.auditTime")}</th>
+                  <th>{t("settings.auditUser")}</th>
+                  <th>{t("settings.auditAction")}</th>
+                  <th>{t("settings.auditDetails")}</th>
                 </tr>
               </thead>
               <tbody>
                 {audit.map((a) => (
                   <tr key={a.id}>
                     <td>{new Date(a.created_at).toLocaleString()}</td>
-                    <td>{a.user_name || "Scheduler"}</td>
+                    <td>{a.user_name || t("settings.schedulerUser")}</td>
                     <td>{a.action}</td>
                     <td className="permissions-cell">
                       {JSON.stringify(JSON.parse(a.details))}
@@ -2691,21 +2760,18 @@ export function SettingsPage({ refresh, open, toast, user }: PageProps) {
                 ))}
               </tbody>
             </table>
-            <p className="table-note">
-              Latest 200 audit records. Passwords are never recorded here.
-            </p>
+            <p className="table-note">{t("settings.auditFootnote")}</p>
           </div>
         )}
         {tab === "accounting" && (
           <div className="settings-form">
-            <h3>Accounting period lock</h3>
-            <p className="muted">
-              Transactions dated on or before the locked date cannot be posted.
-              Corrections can be recorded as reversals in an open period.
-            </p>
+            <h3>{t("settings.periodLockTitle")}</h3>
+            <p className="muted">{t("settings.periodLockHint")}</p>
             <p>
-              Closed through:{" "}
-              <strong>{data?.closedThrough || "No periods locked"}</strong>
+              {t("settings.closedThroughLabel")}:{" "}
+              <strong>
+                {data?.closedThrough || t("settings.noPeriodsLocked")}
+              </strong>
             </p>
             <form
               onSubmit={async (e) => {
@@ -2714,27 +2780,23 @@ export function SettingsPage({ refresh, open, toast, user }: PageProps) {
                   await api("closePeriod", {
                     date: new FormData(e.currentTarget).get("date"),
                   });
-                  toast("Accounting period locked.");
+                  toast(t("toast.periodLocked"));
                 } catch (e: any) {
                   setLocalError(e.message);
                 }
               }}
             >
-              <Field label="Lock through date">
+              <Field label={t("settings.lockThroughDate")}>
                 <input type="date" name="date" max={businessDate()} required />
               </Field>
               <button className="button button-dark">
                 <LockIcon size={15} />
-                Lock period
+                {t("settings.lockPeriodBtn")}
               </button>
             </form>
             <div className="divider" />
-            <h3>Accounting policies</h3>
-            <p className="muted">
-              FIFO costing for stock. Purchases create inventory assets. Only
-              sold stock becomes cost of goods sold. Money is stored in
-              hundredths of an afghani.
-            </p>
+            <h3>{t("settings.policiesTitle")}</h3>
+            <p className="muted">{t("settings.policiesHint")}</p>
           </div>
         )}
       </section>
@@ -2748,6 +2810,7 @@ export function AlertsDialogContent({
   refresh: number;
   open: (name: string, data?: any) => void;
 }) {
+  const t = useT();
   const { data, error } = useLoad<{ rows: Product[] }>(
     "catalog",
     { filter: "low", limit: 100 },
@@ -2755,28 +2818,29 @@ export function AlertsDialogContent({
   );
   return (
     <div className="form-body">
-      <p className="muted">
-        Products at or below their configured reorder level.
-      </p>
+      <p className="muted">{t("alerts.dialogSubtitle")}</p>
       <ErrorMessage error={error} />
       {data?.rows.map((p) => (
         <div className="alert-row" key={p.id}>
           <ProductName product={p} />
           <Badge tone={p.stock === 0 ? "red" : "yellow"}>
-            {p.stock} left · reorder {p.reorder_level}
+            {t("alerts.leftReorder", {
+              left: p.stock,
+              reorder: p.reorder_level,
+            })}
           </Badge>
           <button
             className="text-button"
             onClick={() => open("productDetail", p)}
           >
-            View <ArrowUpRightIcon size={14} />
+            {t("common.view")} <ArrowUpRightIcon size={14} />
           </button>
         </div>
       ))}
       {data && !data.rows.length && (
         <Empty
-          title="Stock levels look good"
-          text="No products are currently below their reorder level."
+          title={t("alerts.allGood")}
+          text={t("alerts.allGoodText")}
         />
       )}
     </div>

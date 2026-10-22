@@ -28,7 +28,48 @@ import {
   Cell,
 } from "recharts";
 import { api, af, shortMoney, businessDate, Product, User } from "../api";
+import { useI18n, useT, LOCALES } from "../i18n";
 import { ProductName, Badge, Empty } from "./ui";
+
+type PeriodId = "thisMonth" | "last7" | "today";
+type CategoryId =
+  | "all"
+  | "Computers"
+  | "Mobiles"
+  | "Tablets"
+  | "Storage"
+  | "Accessories";
+
+const PERIOD_IDS: PeriodId[] = ["thisMonth", "last7", "today"];
+const CATEGORY_TABS: CategoryId[] = [
+  "all",
+  "Computers",
+  "Mobiles",
+  "Tablets",
+  "Storage",
+];
+
+const CATEGORY_I18N: Record<CategoryId, string> = {
+  all: "inventory.allProducts",
+  Computers: "inventory.computers",
+  Mobiles: "inventory.mobiles",
+  Tablets: "inventory.tablets",
+  Storage: "inventory.storage",
+  Accessories: "inventory.accessories",
+};
+
+const API_CATEGORY_NAMES: Record<string, string> = {
+  Computers: "inventory.computers",
+  Mobiles: "inventory.mobiles",
+  Tablets: "inventory.tablets",
+  Storage: "inventory.storage",
+  Accessories: "inventory.accessories",
+};
+
+function categoryForApi(cat: CategoryId): string {
+  return cat === "all" ? "All products" : cat;
+}
+
 type Props = {
   user: User;
   refresh: number;
@@ -36,18 +77,22 @@ type Props = {
   navigate: (page: string) => void;
 };
 export function Dashboard({ user, refresh, open, navigate }: Props) {
+  const t = useT();
+  const { locale } = useI18n();
+  const dateLocale =
+    LOCALES.find((l) => l.id === locale)?.htmlLang || "en";
   const [data, setData] = useState<any>(null),
     [products, setProducts] = useState<Product[]>([]),
-    [category, setCategory] = useState("All products"),
-    [period, setPeriod] = useState("This month"),
+    [category, setCategory] = useState<CategoryId>("all"),
+    [period, setPeriod] = useState<PeriodId>("thisMonth"),
     [error, setError] = useState("");
   const costs = user.permissions.includes("view_costs");
   useEffect(() => {
     let active = true;
     const from =
-      period === "Today"
+      period === "today"
         ? businessDate()
-        : period === "Last 7 days"
+        : period === "last7"
           ? new Date(Date.now() - 6 * 86400000).toISOString().slice(0, 10)
           : businessDate().slice(0, 7) + "-01";
     api("overview", { from, to: businessDate() })
@@ -61,7 +106,10 @@ export function Dashboard({ user, refresh, open, navigate }: Props) {
   }, [refresh, period]);
   useEffect(() => {
     let active = true;
-    api<{ rows: Product[] }>("catalog", { category, limit: 6 })
+    api<{ rows: Product[] }>("catalog", {
+      category: categoryForApi(category),
+      limit: 6,
+    })
       .then((d) => {
         if (active) setProducts(d.rows);
       })
@@ -73,18 +121,18 @@ export function Dashboard({ user, refresh, open, navigate }: Props) {
   if (error)
     return (
       <Empty
-        title="Could not load your store"
+        title={t("dashboard.loadError")}
         text={error}
         action={
           <button className="button" onClick={() => location.reload()}>
-            Try again
+            {t("app.tryAgain")}
           </button>
         }
       />
     );
   if (!data)
     return (
-      <div className="dashboard-skeleton" aria-label="Loading dashboard">
+      <div className="dashboard-skeleton" aria-label={t("dashboard.loading")}>
         {Array.from({ length: 8 }, (_, i) => (
           <div key={i} />
         ))}
@@ -110,18 +158,20 @@ export function Dashboard({ user, refresh, open, navigate }: Props) {
     <div className="dashboard">
       <div className="dashboard-toolbar">
         <div className="breadcrumb">
-          <span>Your store at a glance</span>
-          <span className="live-dot" /> <span>Updated just now</span>
+          <span>{t("dashboard.glance")}</span>
+          <span className="live-dot" /> <span>{t("dashboard.updatedNow")}</span>
         </div>
         <div className="period-picker">
           <CalendarBlankIcon size={14} />
           <select
-            aria-label="Dashboard period"
+            aria-label={t("dashboard.period")}
             value={period}
-            onChange={(e) => setPeriod(e.target.value)}
+            onChange={(e) => setPeriod(e.target.value as PeriodId)}
           >
-            {["This month", "Last 7 days", "Today"].map((x) => (
-              <option key={x}>{x}</option>
+            {PERIOD_IDS.map((id) => (
+              <option key={id} value={id}>
+                {t(`periods.${id}`)}
+              </option>
             ))}
           </select>
         </div>
@@ -134,14 +184,16 @@ export function Dashboard({ user, refresh, open, navigate }: Props) {
             </span>
             <button
               className="circle-link"
-              aria-label="View stock valuation"
+              aria-label={
+                costs ? t("dashboard.stockValue") : t("dashboard.productsInStock")
+              }
               onClick={() => navigate(costs ? "Reports" : "Products")}
             >
               <ArrowUpRightIcon size={16} />
             </button>
           </div>
           <span className="stat-label">
-            {costs ? "Total stock value" : "Products in stock"}
+            {costs ? t("dashboard.stockValue") : t("dashboard.productsInStock")}
           </span>
           <strong className="stat-value">
             {costs ? af(data.inventory) : stock.units.toLocaleString()}
@@ -149,9 +201,11 @@ export function Dashboard({ user, refresh, open, navigate }: Props) {
           <div className="stat-foot">
             <span className="trend positive">
               <ArrowUpRightIcon size={12} />
-              {stock.units} units
+              {stock.units} {t("dashboard.units")}
             </span>
-            <span>Across {stock.products} products</span>
+            <span>
+              {t("dashboard.acrossProducts", { n: stock.products })}
+            </span>
           </div>
         </div>
         <div className="stat-card">
@@ -161,20 +215,20 @@ export function Dashboard({ user, refresh, open, navigate }: Props) {
             </span>
             <button
               className="circle-link"
-              aria-label="View sales"
+              aria-label={t("dashboard.totalSales")}
               onClick={() => navigate("Sales")}
             >
               <ArrowUpRightIcon size={16} />
             </button>
           </div>
-          <span className="stat-label">Total sales</span>
+          <span className="stat-label">{t("dashboard.totalSales")}</span>
           <strong className="stat-value">{af(totals.sales)}</strong>
           <div className="stat-foot">
             <span className="trend positive">
               <CheckCircleIcon size={12} />
-              {data.salesCount} sales
+              {t("dashboard.nSales", { n: data.salesCount })}
             </span>
-            <span>{period.toLowerCase()}</span>
+            <span>{t(`periods.${period}`)}</span>
           </div>
         </div>
         <div className="stat-card">
@@ -184,14 +238,16 @@ export function Dashboard({ user, refresh, open, navigate }: Props) {
             </span>
             <button
               className="circle-link"
-              aria-label="View profit report"
+              aria-label={
+                costs ? t("dashboard.grossProfit") : t("dashboard.stockCategories")
+              }
               onClick={() => navigate("Reports")}
             >
               <ArrowUpRightIcon size={16} />
             </button>
           </div>
           <span className="stat-label">
-            {costs ? "Gross profit" : "Stock categories"}
+            {costs ? t("dashboard.grossProfit") : t("dashboard.stockCategories")}
           </span>
           <strong className="stat-value">
             {costs ? af(totals.gross) : categories.length}
@@ -199,15 +255,19 @@ export function Dashboard({ user, refresh, open, navigate }: Props) {
           <div className="stat-foot">
             <span className="trend yellow">
               <ArrowUpRightIcon size={12} />
-              {costs ? margin + "%" : "5 categories"}
+              {costs ? margin + "%" : t("dashboard.fiveCategories")}
             </span>
-            <span>{costs ? "Trading margin" : "In your inventory"}</span>
+            <span>
+              {costs ? t("dashboard.tradingMargin") : t("dashboard.inInventory")}
+            </span>
           </div>
           <div className="mini-gauge lime-gauge">
             <Gauge coral={false} value={costs ? margin : 100} />
             <span>
               <b>{costs ? margin + "%" : stock.products}</b>
-              <small>{costs ? "Margin" : "Products"}</small>
+              <small>
+                {costs ? t("dashboard.margin") : t("dashboard.products")}
+              </small>
             </span>
           </div>
         </div>
@@ -218,13 +278,13 @@ export function Dashboard({ user, refresh, open, navigate }: Props) {
             </span>
             <button
               className="circle-link"
-              aria-label="View low stock"
+              aria-label={t("dashboard.lowStock")}
               onClick={() => open("lowStock")}
             >
               <ArrowUpRightIcon size={16} />
             </button>
           </div>
-          <span className="stat-label">Low stock products</span>
+          <span className="stat-label">{t("dashboard.lowStock")}</span>
           <strong className="stat-value">
             {stock.low}
             <small> / {stock.products}</small>
@@ -234,13 +294,13 @@ export function Dashboard({ user, refresh, open, navigate }: Props) {
               <ArrowDownIcon size={12} />
               {lowPercent}%
             </span>
-            <span>Need your attention</span>
+            <span>{t("dashboard.needAttention")}</span>
           </div>
           <div className="mini-gauge coral-gauge">
             <Gauge coral value={lowPercent} />
             <span>
               <b>{stock.low}</b>
-              <small>Products</small>
+              <small>{t("dashboard.products")}</small>
             </span>
           </div>
         </div>
@@ -248,31 +308,33 @@ export function Dashboard({ user, refresh, open, navigate }: Props) {
       <div className="dashboard-middle">
         <section className="panel chart-panel">
           <div className="panel-heading">
-            <h3>Sales volume vs. cost</h3>
+            <h3>{t("dashboard.chartTitle")}</h3>
             <div className="chart-legend">
               <span>
                 <i className="legend-dot lime-dot" />
-                Sales
+                {t("dashboard.chartSales")}
               </span>
               {costs && (
                 <span>
                   <i className="legend-dot pale-dot" />
-                  Cost of goods
+                  {t("dashboard.chartCost")}
                 </span>
               )}
             </div>
           </div>
           <div className="chart-subhead">
-            <span>Understand how your store is performing</span>
+            <span>{t("dashboard.chartHint")}</span>
             <div className="period-picker">
               <CalendarBlankIcon size={12} />
               <select
-                aria-label="Chart period"
+                aria-label={t("dashboard.period")}
                 value={period}
-                onChange={(e) => setPeriod(e.target.value)}
+                onChange={(e) => setPeriod(e.target.value as PeriodId)}
               >
-                {["This month", "Last 7 days", "Today"].map((p) => (
-                  <option key={p}>{p}</option>
+                {PERIOD_IDS.map((id) => (
+                  <option key={id} value={id}>
+                    {t(`periods.${id}`)}
+                  </option>
                 ))}
               </select>
             </div>
@@ -295,7 +357,7 @@ export function Dashboard({ user, refresh, open, navigate }: Props) {
                   tick={{ fill: "#969696", fontSize: 10 }}
                   minTickGap={16}
                   tickFormatter={(v) =>
-                    `${v} ${new Date().toLocaleString("en", { month: "short" })}`
+                    `${v} ${new Date().toLocaleString(dateLocale, { month: "short" })}`
                   }
                 />
                 <YAxis
@@ -313,7 +375,9 @@ export function Dashboard({ user, refresh, open, navigate }: Props) {
                       <div className="chart-tooltip">
                         <small>
                           {label}{" "}
-                          {new Date().toLocaleString("en", { month: "long" })}
+                          {new Date().toLocaleString(dateLocale, {
+                            month: "long",
+                          })}
                         </small>
                         <strong>
                           AF {Number(payload[0].value).toLocaleString()}
@@ -354,10 +418,10 @@ export function Dashboard({ user, refresh, open, navigate }: Props) {
           <div className="chart-bottom">
             <span>
               <span className="live-dot" />
-              Sales and cost recorded from posted invoices
+              {t("dashboard.chartFoot")}
             </span>
             <button
-              aria-label="Open sales report"
+              aria-label={t("nav.reports")}
               onClick={() => navigate("Reports")}
             >
               <ArrowUpRightIcon size={14} />
@@ -367,31 +431,30 @@ export function Dashboard({ user, refresh, open, navigate }: Props) {
         <section className="panel inventory-panel">
           <div className="panel-heading">
             <h3>
-              Inventory overview <span>Organized & in control</span>
+              {t("dashboard.inventoryOverview")}{" "}
+              <span>{t("dashboard.organized")}</span>
             </h3>
             <button
               className="icon-button small"
-              aria-label="Open inventory filters"
+              aria-label={t("inventory.title")}
               onClick={() => navigate("Products")}
             >
               <SlidersHorizontalIcon size={15} />
             </button>
           </div>
           <div className="category-tabs">
-            {["All products", "Computers", "Mobiles", "Tablets", "Storage"].map(
-              (c) => (
-                <button
-                  key={c}
-                  className={category === c ? "active" : ""}
-                  onClick={() => setCategory(c)}
-                >
-                  {c}
-                </button>
-              ),
-            )}
+            {CATEGORY_TABS.map((c) => (
+              <button
+                key={c}
+                className={category === c ? "active" : ""}
+                onClick={() => setCategory(c)}
+              >
+                {t(CATEGORY_I18N[c])}
+              </button>
+            ))}
             <button
               className="add-category"
-              aria-label="Add a product"
+              aria-label={t("inventory.addProduct")}
               onClick={() => open("product")}
             >
               <PlusIcon size={13} />
@@ -401,10 +464,10 @@ export function Dashboard({ user, refresh, open, navigate }: Props) {
             <table className="compact-table">
               <thead>
                 <tr>
-                  <th>Product details</th>
-                  <th>Stock</th>
-                  <th>Price</th>
-                  <th aria-label="Actions" />
+                  <th>{t("dashboard.productDetails")}</th>
+                  <th>{t("dashboard.stock")}</th>
+                  <th>{t("dashboard.price")}</th>
+                  <th aria-label={t("common.actions")} />
                 </tr>
               </thead>
               <tbody>
@@ -433,7 +496,7 @@ export function Dashboard({ user, refresh, open, navigate }: Props) {
                     <td>
                       <button
                         className="table-action"
-                        aria-label={`View ${p.name}`}
+                        aria-label={`${t("common.view")} ${p.name}`}
                         onClick={(e) => {
                           e.stopPropagation();
                           open("productDetail", p);
@@ -448,8 +511,8 @@ export function Dashboard({ user, refresh, open, navigate }: Props) {
             </table>
             {!products.length && (
               <Empty
-                title="No products in this category"
-                text="Add your first product to get started."
+                title={t("dashboard.noInCategory")}
+                text={t("dashboard.addFirst")}
               />
             )}
           </div>
@@ -457,19 +520,19 @@ export function Dashboard({ user, refresh, open, navigate }: Props) {
             className="panel-footer-link"
             onClick={() => navigate("Products")}
           >
-            View all inventory <ArrowRightIcon size={13} />
+            {t("dashboard.viewAllInventory")} <ArrowRightIcon size={13} />
           </button>
         </section>
       </div>
       <div className="dashboard-bottom">
         <section className="panel recent-panel">
           <div className="panel-heading">
-            <h3>Sales & orders</h3>
+            <h3>{t("dashboard.salesOrders")}</h3>
             <div className="heading-actions">
-              <span className="subtle">Latest transactions</span>
+              <span className="subtle">{t("dashboard.latestTx")}</span>
               <button
                 className="icon-button small"
-                aria-label="View all sales"
+                aria-label={t("dashboard.salesOrders")}
                 onClick={() => navigate("Sales")}
               >
                 <ArrowUpRightIcon size={14} />
@@ -479,9 +542,9 @@ export function Dashboard({ user, refresh, open, navigate }: Props) {
           <table className="compact-table recent-table">
             <thead>
               <tr>
-                <th>Customer / invoice</th>
-                <th>Amount</th>
-                <th>Status</th>
+                <th>{t("dashboard.customerInvoice")}</th>
+                <th>{t("dashboard.amount")}</th>
+                <th>{t("dashboard.status")}</th>
                 <th />
               </tr>
             </thead>
@@ -502,7 +565,7 @@ export function Dashboard({ user, refresh, open, navigate }: Props) {
                   <td>{af(r.total)}</td>
                   <td>
                     <Badge tone={r.paid >= r.total ? "green" : "yellow"}>
-                      {r.paid >= r.total ? "Paid" : "Partial"}
+                      {r.paid >= r.total ? t("common.paid") : t("common.partial")}
                     </Badge>
                   </td>
                   <td>
@@ -514,15 +577,15 @@ export function Dashboard({ user, refresh, open, navigate }: Props) {
           </table>
           {!recent.length && (
             <Empty
-              title="Your first sale starts here"
-              text="Create an invoice to see your sales."
+              title={t("dashboard.firstSale")}
+              text={t("dashboard.createInvoice")}
             />
           )}
         </section>
         <section className="panel restock-panel">
           <div className="panel-heading">
-            <h3>Restock recommendations</h3>
-            <span className="tiny-label">Based on your stock</span>
+            <h3>{t("dashboard.restockTitle")}</h3>
+            <span className="tiny-label">{t("dashboard.basedOnStock")}</span>
           </div>
           <div className="restock-chart">
             <ResponsiveContainer width="100%" height="100%">
@@ -548,12 +611,14 @@ export function Dashboard({ user, refresh, open, navigate }: Props) {
           </div>
           <div className="restock-detail">
             <div>
-              <span>Products below reorder level</span>
-              <strong>{stock.low} products</strong>
+              <span>{t("dashboard.belowReorder")}</span>
+              <strong>
+                {t("sales.productsCount", { n: stock.low })}
+              </strong>
             </div>
             <div>
-              <span>Keep your bestsellers available</span>
-              <Badge tone="gray">Stock alerts</Badge>
+              <span>{t("dashboard.keepBestsellers")}</span>
+              <Badge tone="gray">{t("dashboard.stockAlerts")}</Badge>
             </div>
           </div>
           <div className="card-buttons">
@@ -561,19 +626,19 @@ export function Dashboard({ user, refresh, open, navigate }: Props) {
               className="button button-dark"
               onClick={() => open("lowStock")}
             >
-              See all <ArrowRightIcon size={13} />
+              {t("dashboard.seeAll")} <ArrowRightIcon size={13} />
             </button>
             <button className="button" onClick={() => open("purchase")}>
-              Restock now
+              {t("dashboard.restockNow")}
             </button>
           </div>
         </section>
         <section className="panel balances-panel">
           <div className="panel-heading">
-            <h3>Stock by category</h3>
+            <h3>{t("dashboard.stockByCategory")}</h3>
             <button
               className="icon-button small"
-              aria-label="View inventory"
+              aria-label={t("topbar.viewInventory")}
               onClick={() => navigate("Products")}
             >
               <ArrowUpRightIcon size={14} />
@@ -590,7 +655,9 @@ export function Dashboard({ user, refresh, open, navigate }: Props) {
                 </span>
                 <span className="category-detail">
                   <span>
-                    {c.category}
+                    {API_CATEGORY_NAMES[c.category]
+                      ? t(API_CATEGORY_NAMES[c.category])
+                      : c.category}
                     <b>{c.stock}</b>
                   </span>
                   <span className="category-track">
@@ -601,23 +668,25 @@ export function Dashboard({ user, refresh, open, navigate }: Props) {
             ))}
           </div>
           <div className="receivable-line">
-            <span>Customer receivables</span>
+            <span>{t("dashboard.customerReceivables")}</span>
             <strong>{af(receivable)}</strong>
           </div>
           <button
             className="button button-dark full"
             onClick={() => navigate("Customers")}
           >
-            View customer balances <ArrowRightIcon size={13} />
+            {t("dashboard.viewBalances")} <ArrowRightIcon size={13} />
           </button>
         </section>
       </div>
       <div className="workspace-footer">
         <span>
           <CheckCircleIcon size={13} />
-          All changes saved on this computer
+          {t("dashboard.footerSaved")}
         </span>
-        <span>AFN · No tax · {new Date().getFullYear()}</span>
+        <span>
+          {t("dashboard.footerMeta", { year: new Date().getFullYear() })}
+        </span>
       </div>
     </div>
   );

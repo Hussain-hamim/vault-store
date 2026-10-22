@@ -91,6 +91,41 @@ function accessoryChoices(current?: string) {
     return [current, ...ACCESSORY_TYPES];
   return ACCESSORY_TYPES;
 }
+const PRODUCT_CATEGORIES = [
+  "Computers",
+  "Mobiles",
+  "Tablets",
+  "Storage",
+  "Accessories",
+] as const;
+function categoryLabel(
+  tr: (key: string) => string,
+  category: string,
+) {
+  const keys: Record<string, string> = {
+    Computers: "inventory.computers",
+    Mobiles: "inventory.mobiles",
+    Tablets: "inventory.tablets",
+    Storage: "inventory.storage",
+    Accessories: "inventory.accessories",
+  };
+  return tr(keys[category] || category);
+}
+function specFieldLabel(tr: (key: string) => string, key: string) {
+  const map: Record<string, string> = {
+    CPU: "product.cpu",
+    RAM: "product.ram",
+    Storage: "product.storage",
+    GPU: "product.gpu",
+    Display: "product.display",
+    Color: "product.color",
+    Connectivity: "product.connectivity",
+    Interface: "product.interface",
+    Compatibility: "productForm.compatibility",
+    Wattage: "productForm.wattage",
+  };
+  return tr(map[key] || key);
+}
 const ACCESSORY_IMAGES: Record<string, string> = {
   Keyboard: "/assets/keyboard.jpg",
   Mouse: "/assets/mouse.jpg",
@@ -143,6 +178,7 @@ export function ProductForm({
   /** From New Purchase: create catalog item with no stock; cost comes from the bill. */
   intent?: "catalog" | "purchase";
 }) {
+  const t = useT();
   const forPurchase = intent === "purchase" && !product;
   const [category, setCategory] = useState(product?.category || "Computers"),
     [brandPick, setBrandPick] = useState(product?.brand || "Apple"),
@@ -182,7 +218,7 @@ export function ProductForm({
     try {
       const resolvedBrand =
         brandPick === "Other" ? brandOther.trim() : brandPick.trim();
-      if (!resolvedBrand) throw new Error("Choose a company / brand.");
+      if (!resolvedBrand) throw new Error(t("productForm.errBrand"));
       const resolvedAccessory =
         category !== "Accessories"
           ? ""
@@ -190,7 +226,7 @@ export function ProductForm({
             ? accessoryOther.trim()
             : accessoryPick.trim();
       if (category === "Accessories" && !resolvedAccessory)
-        throw new Error("Choose which accessory this is.");
+        throw new Error(t("productForm.errAccessory"));
       let cost_aed = 0,
         fx_rate = 0;
       if (forPurchase) {
@@ -199,9 +235,7 @@ export function ProductForm({
         cost_aed = costAed.trim() ? toMoney(costAed) : 0;
         fx_rate = fxRate.trim() ? toFxRate(fxRate) : 0;
         if (!cost_aed || !fx_rate)
-          throw new Error(
-            "Enter the Dubai cost in AED and the AFN exchange rate at that time.",
-          );
+          throw new Error(t("productForm.errCostRate"));
       }
       const attributes: Record<string, string> = {};
       for (const k of [
@@ -249,10 +283,10 @@ export function ProductForm({
       });
       done(
         product
-          ? "Product details updated."
+          ? t("productForm.detailsUpdated")
           : forPurchase
-            ? "Product added to catalog. Set its AED cost on this purchase."
-            : "Product and opening stock saved.",
+            ? t("productForm.addedForPurchase")
+            : t("productForm.savedWithStock"),
         created,
       );
     } catch (e: any) {
@@ -279,15 +313,15 @@ export function ProductForm({
     <Modal
       title={
         product
-          ? "Edit product"
+          ? t("productForm.editTitle")
           : forPurchase
-            ? "New product for this purchase"
-            : "Add new product"
+            ? t("productForm.newForPurchase")
+            : t("productForm.newTitle")
       }
       subtitle={
         forPurchase
-          ? "Create the catalog item now. Stock and Dubai cost are recorded when you receive this purchase."
-          : "Add product details, its cost and any stock already on your shelf."
+          ? t("productForm.subtitlePurchase")
+          : t("productForm.subtitleCatalog")
       }
       onClose={close}
       wide
@@ -296,137 +330,142 @@ export function ProductForm({
         <div className="form-body">
           <div className="form-section-title">
             <PackageIcon size={17} />
-            Product information
+            {t("productForm.info")}
           </div>
           <div className="product-form-preview">
             <img src={previewImage} alt="" />
             <div>
-              <strong>Catalog image</strong>
+              <strong>{t("productForm.image")}</strong>
               <small>
                 {category === "Accessories"
                   ? previewAccessory
-                    ? `${previewAccessory} accessory photo`
-                    : "Pick an accessory type to choose its photo"
-                  : `${category} catalog photo`}
+                    ? t("productForm.accessoryPhoto", {
+                        type: previewAccessory,
+                      })
+                    : t("productForm.pickAccessory")
+                  : t("productForm.categoryPhoto", {
+                      category: categoryLabel(t, category),
+                    })}
               </small>
             </div>
           </div>
           <div className="form-grid">
-            <Field label="Product name">
+            <Field label={t("product.name")}>
               <input
                 name="name"
                 defaultValue={product?.name}
-                placeholder="e.g. MacBook Air M3 13-inch"
+                placeholder={t("productForm.namePh")}
                 required
                 minLength={2}
               />
             </Field>
-            <Field label="Category">
+            <Field label={t("product.category")}>
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
               >
-                {[
-                  "Computers",
-                  "Mobiles",
-                  "Tablets",
-                  "Storage",
-                  "Accessories",
-                ].map((c) => (
-                  <option key={c}>{c}</option>
+                {PRODUCT_CATEGORIES.map((c) => (
+                  <option key={c} value={c}>
+                    {categoryLabel(t, c)}
+                  </option>
                 ))}
               </select>
             </Field>
             {category === "Accessories" && (
               <>
-                <Field label="Accessory type">
+                <Field label={t("product.accessoryType")}>
                   <select
                     value={accessoryPick}
                     onChange={(e) => setAccessoryPick(e.target.value)}
                     required
                   >
-                    {accessoryChoices(product?.attributes?.Type).map((t) => (
-                      <option key={t}>{t}</option>
-                    ))}
+                    {accessoryChoices(product?.attributes?.Type).map(
+                      (choice) => (
+                        <option key={choice}>{choice}</option>
+                      ),
+                    )}
                   </select>
                 </Field>
                 {accessoryPick === "Other" && (
-                  <Field label="Custom accessory type">
+                  <Field label={t("productForm.customAccessory")}>
                     <input
                       value={accessoryOther}
                       onChange={(e) => setAccessoryOther(e.target.value)}
-                      placeholder="e.g. Drawing tablet"
+                      placeholder={t("productForm.customAccessoryPh")}
                       required
                     />
                   </Field>
                 )}
               </>
             )}
-            <Field label="Company / brand">
+            <Field label={t("productForm.companyBrand")}>
               <select
                 value={brandPick}
                 onChange={(e) => setBrandPick(e.target.value)}
                 required
               >
                 {brandChoices(product?.brand).map((b) => (
-                  <option key={b}>{b}</option>
+                  <option key={b}>
+                    {b === "Other" ? t("common.other") : b}
+                  </option>
                 ))}
               </select>
             </Field>
             {brandPick === "Other" && (
-              <Field label="Custom company / brand">
+              <Field label={t("productForm.customBrand")}>
                 <input
                   value={brandOther}
                   onChange={(e) => setBrandOther(e.target.value)}
-                  placeholder="e.g. Baseus"
+                  placeholder={t("productForm.customBrandPh")}
                   required
                 />
               </Field>
             )}
-            <Field label="Model">
+            <Field label={t("product.model")}>
               <input
                 name="model"
                 defaultValue={product?.model}
-                placeholder="e.g. MacBook Air M3"
+                placeholder={t("productForm.modelPh")}
                 required
               />
             </Field>
-            <Field label="SKU">
+            <Field label={t("product.sku")}>
               <input
                 name="sku"
                 defaultValue={product?.sku}
-                placeholder="e.g. VLT-0011"
+                placeholder={t("productForm.skuPh")}
                 required
               />
             </Field>
           </div>
           <div className="form-section-title">
-            Barcode <small>Scan with a USB scanner or type it in</small>
+            {t("productForm.barcodeSection")}{" "}
+            <small>{t("productForm.barcodeScanHint")}</small>
           </div>
           <div className="barcode-field-row">
             <span className="barcode-field-icon" aria-hidden="true">
               <BarcodeIcon size={22} />
             </span>
             <Field
-              label="Product barcode"
-              hint="Used to find and add this product quickly when selling."
+              label={t("product.barcode")}
+              hint={t("productForm.barcodeHint")}
             >
               <input
                 name="barcode"
                 defaultValue={product?.barcode}
-                placeholder="Scan or type barcode"
+                placeholder={t("productForm.barcodePh")}
                 inputMode="numeric"
                 autoComplete="off"
               />
             </Field>
           </div>
-          <div className="form-section-title">Pricing & stock rules</div>
+          <div className="form-section-title">{t("productForm.pricing")}</div>
           <div className="form-grid">
             {!forPurchase && (
               <>
                 <Field
-                  label="Unit cost (AED)"
-                  hint="What you paid the Dubai supplier in dirhams."
+                  label={t("product.unitCostAed")}
+                  hint={t("productForm.unitCostAedHint")}
                 >
                   <input
                     type="number"
@@ -439,8 +478,8 @@ export function ProductForm({
                   />
                 </Field>
                 <Field
-                  label="Exchange rate (AFN per 1 AED)"
-                  hint="The Afghani rate on the day you bought this stock."
+                  label={t("productForm.fxRateAtPurchase")}
+                  hint={t("productForm.fxRateDayHint")}
                 >
                   <input
                     type="number"
@@ -448,13 +487,13 @@ export function ProductForm({
                     step="0.0001"
                     value={fxRate}
                     onChange={(e) => setFxRate(e.target.value)}
-                    placeholder="e.g. 18.50"
+                    placeholder={t("sales.aedRatePh")}
                     required
                   />
                 </Field>
                 <Field
-                  label="Unit cost (AF)"
-                  hint="Calculated from AED × rate for inventory and profit."
+                  label={t("product.unitCostAf")}
+                  hint={t("productForm.unitCostAfHint")}
                 >
                   <input
                     value={unitCostAfn ? moneyInput(unitCostAfn) : ""}
@@ -465,7 +504,7 @@ export function ProductForm({
                 </Field>
               </>
             )}
-            <Field label="Selling price (AF)">
+            <Field label={t("product.sellingPrice")}>
               <input
                 name="price"
                 defaultValue={product ? product.price / 100 : undefined}
@@ -478,8 +517,8 @@ export function ProductForm({
             </Field>
             {!product && !forPurchase && (
               <Field
-                label="Opening stock quantity"
-                hint="Existing stock, not a new supplier purchase. Owner access is required for opening balances."
+                label={t("productForm.openingQty")}
+                hint={t("productForm.openingQtyHint")}
               >
                 <input
                   name="opening_quantity"
@@ -493,13 +532,17 @@ export function ProductForm({
             )}
             {forPurchase && (
               <Field
-                label="Stock on this purchase"
-                hint="Quantity and AED cost are entered on the purchase bill after you save."
+                label={t("productForm.stockOnPurchase")}
+                hint={t("productForm.stockOnPurchaseHint")}
               >
-                <input value="Starts at 0 — added when you receive the purchase" readOnly tabIndex={-1} />
+                <input
+                  value={t("productForm.stockOnPurchaseValue")}
+                  readOnly
+                  tabIndex={-1}
+                />
               </Field>
             )}
-            <Field label="Reorder level">
+            <Field label={t("product.reorder")}>
               <input
                 name="reorder_level"
                 type="number"
@@ -508,36 +551,38 @@ export function ProductForm({
                 required
               />
             </Field>
-            <Field label="Condition">
+            <Field label={t("product.condition")}>
               <select
                 name="condition"
                 defaultValue={product?.condition || "New"}
               >
-                <option>New</option>
-                <option>Used</option>
-                <option>Refurbished</option>
+                <option value="New">{t("productForm.conditionNew")}</option>
+                <option value="Used">{t("productForm.conditionUsed")}</option>
+                <option value="Refurbished">
+                  {t("productForm.conditionRefurb")}
+                </option>
               </select>
             </Field>
-            <Field label="Warranty">
+            <Field label={t("product.warranty")}>
               <input
                 name="warranty"
                 defaultValue={product?.warranty}
-                placeholder="e.g. 12 months"
+                placeholder={t("productForm.warrantyPh")}
               />
             </Field>
           </div>
-          <div className="form-section-title">Specifications</div>
+          <div className="form-section-title">{t("productForm.specs")}</div>
           <div className="form-grid">
             {attrs.map((a) => (
-              <Field key={a} label={a}>
+              <Field key={a} label={specFieldLabel(t, a)}>
                 <input
                   name={a}
                   defaultValue={product?.attributes?.[a] || ""}
                   placeholder={
                     a === "RAM"
-                      ? "e.g. 16 GB"
+                      ? t("productForm.specRamPh")
                       : a === "Storage"
-                        ? "e.g. 512 GB"
+                        ? t("productForm.specStoragePh")
                         : ""
                   }
                 />
@@ -548,16 +593,16 @@ export function ProductForm({
         </div>
         <div className="modal-actions">
           <button type="button" className="button" onClick={close}>
-            Cancel
+            {t("common.cancel")}
           </button>
           <button className="button button-dark" disabled={busy}>
             {busy
-              ? "Saving…"
+              ? t("common.saving")
               : product
-                ? "Save changes"
+                ? t("productForm.saveChanges")
                 : forPurchase
-                  ? "Add to purchase"
-                  : "Add product"}
+                  ? t("productForm.addToPurchase")
+                  : t("productForm.addProduct")}
             <PlusIcon size={16} />
           </button>
         </div>
@@ -714,7 +759,7 @@ export function TradeForm({
             );
             if (!found)
               throw new Error(
-                `Product ${line.name} is no longer in the catalog.`,
+                t("sales.errProductGone", { name: line.name }),
               );
             return {
               product: { ...found, stock: found.stock + line.quantity },
@@ -788,11 +833,11 @@ export function TradeForm({
       });
       const p = d.rows[0];
       if (!p)
-        throw new Error(`No product found for barcode “${code}”.`);
+        throw new Error(t("sales.errBarcode", { code }));
       if (!purchase && p.stock <= 0)
-        throw new Error(`${p.name} is out of stock.`);
+        throw new Error(t("sales.errOutOfStock", { name: p.name }));
       if (lines.some((l) => l.product.id === p.id))
-        throw new Error(`${p.name} is already on this bill.`);
+        throw new Error(t("sales.errOnBill", { name: p.name }));
       add(p);
       setScanCode("");
       barcodeRef.current?.focus();
@@ -844,16 +889,15 @@ export function TradeForm({
     paid.trim() === "" ? 0 : Math.round(Number(paid) * 100 || 0);
   async function resolveSalePartyId() {
     if (purchase) {
-      if (!party) throw new Error("Choose a supplier.");
+      if (!party) throw new Error(t("sales.errChooseSupplier"));
       return party;
     }
     if (customerMode === "existing") {
-      if (!party) throw new Error("Choose a customer.");
+      if (!party) throw new Error(t("sales.errChooseCustomer"));
       return party;
     }
     const name = customerName.trim();
-    if (name.length < 2)
-      throw new Error("Enter the customer name (at least 2 characters).");
+    if (name.length < 2) throw new Error(t("sales.errCustomerName"));
     const match = parties.find(
       (p) => !p.walk_in && p.name.toLowerCase() === name.toLowerCase(),
     );
@@ -879,9 +923,7 @@ export function TradeForm({
     try {
       const rate = purchase && fxRate.trim() ? toFxRate(fxRate) : 0;
       if (purchase && lines.some((l) => (l.costAed || "").trim()) && !rate)
-        throw new Error(
-          "Enter the AED→AFN exchange rate used for this Dubai purchase.",
-        );
+        throw new Error(t("sales.errFxRate"));
       const partyId = await resolveSalePartyId();
       const payload = lines.map((l) => {
         const cost_aed =
@@ -891,7 +933,7 @@ export function TradeForm({
           const expected = afnFromAed(cost_aed, rate);
           if (Math.abs(price - expected) > 1)
             throw new Error(
-              `${l.product.name}: AFN cost must equal AED × exchange rate.`,
+              t("sales.errAfnCost", { name: l.product.name }),
             );
         }
         return {
@@ -944,22 +986,22 @@ export function TradeForm({
       title={
         purchase
           ? initial
-            ? `Edit ${initial.number}`
-            : "Receive a purchase"
+            ? t("sales.editDoc", { number: initial.number })
+            : t("sales.receivePurchase")
           : initial
-            ? `Edit ${initial.number}`
-            : "New bill"
+            ? t("sales.editDoc", { number: initial.number })
+            : t("sales.newBill")
       }
       subtitle={
         purchase
-          ? "Receive stock, record its cost, and update your supplier balance."
-          : "Create an invoice and record payment in one step."
+          ? t("sales.subtitlePurchase")
+          : t("sales.subtitleSale")
       }
       onClose={close}
       wide
     >
       {loading ? (
-        <div className="form-body">Loading invoice…</div>
+        <div className="form-body">{t("sales.loadingInvoice")}</div>
       ) : (
         <form
           onSubmit={submit}
@@ -972,14 +1014,14 @@ export function TradeForm({
                   {purchase ? (
                     <div className="sale-customer-fields purchase-party-fields">
                       <label className="sale-customer-name">
-                        <span>Supplier</span>
+                        <span>{t("sales.supplier")}</span>
                         <div className="inline-actions party-picker">
                           <select
                             value={party}
                             onChange={(e) => setParty(e.target.value)}
                             required
                           >
-                            <option value="">Choose supplier</option>
+                            <option value="">{t("sales.chooseSupplier")}</option>
                             {parties.map((p) => (
                               <option value={p.id} key={p.id}>
                                 {p.name}
@@ -992,7 +1034,7 @@ export function TradeForm({
                             onClick={() => setAddingParty(true)}
                           >
                             <PlusIcon size={15} />
-                            Add
+                            {t("common.add")}
                           </button>
                         </div>
                       </label>
@@ -1007,20 +1049,20 @@ export function TradeForm({
                         />
                       </label>
                       <label className="sale-customer-name purchase-rate-field">
-                        <span>AED rate (AFN per 1 AED)</span>
+                        <span>{t("sales.aedRate")}</span>
                         <input
                           type="number"
                           min="0"
                           step="0.0001"
                           value={fxRate}
                           onChange={(e) => applyFxRate(e.target.value)}
-                          placeholder="e.g. 18.50"
+                          placeholder={t("sales.aedRatePh")}
                           required
                         />
                         <small>
                           {fxRate.trim()
-                            ? `1 AED = ${fxRate} AFN`
-                            : "Set rate before entering AED costs"}
+                            ? t("sales.aedRateInline", { rate: fxRate })
+                            : t("sales.aedRateHint")}
                         </small>
                       </label>
                     </div>
@@ -1030,7 +1072,7 @@ export function TradeForm({
                         <div
                           className="sale-customer-modes"
                           role="tablist"
-                          aria-label="Customer entry"
+                          aria-label={t("sales.customerEntry")}
                         >
                           <button
                             type="button"
@@ -1074,11 +1116,11 @@ export function TradeForm({
                                 onChange={(e) => setParty(e.target.value)}
                                 required
                               >
-                                <option value="">Choose customer</option>
+                                <option value="">{t("sales.chooseCustomer")}</option>
                                 {parties.map((p) => (
                                   <option value={p.id} key={p.id}>
                                     {p.name}
-                                    {p.walk_in ? " (cash only)" : ""}
+                                    {p.walk_in ? t("sales.walkInCashOnly") : ""}
                                   </option>
                                 ))}
                               </select>
@@ -1088,7 +1130,7 @@ export function TradeForm({
                                 onClick={() => setAddingParty(true)}
                               >
                                 <PlusIcon size={15} />
-                                Add
+                                {t("common.add")}
                               </button>
                             </div>
                           </label>
@@ -1106,16 +1148,13 @@ export function TradeForm({
                       </div>
                       {customerMode === "new" && (
                         <small className="sale-customer-hint">
-                          Saves to Customers · unpaid balance stays on ledger
+                          {t("sales.customerHint")}
                         </small>
                       )}
                       {customerMode === "existing" &&
                         selectedParty?.walk_in &&
                         total - payment > 0 && (
-                          <p className="credit-hint">
-                            Walk-in must pay in full. Use Type name to leave a
-                            balance unpaid.
-                          </p>
+                          <p className="credit-hint">{t("sales.walkInMustPay")}</p>
                         )}
                     </>
                   )}
@@ -1133,12 +1172,13 @@ export function TradeForm({
                           onClick={() => setAddingProduct(true)}
                         >
                           <PlusIcon size={15} />
-                          New product
+                          {t("sales.newProduct")}
                         </button>
                       )}
                       <span className="subtle">
-                        {products.length}
-                        {next ? "+" : ""} shown
+                        {next
+                          ? t("sales.shownMore", { n: products.length })
+                          : t("sales.shown", { n: products.length })}
                       </span>
                     </div>
                   </div>
@@ -1146,7 +1186,7 @@ export function TradeForm({
                     <BarcodeIcon size={18} />
                     <input
                       ref={barcodeRef}
-                      aria-label="Scan product barcode"
+                      aria-label={t("sales.scanBarcode")}
                       placeholder={t("sales.scanPh")}
                       value={scanCode}
                       onChange={(e) => setScanCode(e.target.value)}
@@ -1165,22 +1205,22 @@ export function TradeForm({
                       disabled={scanBusy || !scanCode.trim()}
                       onClick={scanBarcode}
                     >
-                      {scanBusy ? "Looking…" : "Add"}
+                      {scanBusy ? t("sales.looking") : t("common.add")}
                     </button>
                   </div>
                   <Search
                     value={q}
                     onChange={setQ}
-                    placeholder="Search by name, SKU or barcode…"
+                    placeholder={t("sales.searchCatalog")}
                   />
                   <div
                     className="product-browser-list sale-product-list"
                     role="listbox"
-                    aria-label="Available products"
+                    aria-label={t("sales.availableProducts")}
                   >
                     {searching ? (
                       <div className="product-browser-empty">
-                        <span className="muted">Loading products…</span>
+                        <span className="muted">{t("sales.loadingProducts")}</span>
                       </div>
                     ) : products.length ? (
                       <>
@@ -1219,15 +1259,18 @@ export function TradeForm({
                                 <span className="product-pick-meta">
                                   <em>
                                     {purchase
-                                      ? p.category || "Catalog"
+                                      ? p.category ||
+                                        t("sales.catalogLabel")
                                       : af(p.price)}
                                   </em>
                                   <em>
                                     {purchase
-                                      ? "In catalog"
+                                      ? t("sales.inCatalog")
                                       : out
-                                        ? "Out of stock"
-                                        : `${p.stock} in stock`}
+                                        ? t("sales.outOfStock")
+                                        : t("productDetail.inStock", {
+                                            n: p.stock,
+                                          })}
                                   </em>
                                 </span>
                               </span>
@@ -1242,7 +1285,9 @@ export function TradeForm({
                             disabled={loadingMore}
                             onClick={loadMore}
                           >
-                            {loadingMore ? "Loading…" : "Load more products"}
+                            {loadingMore
+                              ? t("common.loading")
+                              : t("sales.loadMoreProducts")}
                           </button>
                         )}
                       </>
@@ -1251,10 +1296,10 @@ export function TradeForm({
                         <PackageIcon size={28} weight="light" />
                         <p>
                           {q.trim()
-                            ? "No matching products. Try another search."
+                            ? t("sales.noMatchSearch")
                             : purchase
-                              ? "No products yet. Use New product to add one."
-                              : "No products yet. Add products in Inventory first."}
+                              ? t("sales.noProductsPurchase")
+                              : t("sales.noProductsSale")}
                         </p>
                         {purchase && (
                           <button
@@ -1263,7 +1308,7 @@ export function TradeForm({
                             onClick={() => setAddingProduct(true)}
                           >
                             <PlusIcon size={15} />
-                            New product
+                            {t("sales.newProduct")}
                           </button>
                         )}
                       </div>
@@ -1278,8 +1323,8 @@ export function TradeForm({
                       <h3>{t("sales.billLines")}</h3>
                       <p>
                         {lines.length
-                          ? `${lines.length} product${lines.length === 1 ? "" : "s"}`
-                          : "Add products from the catalog"}
+                          ? t("sales.productsCount", { n: lines.length })
+                          : t("sales.addFromCatalog")}
                       </p>
                     </div>
                   </div>
@@ -1291,7 +1336,9 @@ export function TradeForm({
                           <button
                             type="button"
                             className="icon-button"
-                            aria-label={`Remove ${l.product.name}`}
+                            aria-label={t("sales.removeProduct", {
+                              name: l.product.name,
+                            })}
                             onClick={() =>
                               setLines((ls) => ls.filter((_, j) => j !== i))
                             }
@@ -1300,9 +1347,11 @@ export function TradeForm({
                           </button>
                         </div>
                         <div className="form-grid three">
-                          <Field label="Quantity">
+                          <Field label={t("common.quantity")}>
                             <input
-                              aria-label={`${l.product.name} quantity`}
+                              aria-label={t("sales.productQty", {
+                                name: l.product.name,
+                              })}
                               type="number"
                               min="1"
                               max={purchase ? 100000 : l.product.stock}
@@ -1315,7 +1364,7 @@ export function TradeForm({
                           </Field>
                           {purchase ? (
                             <>
-                              <Field label="Cost (AED)">
+                              <Field label={t("sales.costAed")}>
                                 <input
                                   type="number"
                                   min="0"
@@ -1328,7 +1377,7 @@ export function TradeForm({
                                   required
                                 />
                               </Field>
-                              <Field label="Cost (AF)">
+                              <Field label={t("sales.costAf")}>
                                 <input
                                   type="number"
                                   min="0"
@@ -1338,8 +1387,8 @@ export function TradeForm({
                                   tabIndex={-1}
                                   placeholder={
                                     fxRate.trim()
-                                      ? "Auto from rate"
-                                      : "Set AED rate"
+                                      ? t("sales.autoFromRate")
+                                      : t("sales.setAedRate")
                                   }
                                   required
                                 />
@@ -1347,7 +1396,7 @@ export function TradeForm({
                             </>
                           ) : (
                             <>
-                              <Field label="Unit price (AF)">
+                              <Field label={t("sales.unitPrice")}>
                                 <input
                                   type="number"
                                   min="0"
@@ -1359,7 +1408,7 @@ export function TradeForm({
                                   required
                                 />
                               </Field>
-                              <Field label="Discount (AF)">
+                              <Field label={t("sales.lineDiscount")}>
                                 <input
                                   type="number"
                                   min="0"
@@ -1376,7 +1425,7 @@ export function TradeForm({
                         </div>
                         {purchase && (
                           <div className="form-grid" style={{ marginTop: 4 }}>
-                            <Field label="Line discount (AF)">
+                            <Field label={t("sales.lineDiscountAf")}>
                               <input
                                 type="number"
                                 min="0"
@@ -1479,8 +1528,8 @@ export function TradeForm({
                   {purchase && (
                     <div className="purchase-rate-bar">
                       <Field
-                        label="AED rate in Afghanis"
-                        hint="How many AFN for 1 AED today. Every product line uses this rate."
+                        label={t("sales.aedRateBar")}
+                        hint={t("sales.aedRateBarHint")}
                       >
                         <input
                           type="number"
@@ -1488,26 +1537,26 @@ export function TradeForm({
                           step="0.0001"
                           value={fxRate}
                           onChange={(e) => applyFxRate(e.target.value)}
-                          placeholder="e.g. 18.50"
+                          placeholder={t("sales.aedRatePh")}
                           required
                         />
                       </Field>
                       <p className="purchase-rate-note">
                         {fxRate.trim()
-                          ? `1 AED = ${fxRate} AFN · line AF costs update automatically`
-                          : "Set the rate first, then enter each product’s AED cost."}
+                          ? t("sales.aedRateLive", { rate: fxRate })
+                          : t("sales.aedRateSetFirst")}
                       </p>
                     </div>
                   )}
                   <div className="form-grid three">
-                    <Field label="Supplier">
+                    <Field label={t("sales.supplier")}>
                       <div className="inline-actions party-picker">
                         <select
                           value={party}
                           onChange={(e) => setParty(e.target.value)}
                           required
                         >
-                          <option value="">Choose supplier</option>
+                          <option value="">{t("sales.chooseSupplier")}</option>
                           {parties.map((p) => (
                             <option value={p.id} key={p.id}>
                               {p.name}
@@ -1520,11 +1569,11 @@ export function TradeForm({
                           onClick={() => setAddingParty(true)}
                         >
                           <PlusIcon size={15} />
-                          Add
+                          {t("common.add")}
                         </button>
                       </div>
                     </Field>
-                    <Field label="Invoice date">
+                    <Field label={t("sales.invoiceDate")}>
                       <input
                         type="date"
                         name="date"
@@ -1533,7 +1582,7 @@ export function TradeForm({
                         required
                       />
                     </Field>
-                    <Field label="Payment due (optional)">
+                    <Field label={t("sales.paymentDueOptional")}>
                       <input
                         type="date"
                         name="due_date"
@@ -1547,10 +1596,7 @@ export function TradeForm({
                     <div className="trade-panel-head">
                       <div>
                         <h3>{t("sales.productCatalog")}</h3>
-                        <p>
-                          Search existing items, or add a new product for this
-                          purchase.
-                        </p>
+                        <p>{t("sales.purchaseCatalogHint")}</p>
                       </div>
                       <div className="trade-catalog-actions">
                         <button
@@ -1559,11 +1605,12 @@ export function TradeForm({
                           onClick={() => setAddingProduct(true)}
                         >
                           <PlusIcon size={15} />
-                          New product
+                          {t("sales.newProduct")}
                         </button>
                         <span className="subtle">
-                          {products.length}
-                          {next ? "+" : ""} shown
+                          {next
+                            ? t("sales.shownMore", { n: products.length })
+                            : t("sales.shown", { n: products.length })}
                         </span>
                       </div>
                     </div>
@@ -1571,7 +1618,7 @@ export function TradeForm({
                       <BarcodeIcon size={18} />
                       <input
                         ref={barcodeRef}
-                        aria-label="Scan product barcode"
+                        aria-label={t("sales.scanBarcode")}
                         placeholder={t("sales.scanPh")}
                         value={scanCode}
                         onChange={(e) => setScanCode(e.target.value)}
@@ -1590,22 +1637,22 @@ export function TradeForm({
                         disabled={scanBusy || !scanCode.trim()}
                         onClick={scanBarcode}
                       >
-                        {scanBusy ? "Looking…" : "Add"}
+                        {scanBusy ? t("sales.looking") : t("common.add")}
                       </button>
                     </div>
                     <Search
                       value={q}
                       onChange={setQ}
-                      placeholder="Search by name, SKU or barcode…"
+                      placeholder={t("sales.searchCatalog")}
                     />
                     <div
                       className="product-browser-list"
                       role="listbox"
-                      aria-label="Available products"
+                      aria-label={t("sales.availableProducts")}
                     >
                       {searching ? (
                         <div className="product-browser-empty">
-                          <span className="muted">Loading products…</span>
+                          <span className="muted">{t("sales.loadingProducts")}</span>
                         </div>
                       ) : products.length ? (
                         <>
@@ -1645,7 +1692,7 @@ export function TradeForm({
                                   {specs ? <small>{specs}</small> : null}
                                   <span className="product-pick-meta">
                                     <em>{af(p.price)}</em>
-                                    <em>In catalog</em>
+                                    <em>{t("sales.inCatalog")}</em>
                                   </span>
                                 </span>
                                 <PlusIcon size={18} />
@@ -1660,8 +1707,8 @@ export function TradeForm({
                               onClick={loadMore}
                             >
                               {loadingMore
-                                ? "Loading…"
-                                : "Load more products"}
+                                ? t("common.loading")
+                                : t("sales.loadMoreProducts")}
                             </button>
                           )}
                         </>
@@ -1670,8 +1717,8 @@ export function TradeForm({
                           <PackageIcon size={28} weight="light" />
                           <p>
                             {q.trim()
-                              ? "No matching products. Try another search."
-                              : "No products yet. Use New product to add the first item for this purchase."}
+                              ? t("sales.noMatchSearch")
+                              : t("sales.noProductsPurchaseFirst")}
                           </p>
                           <button
                             type="button"
@@ -1679,7 +1726,7 @@ export function TradeForm({
                             onClick={() => setAddingProduct(true)}
                           >
                             <PlusIcon size={15} />
-                            New product
+                            {t("sales.newProduct")}
                           </button>
                         </div>
                       )}
@@ -1691,8 +1738,8 @@ export function TradeForm({
                         <h3>{t("sales.billLines")}</h3>
                         <p>
                           {lines.length
-                            ? `${lines.length} product${lines.length === 1 ? "" : "s"} on this invoice`
-                            : "Added products appear here."}
+                            ? t("sales.linesOnInvoice", { n: lines.length })
+                            : t("sales.addedProductsHere")}
                         </p>
                       </div>
                     </div>
@@ -1704,7 +1751,9 @@ export function TradeForm({
                             <button
                               type="button"
                               className="icon-button"
-                              aria-label={`Remove ${l.product.name}`}
+                              aria-label={t("sales.removeProduct", {
+                              name: l.product.name,
+                            })}
                               onClick={() =>
                                 setLines((ls) =>
                                   ls.filter((_, j) => j !== i),
@@ -1715,9 +1764,11 @@ export function TradeForm({
                             </button>
                           </div>
                           <div className="form-grid three">
-                            <Field label="Quantity">
+                            <Field label={t("common.quantity")}>
                               <input
-                                aria-label={`${l.product.name} quantity`}
+                                aria-label={t("sales.productQty", {
+                                  name: l.product.name,
+                                })}
                                 type="number"
                                 min="1"
                                 max={100000}
@@ -1732,7 +1783,7 @@ export function TradeForm({
                                 required
                               />
                             </Field>
-                            <Field label="Cost (AED)">
+                            <Field label={t("sales.costAed")}>
                               <input
                                 type="number"
                                 min="0"
@@ -1745,7 +1796,7 @@ export function TradeForm({
                                 required
                               />
                             </Field>
-                            <Field label="Cost (AF)">
+                            <Field label={t("sales.costAf")}>
                               <input
                                 type="number"
                                 min="0"
@@ -1755,15 +1806,15 @@ export function TradeForm({
                                 tabIndex={-1}
                                 placeholder={
                                   fxRate.trim()
-                                    ? "Auto from rate"
-                                    : "Set AED rate above"
+                                    ? t("sales.autoFromRate")
+                                    : t("sales.setAedRateAbove")
                                 }
                                 required
                               />
                             </Field>
                           </div>
                           <div className="form-grid" style={{ marginTop: 4 }}>
-                            <Field label="Line discount (AF)">
+                            <Field label={t("sales.lineDiscountAf")}>
                               <input
                                 type="number"
                                 min="0"
@@ -1782,10 +1833,7 @@ export function TradeForm({
                     {!lines.length && (
                       <div className="cart-empty">
                         <ShoppingIllustration />
-                        <p>
-                          Browse the catalog on the left and add products to
-                          start your purchase.
-                        </p>
+                        <p>{t("sales.emptyPurchaseBrowse")}</p>
                       </div>
                     )}
                   </section>
@@ -1797,12 +1845,12 @@ export function TradeForm({
                       <strong>{af(total, 2)}</strong>
                     </div>
                     <div>
-                      <span>Supplier balance remaining</span>
+                      <span>{t("sales.supplierBalance")}</span>
                       <strong>{af(Math.max(0, total - payment), 2)}</strong>
                     </div>
                     <Field
                       label={t("sales.amountPaid")}
-                      hint="Leave blank for full payment. Enter 0 for credit."
+                      hint={t("sales.paidHintPurchase")}
                     >
                       <input
                         name="paid"
@@ -1816,12 +1864,12 @@ export function TradeForm({
                       />
                     </Field>
                   </div>
-                  <Field label="Note (optional)">
+                  <Field label={t("sales.noteOptional")}>
                     <textarea
                       name="note"
                       defaultValue={initial?.note || ""}
                       rows={2}
-                      placeholder="Additional details for this invoice"
+                      placeholder={t("sales.notePh")}
                     />
                   </Field>
                   <ErrorMessage error={error} />
@@ -1829,7 +1877,7 @@ export function TradeForm({
               </div>
               <div className="modal-actions">
                 <button type="button" className="button" onClick={close}>
-                  Cancel
+                  {t("common.cancel")}
                 </button>
                 <button
                   className="button button-dark"
@@ -1841,10 +1889,10 @@ export function TradeForm({
                   }
                 >
                   {busy
-                    ? "Posting…"
+                    ? t("common.posting")
                     : documentId
-                      ? "Save purchase changes"
-                      : "Receive purchase"}
+                      ? t("sales.savePurchaseChanges")
+                      : t("sales.receivePurchase")}
                   <ArrowRightIcon size={16} />
                 </button>
               </div>
@@ -1885,7 +1933,7 @@ export function TradeForm({
               limit: 1,
             });
             const p = d.rows[0];
-            if (!p) throw new Error("New product could not be loaded.");
+            if (!p) throw new Error(t("sales.errProductLoad"));
             setProducts((rows) =>
               rows.some((r) => r.id === p.id) ? rows : [p, ...rows],
             );
@@ -1908,6 +1956,7 @@ export function PartyForm({
   close,
   done,
 }: { kind: "customer" | "supplier" } & DialogProps) {
+  const t = useT();
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
   const key = useRef(requestKey());
@@ -1926,7 +1975,12 @@ export function PartyForm({
         opening_date: f.get("opening_date") || businessDate(),
         request_key: key.current,
       });
-      done(`${kind === "customer" ? "Customer" : "Supplier"} added.`, created);
+      done(
+        kind === "customer"
+          ? t("partyForm.customerAdded")
+          : t("partyForm.supplierAdded"),
+        created,
+      );
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -1935,37 +1989,41 @@ export function PartyForm({
   }
   return (
     <Modal
-      title={`Add ${kind}`}
-      subtitle="Keep contact details and the full ledger in one place."
+      title={
+        kind === "customer"
+          ? t("partyForm.addCustomer")
+          : t("partyForm.addSupplier")
+      }
+      subtitle={t("partyForm.subtitle")}
       onClose={close}
     >
       <form onSubmit={submit}>
         <div className="form-body">
-          <Field label="Name / business name">
+          <Field label={t("partyForm.nameBusiness")}>
             <input name="name" required minLength={2} />
           </Field>
           <div className="form-grid">
-            <Field label="Phone">
+            <Field label={t("party.phone")}>
               <input name="phone" type="tel" />
             </Field>
-            <Field label="Email (optional)">
+            <Field label={t("partyForm.emailOptional")}>
               <input name="email" type="email" />
             </Field>
           </div>
-          <Field label="Address">
+          <Field label={t("party.address")}>
             <textarea name="address" rows={2} />
           </Field>
           <div className="form-grid">
             <Field
               label={
                 kind === "customer"
-                  ? "Opening balance they owe you (AF)"
-                  : "Opening balance you owe them (AF)"
+                  ? t("partyForm.openingCustomer")
+                  : t("partyForm.openingSupplier")
               }
               hint={
                 kind === "customer"
-                  ? "How much this customer already owes you. Leave 0 if none."
-                  : "How much you already owe this supplier. Leave 0 if none."
+                  ? t("partyForm.openingHintCustomer")
+                  : t("partyForm.openingHintSupplier")
               }
             >
               <input
@@ -1977,8 +2035,8 @@ export function PartyForm({
               />
             </Field>
             <Field
-              label="Opening date"
-              hint="Used only when an opening balance is entered."
+              label={t("partyForm.openingDate")}
+              hint={t("partyForm.openingDateHint")}
             >
               <input
                 name="opening_date"
@@ -1992,10 +2050,14 @@ export function PartyForm({
         </div>
         <div className="modal-actions">
           <button type="button" className="button" onClick={close}>
-            Cancel
+            {t("common.cancel")}
           </button>
           <button className="button button-dark" disabled={busy}>
-            {busy ? "Saving…" : `Add ${kind}`}
+            {busy
+              ? t("common.saving")
+              : kind === "customer"
+                ? t("partyForm.addCustomer")
+                : t("partyForm.addSupplier")}
           </button>
         </div>
       </form>
@@ -2003,6 +2065,7 @@ export function PartyForm({
   );
 }
 export function ExpenseForm({ close, done }: DialogProps) {
+  const t = useT();
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
   const key = useRef(requestKey());
@@ -2018,7 +2081,7 @@ export function ExpenseForm({ close, done }: DialogProps) {
         note: f.get("note"),
         request_key: key.current,
       });
-      done("Expense recorded in your daily book.");
+      done(t("toast.expenseRecorded"));
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -2027,14 +2090,14 @@ export function ExpenseForm({ close, done }: DialogProps) {
   }
   return (
     <Modal
-      title="Record an expense"
-      subtitle="Expenses are included in net profit and your cashbook."
+      title={t("expense.recordAn")}
+      subtitle={t("expense.subtitleDaily")}
       onClose={close}
     >
       <form onSubmit={submit}>
         <div className="form-body">
           <div className="form-grid">
-            <Field label="Amount (AF)">
+            <Field label={t("expense.amount")}>
               <input
                 name="amount"
                 type="number"
@@ -2044,7 +2107,7 @@ export function ExpenseForm({ close, done }: DialogProps) {
                 autoFocus
               />
             </Field>
-            <Field label="Date">
+            <Field label={t("expense.date")}>
               <input
                 name="date"
                 type="date"
@@ -2054,24 +2117,28 @@ export function ExpenseForm({ close, done }: DialogProps) {
               />
             </Field>
           </div>
-          <Field label="Category">
+          <Field label={t("expense.category")}>
             <select name="category">
-              {[
-                "Rent",
-                "Salaries",
-                "Utilities",
-                "Transport",
-                "Repairs",
-                "Other",
-              ].map((c) => (
-                <option key={c}>{c}</option>
+              {(
+                [
+                  ["Rent", "expense.rent"],
+                  ["Salaries", "expense.salaries"],
+                  ["Utilities", "expense.utilities"],
+                  ["Transport", "expense.transport"],
+                  ["Repairs", "expense.repairs"],
+                  ["Other", "expense.other"],
+                ] as const
+              ).map(([value, key]) => (
+                <option key={value} value={value}>
+                  {t(key)}
+                </option>
               ))}
             </select>
           </Field>
-          <Field label="Description">
+          <Field label={t("expense.description")}>
             <textarea
               name="note"
-              placeholder="What was this expense for?"
+              placeholder={t("expense.descPh")}
               minLength={2}
               required
               rows={3}
@@ -2081,10 +2148,10 @@ export function ExpenseForm({ close, done }: DialogProps) {
         </div>
         <div className="modal-actions">
           <button type="button" className="button" onClick={close}>
-            Cancel
+            {t("common.cancel")}
           </button>
           <button className="button button-dark" disabled={busy}>
-            {busy ? "Saving…" : "Record expense"}
+            {busy ? t("common.saving") : t("expense.record")}
           </button>
         </div>
       </form>
@@ -2096,6 +2163,7 @@ export function PaymentForm({
   close,
   done,
 }: { party: Party } & DialogProps) {
+  const t = useT();
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
   const key = useRef(requestKey());
@@ -2113,8 +2181,8 @@ export function PaymentForm({
       });
       done(
         party.kind === "customer"
-          ? "Customer payment received."
-          : "Supplier payment recorded.",
+          ? t("payment.receiveSaved")
+          : t("payment.paySaved"),
       );
     } catch (e: any) {
       setError(e.message);
@@ -2125,14 +2193,19 @@ export function PaymentForm({
   return (
     <Modal
       title={
-        party.kind === "customer" ? "Receive customer payment" : "Pay supplier"
+        party.kind === "customer"
+          ? t("payment.receiveTitle")
+          : t("payment.payTitle")
       }
-      subtitle={`${party.name} · Outstanding ${af(party.balance, 2)}`}
+      subtitle={t("payment.outstandingSub", {
+        name: party.name,
+        amount: af(party.balance, 2),
+      })}
       onClose={close}
     >
       <form onSubmit={submit}>
         <div className="form-body">
-          <Field label="Amount (AF)">
+          <Field label={t("payment.amount")}>
             <input
               name="amount"
               type="number"
@@ -2143,7 +2216,7 @@ export function PaymentForm({
               required
             />
           </Field>
-          <Field label="Payment date">
+          <Field label={t("payment.date")}>
             <input
               name="date"
               type="date"
@@ -2152,20 +2225,18 @@ export function PaymentForm({
               required
             />
           </Field>
-          <Field label="Note">
-            <input name="note" placeholder="Payment reference or description" />
+          <Field label={t("payment.note")}>
+            <input name="note" placeholder={t("payment.notePhLong")} />
           </Field>
-          <p className="help-note">
-            Applied to the oldest outstanding invoices first.
-          </p>
+          <p className="help-note">{t("payment.help")}</p>
           <ErrorMessage error={error} />
         </div>
         <div className="modal-actions">
           <button type="button" className="button" onClick={close}>
-            Cancel
+            {t("common.cancel")}
           </button>
           <button className="button button-dark" disabled={busy}>
-            {busy ? "Recording…" : "Record payment"}
+            {busy ? t("payment.recording") : t("payment.record")}
           </button>
         </div>
       </form>
@@ -2226,7 +2297,7 @@ export function InvoiceDialog({
         note: new FormData(e.currentTarget).get("reason"),
         request_key: key.current,
       });
-      done(t("invoice.returnItems"));
+      done(t("toast.returnPosted"));
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -2336,7 +2407,9 @@ export function InvoiceDialog({
                           {l.quantity}
                           {l.returned_quantity > 0 && (
                             <small className="block muted">
-                              {l.returned_quantity} returned
+                              {t("invoiceActions.returnedLine", {
+                                n: l.returned_quantity,
+                              })}
                             </small>
                           )}
                         </td>
@@ -2385,14 +2458,17 @@ export function InvoiceDialog({
             <form className="return-form" onSubmit={postReturn}>
               <div className="form-section-title">
                 <ArrowCounterClockwiseIcon size={17} />
-                Return items
+                {t("invoiceActions.returnItems")}
               </div>
               {doc.lines
                 .filter((l: any) => l.quantity > l.returned_quantity)
                 .map((l: any) => (
                   <Field
                     key={l.id}
-                    label={`${l.name} · ${l.quantity - l.returned_quantity} remaining`}
+                    label={t("invoiceActions.remaining", {
+                      name: l.name,
+                      n: l.quantity - l.returned_quantity,
+                    })}
                   >
                     <input
                       type="number"
@@ -2408,19 +2484,16 @@ export function InvoiceDialog({
                     />
                   </Field>
                 ))}
-              <Field label="Reason for return">
+              <Field label={t("invoiceActions.reason")}>
                 <input name="reason" minLength={2} required />
               </Field>
-              <p className="help-note">
-                The return reduces outstanding debt first. Any remaining amount
-                is refunded in cash.
-              </p>
+              <p className="help-note">{t("invoiceActions.returnHelp")}</p>
               <ErrorMessage error={error} />
               <button
                 className="button button-dark"
                 disabled={busy || !Object.values(quantities).some((n) => n > 0)}
               >
-                {busy ? "Posting…" : "Post return"}
+                {busy ? t("common.posting") : t("invoiceActions.postReturn")}
               </button>
             </form>
           )}
@@ -2432,10 +2505,10 @@ export function InvoiceDialog({
           ["Owner", "Manager"].includes(user.role) && (
             <>
               <button className="button" onClick={edit}>
-                Edit invoice
+                {t("invoiceActions.edit")}
               </button>
               <button className="button danger-text" onClick={remove}>
-                Hard delete
+                {t("invoiceActions.hardDelete")}
               </button>
             </>
           )}
@@ -2444,11 +2517,13 @@ export function InvoiceDialog({
           ["Owner", "Manager", "Accountant"].includes(user.role) && (
             <button className="button" onClick={() => setReturning(!returning)}>
               <ArrowCounterClockwiseIcon size={15} />
-              {returning ? "Cancel return" : "Return items"}
+              {returning
+                ? t("invoiceActions.cancelReturn")
+                : t("invoiceActions.returnItems")}
             </button>
           )}
         <button className="button" onClick={close}>
-          Close
+          {t("common.close")}
         </button>
         {doc && (
           <button
@@ -2467,13 +2542,15 @@ export function InvoiceDialog({
             }}
           >
             <DownloadSimpleIcon size={16} />
-            {window.vault ? "Download PDF" : "Download invoice"}
+            {window.vault
+              ? t("invoiceActions.downloadPdf")
+              : t("invoiceActions.downloadInvoice")}
           </button>
         )}
         {doc && (
           <button className="button button-dark" onClick={() => window.print()}>
             <PrinterIcon size={16} />
-            Print / save PDF
+            {t("invoiceActions.printPdf")}
           </button>
         )}
       </div>
@@ -2485,6 +2562,7 @@ export function DeleteInvoiceDialog({
   close,
   done,
 }: { documentId: string } & DialogProps) {
+  const t = useT();
   const [doc, setDoc] = useState<any>(null),
     [confirmation, setConfirmation] = useState(""),
     [error, setError] = useState(""),
@@ -2506,8 +2584,8 @@ export function DeleteInvoiceDialog({
   const purchase = doc?.kind === "purchase";
   return (
     <Modal
-      title="Hard delete invoice"
-      subtitle={doc?.number || "Loading invoice…"}
+      title={t("deleteInvoice.titleAction")}
+      subtitle={doc?.number || t("deleteInvoice.loading")}
       onClose={close}
     >
       <form
@@ -2524,8 +2602,8 @@ export function DeleteInvoiceDialog({
             });
             done(
               purchase
-                ? "Purchase permanently deleted. Stock and supplier ledger updated."
-                : "Invoice permanently deleted. Stock, cash and customer ledger updated.",
+                ? t("deleteInvoice.deletedPurchase")
+                : t("deleteInvoice.deletedSale"),
             );
           } catch (e: any) {
             setError(e.message);
@@ -2536,21 +2614,21 @@ export function DeleteInvoiceDialog({
       >
         <div className="form-body">
           <p>
-            {purchase
-              ? "This permanently removes the purchase and its accounting entries. Received stock that is still unsold is removed from inventory."
-              : "This permanently removes the invoice and its accounting entries. Sold items return to their original stock batches."}{" "}
-            An administrative audit reference remains.
+            {purchase ? t("deleteInvoice.bodyPurchase") : t("deleteInvoice.bodySale")}{" "}
+            {t("deleteInvoice.bodyAudit")}
           </p>
           <p>
-            Invoices with linked returns or later{" "}
-            {purchase ? "supplier payments" : "payment receipts"} cannot be
-            deleted.
-            {purchase
-              ? " Purchases cannot be deleted after any of their stock has been sold."
-              : ""}
+            {t("deleteInvoice.bodyLinked", {
+              payments: purchase
+                ? t("deleteInvoice.paymentsSupplier")
+                : t("deleteInvoice.paymentsCustomer"),
+            })}
+            {purchase ? t("deleteInvoice.bodyPurchaseSold") : ""}
           </p>
           <Field
-            label={`Type ${doc?.number || "the invoice number"} to confirm`}
+            label={t("deleteInvoice.confirmNumber", {
+              number: doc?.number || t("deleteInvoice.confirmFallback"),
+            })}
           >
             <input
               value={confirmation}
@@ -2563,13 +2641,13 @@ export function DeleteInvoiceDialog({
         </div>
         <div className="modal-actions">
           <button className="button" type="button" onClick={close}>
-            Cancel
+            {t("common.cancel")}
           </button>
           <button
             className="button button-danger"
             disabled={busy || !doc || confirmation !== doc.number}
           >
-            {busy ? "Deleting…" : "Permanently delete invoice"}
+            {busy ? t("deleteInvoice.deleting") : t("deleteInvoice.action")}
           </button>
         </div>
       </form>
@@ -2589,6 +2667,7 @@ export function ProductDetail({
   edit: () => void;
   sell?: () => void;
 } & DialogProps) {
+  const t = useT();
   const [data, setData] = useState<any>(null),
     [error, setError] = useState(""),
     [adjust, setAdjust] = useState(false),
@@ -2612,7 +2691,7 @@ export function ProductDetail({
         request_key: key.current,
         opening: f.get("opening") === "on",
       });
-      done("Stock adjustment posted with an audit record.");
+      done(t("productDetail.adjustmentPosted"));
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -2633,18 +2712,23 @@ export function ProductDetail({
             <Badge
               tone={product.stock <= product.reorder_level ? "yellow" : "green"}
             >
-              {product.stock} in stock
+              {t("productDetail.inStock", { n: product.stock })}
             </Badge>
             <h2>{af(product.price)}</h2>
             <p>
-              {product.condition} · {product.warranty || "No warranty set"}
+              {product.condition} ·{" "}
+              {product.warranty || t("productDetail.noWarranty")}
             </p>
-            <p>Reorder at {product.reorder_level}</p>
+            <p>
+              {t("productDetail.reorderAt", { n: product.reorder_level })}
+            </p>
             {(product.cost_aed || product.fx_rate) && (
               <p>
-                Dubai cost {aed(product.cost_aed || 0)} ·{" "}
-                {fxRateLabel(product.fx_rate || 0)} · stock cost{" "}
-                {af(product.unit_cost || 0, 2)}
+                {t("productDetail.dubaiCost", {
+                  aed: aed(product.cost_aed || 0),
+                  rate: fxRateLabel(product.fx_rate || 0),
+                  afn: af(product.unit_cost || 0, 2),
+                })}
               </p>
             )}
           </div>
@@ -2660,18 +2744,19 @@ export function ProductDetail({
             ))}
         </div>
         <div className="form-section-title">
-          Stock movement history <small>Latest 100 entries</small>
+          {t("productDetail.movementHistory")}{" "}
+          <small>{t("productDetail.latest100")}</small>
         </div>
         <div className="table-wrap">
           <table className="data-table">
             <thead>
               <tr>
-                <th>Date</th>
-                <th>Reference</th>
-                <th>Type</th>
-                <th>Quantity</th>
+                <th>{t("productDetail.colDate")}</th>
+                <th>{t("productDetail.colReference")}</th>
+                <th>{t("productDetail.colType")}</th>
+                <th>{t("productDetail.colQuantity")}</th>
                 {user.permissions.includes("view_costs") && (
-                  <th>Cost movement</th>
+                  <th>{t("productDetail.colCostMove")}</th>
                 )}
               </tr>
             </thead>
@@ -2695,11 +2780,13 @@ export function ProductDetail({
         </div>
         {adjust && (
           <form onSubmit={submit} className="adjust-form">
-            <div className="form-section-title">Adjust stock</div>
+            <div className="form-section-title">
+              {t("productDetail.adjust")}
+            </div>
             <div className="form-grid">
               <Field
-                label="Quantity change"
-                hint="Positive to add, negative to remove."
+                label={t("productDetail.qtyChange")}
+                hint={t("productDetail.adjustHint")}
               >
                 <input
                   name="quantity"
@@ -2708,7 +2795,7 @@ export function ProductDetail({
                   defaultValue="1"
                 />
               </Field>
-              <Field label="Unit cost for added stock (AF)">
+              <Field label={t("productDetail.unitCostAdd")}>
                 <input
                   name="cost"
                   type="number"
@@ -2718,33 +2805,27 @@ export function ProductDetail({
                 />
               </Field>
             </div>
-            <Field label="Reason">
+            <Field label={t("productDetail.reason")}>
               <input
                 name="note"
                 minLength={3}
                 required
-                placeholder="Stock count correction, damage, or another reason"
+                placeholder={t("productDetail.reasonPh")}
               />
             </Field>
             {user.role === "Owner" && product.stock === 0 && (
               <label className="checkbox-field">
                 <input name="opening" type="checkbox" />
                 <span>
-                  <strong>Opening stock brought forward</strong>
-                  <small>
-                    Posts against owner equity. Available before this product
-                    has any stock movements.
-                  </small>
+                  <strong>{t("productDetail.openingForward")}</strong>
+                  <small>{t("productDetail.openingForwardHint")}</small>
                 </span>
               </label>
             )}
-            <p className="help-note">
-              Adjustments affect inventory value and other income or expenses.
-              Use a purchase for received supplier stock.
-            </p>
+            <p className="help-note">{t("productDetail.adjustHelp")}</p>
             <ErrorMessage error={error} />
             <button className="button button-dark" disabled={busy}>
-              {busy ? "Saving…" : "Post adjustment"}
+              {busy ? t("common.saving") : t("productDetail.postAdjust")}
             </button>
           </form>
         )}
@@ -2753,42 +2834,48 @@ export function ProductDetail({
       <div className="modal-actions">
         {sell && user.permissions.includes("sales") && (
           <button className="button button-dark" onClick={sell}>
-            Sell this product <ArrowRightIcon size={15} />
+            {t("productDetail.sell")} <ArrowRightIcon size={15} />
           </button>
         )}
         {user.permissions.includes("inventory") && (
           <button className="button" onClick={edit}>
-            Edit product
+            {t("productDetail.edit")}
           </button>
         )}
         {user.permissions.includes("inventory") && (
           <button className="button" onClick={() => setAdjust(!adjust)}>
-            {adjust ? "Cancel adjustment" : "Adjust stock"}
+            {adjust
+              ? t("productDetail.cancelAdjust")
+              : t("productDetail.adjust")}
           </button>
         )}
         <button className="button" onClick={close}>
-          Done
+          {t("productDetail.done")}
         </button>
       </div>
     </Modal>
   );
 }
-function partyLedgerLabel(e: {
-  category?: string;
-  kind?: string;
-  note?: string;
-}) {
+function partyLedgerLabel(
+  tr: (key: string) => string,
+  e: {
+    category?: string;
+    kind?: string;
+    note?: string;
+  },
+) {
   if (e.category === "Opening balance" || /opening balance/i.test(e.note || ""))
-    return "Opening balance";
+    return tr("ledger.opening");
   const labels: Record<string, string> = {
-    sale: "Sale",
-    purchase: "Purchase",
-    receipt: "Payment received",
-    payment: "Payment made",
-    sale_return: "Sale return",
-    purchase_return: "Purchase return",
+    sale: "ledger.sale",
+    purchase: "ledger.purchase",
+    receipt: "ledger.paymentIn",
+    payment: "ledger.paymentOut",
+    sale_return: "ledger.returnSale",
+    purchase_return: "ledger.returnPurchase",
   };
-  return labels[e.kind || ""] || e.kind || "Entry";
+  const key = labels[e.kind || ""];
+  return key ? tr(key) : e.kind || tr("productDetail.ledgerEntry");
 }
 export function PartyDetailDialog({
   party,
@@ -2802,6 +2889,7 @@ export function PartyDetailDialog({
   open: (name: string, data?: any) => void;
   refresh?: number;
 } & Pick<DialogProps, "close">) {
+  const t = useT();
   const [ledgerAfter, setLedgerAfter] = useState("");
   const [ledgerHistory, setLedgerHistory] = useState<string[]>([]);
   const [detail, setDetail] = useState<any>(null);
@@ -2825,7 +2913,7 @@ export function PartyDetailDialog({
     kind === "customer" ? e.debit - e.credit : e.credit - e.debit;
   let running = detail?.page_start_balance ?? detail?.party?.balance ?? 0;
   const ledgerRows = (detail?.entries || []).map((e: any) => {
-    const row = { ...e, running, label: partyLedgerLabel(e) };
+    const row = { ...e, running, label: partyLedgerLabel(t, e) };
     running -= signed(e);
     return row;
   });
@@ -2835,8 +2923,8 @@ export function PartyDetailDialog({
       title={current.name}
       subtitle={
         kind === "customer"
-          ? "Customer ledger, history and payments"
-          : "Supplier ledger, history and payments"
+          ? t("partyDetail.customerSubtitle")
+          : t("partyDetail.supplierSubtitle")
       }
       onClose={close}
       wide
@@ -2848,18 +2936,18 @@ export function PartyDetailDialog({
             {current.name.slice(0, 1)}
           </span>
           <h2>{current.name}</h2>
-          <p>{current.phone || "No phone number"}</p>
-          <p>{current.address || current.email || "No address saved"}</p>
+          <p>{current.phone || t("people.noPhone")}</p>
+          <p>{current.address || current.email || t("people.noAddress")}</p>
           {user.role === "Owner" && !current.walk_in && (
             <button
               className="text-button"
               onClick={() => open("openingBalance", current)}
             >
-              Enter opening balance
+              {t("partyDetail.enterOpening")}
             </button>
           )}
           <div className="contact-balance">
-            <span>Outstanding balance</span>
+            <span>{t("partyDetail.outstanding")}</span>
             <strong
               className={
                 (current.balance || 0) > 0 ? "text-red" : "text-green"
@@ -2874,29 +2962,28 @@ export function PartyDetailDialog({
                 className="button button-dark full"
                 onClick={() => open("payment", current)}
               >
-                {kind === "customer" ? "Receive payment" : "Pay supplier"}
+                {kind === "customer"
+                  ? t("people.receivePayment")
+                  : t("people.paySupplier")}
                 <ArrowRightIcon size={15} />
               </button>
             )}
         </div>
         <div className="contact-ledger">
-          <h3>Account ledger</h3>
-          <p className="subtle ledger-hint">
-            Newest activity first. Opening balances and payments appear here
-            with the running outstanding.
-          </p>
+          <h3>{t("partyDetail.ledgerTitle")}</h3>
+          <p className="subtle ledger-hint">{t("partyDetail.ledgerHint")}</p>
           {!detail ? (
-            <p className="muted">Loading ledger…</p>
+            <p className="muted">{t("partyDetail.loadingLedger")}</p>
           ) : (
             <>
               <div className="table-wrap">
                 <table className="data-table">
                   <thead>
                     <tr>
-                      <th>Date / reference</th>
-                      <th>Debit</th>
-                      <th>Credit</th>
-                      <th>Balance</th>
+                      <th>{t("partyDetail.colDateRef")}</th>
+                      <th>{t("partyDetail.debit")}</th>
+                      <th>{t("partyDetail.credit")}</th>
+                      <th>{t("partyDetail.balance")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -2933,10 +3020,10 @@ export function PartyDetailDialog({
                 </table>
               </div>
               {!detail.entries.length && (
-                <p className="muted">No ledger activity for this account yet.</p>
+                <p className="muted">{t("partyDetail.noActivity")}</p>
               )}
               <div className="pagination ledger-pagination">
-                <span>25 entries per page</span>
+                <span>{t("ui.perPage", { n: 25 })}</span>
                 <button
                   className="button"
                   disabled={!ledgerHistory.length}
@@ -2945,7 +3032,7 @@ export function PartyDetailDialog({
                     setLedgerHistory((h) => h.slice(0, -1));
                   }}
                 >
-                  Newer
+                  {t("ui.newer")}
                 </button>
                 <button
                   className="button"
@@ -2955,7 +3042,7 @@ export function PartyDetailDialog({
                     setLedgerAfter(detail.next || "");
                   }}
                 >
-                  Older
+                  {t("ui.older")}
                 </button>
               </div>
             </>
@@ -2964,13 +3051,14 @@ export function PartyDetailDialog({
       </div>
       <div className="modal-actions">
         <button className="button button-dark" onClick={close}>
-          Done
+          {t("productDetail.done")}
         </button>
       </div>
     </Modal>
   );
 }
 export function UserForm({ close, done, user }: DialogProps & { user?: User }) {
+  const t = useT();
   const [role, setRole] = useState(user?.role || "Cashier"),
     [permissions, setPermissions] = useState<string[]>(
       user?.permissions || ["sales", "people"],
@@ -2995,9 +3083,7 @@ export function UserForm({ close, done, user }: DialogProps & { user?: User }) {
         permissions,
       });
       done(
-        user
-          ? "Access rights updated immediately."
-          : "User created with the selected access rights.",
+        user ? t("userForm.accessUpdated") : t("userForm.created"),
       );
     } catch (e: any) {
       setError(e.message);
@@ -3007,13 +3093,13 @@ export function UserForm({ close, done, user }: DialogProps & { user?: User }) {
   }
   return (
     <Modal
-      title={user ? "Edit access rights" : "Create user"}
-      subtitle="Give each team member their own account and access rights."
+      title={user ? t("userForm.editTitle") : t("userForm.createTitle")}
+      subtitle={t("userForm.subtitle")}
       onClose={close}
     >
       <form onSubmit={submit}>
         <div className="form-body">
-          <Field label="Full name">
+          <Field label={t("userForm.fullName")}>
             <input
               name="name"
               defaultValue={user?.name}
@@ -3023,7 +3109,7 @@ export function UserForm({ close, done, user }: DialogProps & { user?: User }) {
             />
           </Field>
           <div className="form-grid">
-            <Field label="Username">
+            <Field label={t("settings.username")}>
               <input
                 name="username"
                 defaultValue={user?.username}
@@ -3035,7 +3121,7 @@ export function UserForm({ close, done, user }: DialogProps & { user?: User }) {
               />
             </Field>
             {!user && (
-              <Field label="Password">
+              <Field label={t("userForm.password")}>
                 <input
                   name="password"
                   type="password"
@@ -3046,7 +3132,7 @@ export function UserForm({ close, done, user }: DialogProps & { user?: User }) {
               </Field>
             )}
           </div>
-          <Field label="Role">
+          <Field label={t("userForm.role")}>
             <select
               value={role}
               onChange={(e) => {
@@ -3082,10 +3168,14 @@ export function UserForm({ close, done, user }: DialogProps & { user?: User }) {
         </div>
         <div className="modal-actions">
           <button type="button" className="button" onClick={close}>
-            Cancel
+            {t("common.cancel")}
           </button>
           <button className="button button-dark" disabled={busy}>
-            {busy ? "Saving…" : user ? "Save access rights" : "Create user"}
+            {busy
+              ? t("common.saving")
+              : user
+                ? t("userForm.saveAccess")
+                : t("userForm.create")}
           </button>
         </div>
       </form>
@@ -3093,6 +3183,7 @@ export function UserForm({ close, done, user }: DialogProps & { user?: User }) {
   );
 }
 export function OwnerMovement({ close, done }: DialogProps) {
+  const t = useT();
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
   const key = useRef(requestKey());
@@ -3108,7 +3199,7 @@ export function OwnerMovement({ close, done }: DialogProps) {
         date: f.get("date"),
         request_key: key.current,
       });
-      done("Owner cash movement recorded.");
+      done(t("owner.cashSaved"));
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -3117,19 +3208,19 @@ export function OwnerMovement({ close, done }: DialogProps) {
   }
   return (
     <Modal
-      title="Record investment"
-      subtitle="Capital deposits and withdrawals affect cash and equity, not profit."
+      title={t("owner.title")}
+      subtitle={t("owner.subtitle")}
       onClose={close}
     >
       <form onSubmit={submit}>
         <div className="form-body">
-          <Field label="Movement">
+          <Field label={t("owner.movement")}>
             <select name="direction">
-              <option value="deposit">Invest cash in the business</option>
-              <option value="withdrawal">Withdraw capital</option>
+              <option value="deposit">{t("owner.investOption")}</option>
+              <option value="withdrawal">{t("owner.withdrawOption")}</option>
             </select>
           </Field>
-          <Field label="Amount (AF)">
+          <Field label={t("owner.amount")}>
             <input
               name="amount"
               type="number"
@@ -3138,7 +3229,7 @@ export function OwnerMovement({ close, done }: DialogProps) {
               required
             />
           </Field>
-          <Field label="Date">
+          <Field label={t("owner.date")}>
             <input
               name="date"
               type="date"
@@ -3147,22 +3238,22 @@ export function OwnerMovement({ close, done }: DialogProps) {
               max={businessDate()}
             />
           </Field>
-          <Field label="Reason">
+          <Field label={t("owner.reason")}>
             <input
               name="note"
               minLength={2}
               required
-              placeholder="External investment, personal cash, bank transfer…"
+              placeholder={t("owner.notePh")}
             />
           </Field>
           <ErrorMessage error={error} />
         </div>
         <div className="modal-actions">
           <button type="button" className="button" onClick={close}>
-            Cancel
+            {t("common.cancel")}
           </button>
           <button className="button button-dark" disabled={busy}>
-            {busy ? "Saving…" : "Record movement"}
+            {busy ? t("common.saving") : t("owner.record")}
           </button>
         </div>
       </form>
@@ -3174,6 +3265,7 @@ export function OpeningBalanceForm({
   close,
   done,
 }: { party: Party } & DialogProps) {
+  const t = useT();
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
   const key = useRef(requestKey());
@@ -3188,7 +3280,7 @@ export function OpeningBalanceForm({
         date: f.get("date"),
         request_key: key.current,
       });
-      done("Opening balance recorded against owner equity.");
+      done(t("opening.savedEquity"));
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -3197,8 +3289,8 @@ export function OpeningBalanceForm({
   }
   return (
     <Modal
-      title="Opening balance"
-      subtitle={`${party.name} · Debt brought forward from your previous records`}
+      title={t("opening.title")}
+      subtitle={t("opening.subtitleParty", { name: party.name })}
       onClose={close}
     >
       <form onSubmit={submit}>
@@ -3206,8 +3298,8 @@ export function OpeningBalanceForm({
           <Field
             label={
               party.kind === "customer"
-                ? "Amount this customer owes you (AF)"
-                : "Amount you owe this supplier (AF)"
+                ? t("opening.amountCustomer")
+                : t("opening.amountSupplier")
             }
           >
             <input
@@ -3218,7 +3310,7 @@ export function OpeningBalanceForm({
               required
             />
           </Field>
-          <Field label="Opening date">
+          <Field label={t("opening.openingDate")}>
             <input
               name="date"
               type="date"
@@ -3228,21 +3320,21 @@ export function OpeningBalanceForm({
             />
           </Field>
           <p className="help-note">
-            This records{" "}
-            {party.kind === "customer"
-              ? "customer receivables"
-              : "supplier payables"}{" "}
-            against owner equity. It does not create sales revenue or an
-            expense.
+            {t("opening.helpDetail", {
+              kind:
+                party.kind === "customer"
+                  ? t("opening.receivables")
+                  : t("opening.payables"),
+            })}
           </p>
           <ErrorMessage error={error} />
         </div>
         <div className="modal-actions">
           <button className="button" type="button" onClick={close}>
-            Cancel
+            {t("common.cancel")}
           </button>
           <button className="button button-dark" disabled={busy}>
-            {busy ? "Saving…" : "Record opening balance"}
+            {busy ? t("common.saving") : t("opening.record")}
           </button>
         </div>
       </form>

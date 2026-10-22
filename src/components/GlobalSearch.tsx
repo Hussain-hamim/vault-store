@@ -129,7 +129,7 @@ export function GlobalSearch({
             aria-label={t("globalSearch.title")}
             autoComplete="off"
           />
-          <kbd>Ctrl F</kbd>
+          <kbd>{t("globalSearch.shortcutKey")}</kbd>
           <button
             type="button"
             className="icon-button"

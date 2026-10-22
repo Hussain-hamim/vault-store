@@ -7,6 +7,7 @@ import {
   PackageIcon,
 } from "@phosphor-icons/react";
 import { af } from "../api";
+import { useT } from "../i18n";
 export function Modal({
   title,
   subtitle,
@@ -20,6 +21,7 @@ export function Modal({
   onClose: () => void;
   wide?: boolean;
 }) {
+  const t = useT();
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const previous = document.activeElement as HTMLElement;
@@ -79,7 +81,7 @@ export function Modal({
           </div>
           <button
             className="icon-button"
-            aria-label="Close dialog"
+            aria-label={t("ui.closeDialog")}
             onClick={onClose}
           >
             <XIcon size={20} />
@@ -142,7 +144,7 @@ export function ProductName({
 export function Search({
   value,
   onChange,
-  placeholder = "Search products…",
+  placeholder,
   onFocus,
   onBlur,
   onClick,
@@ -154,12 +156,14 @@ export function Search({
   onBlur?: () => void;
   onClick?: () => void;
 }) {
+  const t = useT();
+  const ph = placeholder ?? t("ui.searchProducts");
   return (
     <div className="search-input">
       <MagnifyingGlassIcon size={17} />
       <input
-        aria-label={placeholder}
-        placeholder={placeholder}
+        aria-label={ph}
+        placeholder={ph}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onFocus={onFocus}
@@ -169,7 +173,7 @@ export function Search({
       {value && (
         <button
           type="button"
-          aria-label="Clear search"
+          aria-label={t("ui.clearSearch")}
           onClick={() => onChange("")}
         >
           <XIcon size={14} />
@@ -179,19 +183,22 @@ export function Search({
   );
 }
 export function Empty({
-  title = "Nothing here yet",
-  text = "Your records will appear here.",
+  title,
+  text,
   action,
 }: {
   title?: string;
   text?: string;
   action?: React.ReactNode;
 }) {
+  const t = useT();
+  const emptyTitle = title ?? t("ui.emptyTitle");
+  const emptyText = text ?? t("ui.emptyText");
   return (
     <div className="empty">
       <PackageIcon size={32} weight="light" />
-      <h3>{title}</h3>
-      <p>{text}</p>
+      <h3>{emptyTitle}</h3>
+      <p>{emptyText}</p>
       {action}
     </div>
   );
@@ -250,10 +257,11 @@ export function Money({ value }: { value: number }) {
   return <span className="money">{af(value)}</span>;
 }
 export function ExportButton({ onClick }: { onClick: () => void }) {
+  const t = useT();
   return (
     <button className="button" onClick={onClick}>
       <ArrowDownIcon size={15} />
-      Export CSV
+      {t("ui.exportCsv")}
     </button>
   );
 }
