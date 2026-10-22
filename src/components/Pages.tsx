@@ -73,6 +73,7 @@ function Loading() {
     </div>
   );
 }
+const LIST_PAGE = 10;
 export function ProductsPage({
   refresh,
   open,
@@ -84,23 +85,62 @@ export function ProductsPage({
   const [q, setQ] = useState(globalSearch),
     [category, setCategory] = useState(initialCategory),
     [filter, setFilter] = useState("all"),
-    [after, setAfter] = useState(""),
-    [history, setHistory] = useState<string[]>([]);
+    [rows, setRows] = useState<Product[]>([]),
+    [next, setNext] = useState<string | null>(null),
+    [loading, setLoading] = useState(true),
+    [loadingMore, setLoadingMore] = useState(false),
+    [error, setError] = useState("");
   useEffect(() => {
     setQ(globalSearch);
-    setAfter("");
-    setHistory([]);
   }, [globalSearch]);
   useEffect(() => {
     setCategory(initialCategory);
-    setAfter("");
-    setHistory([]);
   }, [initialCategory]);
-  const { data, error } = useLoad<{ rows: Product[]; next: string | null }>(
-    "products",
-    { q, category, filter, after },
-    refresh,
-  );
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setError("");
+    setNext(null);
+    api<{ rows: Product[]; next: string | null }>("products", {
+      q,
+      category,
+      filter,
+      limit: LIST_PAGE,
+    })
+      .then((d) => {
+        if (!active) return;
+        setRows(d.rows);
+        setNext(d.next);
+      })
+      .catch((e) => {
+        if (active) setError(e.message);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [q, category, filter, refresh]);
+  async function loadMore() {
+    if (!next || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const d = await api<{ rows: Product[]; next: string | null }>(
+        "products",
+        { q, category, filter, after: next, limit: LIST_PAGE },
+      );
+      setRows((prev) => {
+        const seen = new Set(prev.map((p) => p.id));
+        return [...prev, ...d.rows.filter((p) => !seen.has(p.id))];
+      });
+      setNext(d.next);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoadingMore(false);
+    }
+  }
   const showCost = user.permissions.includes("view_costs");
   const categoryClass = (c: string) =>
     ({
@@ -142,6 +182,7 @@ export function ProductsPage({
   return (
     <div className="page-content inventory-page">
       <PageIntro
+        compact
         eyebrow="Your catalog"
         title="Inventory"
         description="Browse stock with full specs — RAM, storage, and the rest — beside cost and price."
@@ -160,23 +201,12 @@ export function ProductsPage({
       >
         <div className="inventory-list-sticky">
           <div className="list-toolbar">
-            <Search
-              value={q}
-              onChange={(v) => {
-                setQ(v);
-                setAfter("");
-                setHistory([]);
-              }}
-            />
+            <Search value={q} onChange={setQ} />
             <div className="toolbar-right">
               <select
                 aria-label="Product category"
                 value={category}
-                onChange={(e) => {
-                  setCategory(e.target.value);
-                  setAfter("");
-                  setHistory([]);
-                }}
+                onChange={(e) => setCategory(e.target.value)}
               >
                 {[
                   "All products",
@@ -192,11 +222,7 @@ export function ProductsPage({
               <select
                 aria-label="Stock filter"
                 value={filter}
-                onChange={(e) => {
-                  setFilter(e.target.value);
-                  setAfter("");
-                  setHistory([]);
-                }}
+                onChange={(e) => setFilter(e.target.value)}
               >
                 <option value="all">All stock levels</option>
                 <option value="low">Low stock</option>
@@ -205,7 +231,7 @@ export function ProductsPage({
                 onClick={() => {
                   exportCSV(
                     "vault-products",
-                    data?.rows.map(
+                    rows.map(
                       ({
                         name,
                         sku,
@@ -238,9 +264,9 @@ export function ProductsPage({
                           ]),
                         ),
                       }),
-                    ) || [],
+                    ),
                   );
-                  toast("Current product page exported.");
+                  toast("Loaded products exported.");
                 }}
               />
             </div>
@@ -254,12 +280,12 @@ export function ProductsPage({
           </div>
         </div>
         <ErrorMessage error={error} />
-        {!data ? (
+        {loading ? (
           <Loading />
         ) : (
           <>
             <div className="inventory-list-scroll" role="list">
-              {data.rows.map((p) => {
+              {rows.map((p) => {
                 const tone = stockTone(p);
                 const unitCost = p.stock
                   ? (p.cost || 0) / p.stock
@@ -315,24 +341,20 @@ export function ProductsPage({
                         <ArrowUpRightIcon size={16} />
                       </div>
                     </div>
-                    <div className="inventory-row-specs">
-                      {specs.length ? (
-                        specs.map((s) => (
+                    {specs.length > 0 && (
+                      <div className="inventory-row-specs">
+                        {specs.map((s) => (
                           <span key={s.key} className="inventory-spec">
                             <em>{s.key}</em>
                             <strong>{s.value}</strong>
                           </span>
-                        ))
-                      ) : (
-                        <span className="inventory-spec empty">
-                          No specs saved for this product
-                        </span>
-                      )}
-                    </div>
+                        ))}
+                      </div>
+                    )}
                   </button>
                 );
               })}
-              {!data.rows.length && (
+              {!rows.length && (
                 <Empty
                   title="No matching products"
                   text="Try a different search, or add a new product."
@@ -340,27 +362,20 @@ export function ProductsPage({
               )}
             </div>
             <div className="pagination inventory-list-pager">
-              <span>{data.rows.length} products on this page</span>
-              <button
-                className="button"
-                disabled={!history.length}
-                onClick={() => {
-                  setAfter(history.at(-1) || "");
-                  setHistory((h) => h.slice(0, -1));
-                }}
-              >
-                Previous
-              </button>
-              <button
-                className="button"
-                disabled={!data.next}
-                onClick={() => {
-                  setHistory((h) => [...h, after]);
-                  setAfter(data.next || "");
-                }}
-              >
-                Next <ArrowRightIcon size={13} />
-              </button>
+              <span>
+                Showing {rows.length} product{rows.length === 1 ? "" : "s"}
+              </span>
+              {next ? (
+                <button
+                  className="button button-dark"
+                  disabled={loadingMore}
+                  onClick={loadMore}
+                >
+                  {loadingMore ? "Loading…" : "Load more"}
+                </button>
+              ) : (
+                rows.length > 0 && <span className="subtle">All loaded</span>
+              )}
             </div>
           </>
         )}
@@ -377,18 +392,56 @@ export function DocumentsPage({
   user,
 }: PageProps & { kind: "sale" | "purchase" | "expense" }) {
   const [q, setQ] = useState(globalSearch),
-    [after, setAfter] = useState(""),
-    [history, setHistory] = useState<string[]>([]);
+    [rows, setRows] = useState<any[]>([]),
+    [next, setNext] = useState<string | null>(null),
+    [loading, setLoading] = useState(true),
+    [loadingMore, setLoadingMore] = useState(false),
+    [error, setError] = useState("");
   useEffect(() => {
     setQ(globalSearch);
-    setAfter("");
-    setHistory([]);
   }, [globalSearch]);
-  const { data, error } = useLoad<any>(
-    "documents",
-    { kind, q, after },
-    refresh,
-  );
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setError("");
+    setNext(null);
+    api<any>("documents", { kind, q, limit: LIST_PAGE })
+      .then((d) => {
+        if (!active) return;
+        setRows(d.rows);
+        setNext(d.next);
+      })
+      .catch((e) => {
+        if (active) setError(e.message);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [kind, q, refresh]);
+  async function loadMore() {
+    if (!next || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const d = await api<any>("documents", {
+        kind,
+        q,
+        after: next,
+        limit: LIST_PAGE,
+      });
+      setRows((prev) => {
+        const seen = new Set(prev.map((r) => r.id));
+        return [...prev, ...d.rows.filter((r: any) => !seen.has(r.id))];
+      });
+      setNext(d.next);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoadingMore(false);
+    }
+  }
   const label =
     kind === "sale" ? "Sales" : kind === "purchase" ? "Purchases" : "Expenses";
   const partyLabel =
@@ -411,6 +464,7 @@ export function DocumentsPage({
   return (
     <div className={`page-content docs-page docs-${kind}`}>
       <PageIntro
+        compact
         eyebrow="Transactions"
         title={kind === "sale" ? "Invoice history" : label}
         description={
@@ -436,11 +490,7 @@ export function DocumentsPage({
           <div className="list-toolbar">
             <Search
               value={q}
-              onChange={(s) => {
-                setQ(s);
-                setAfter("");
-                setHistory([]);
-              }}
+              onChange={setQ}
               placeholder={
                 kind === "expense"
                   ? "Search expense number or category…"
@@ -451,7 +501,7 @@ export function DocumentsPage({
               onClick={() => {
                 exportCSV(
                   `vault-${label.toLowerCase()}`,
-                  data?.rows.map((d: any) => ({
+                  rows.map((d: any) => ({
                     invoice: d.number,
                     date: d.date,
                     contact: d.party_name || "",
@@ -462,9 +512,9 @@ export function DocumentsPage({
                     outstanding_AF:
                       Math.max(0, d.total - d.paid - d.returned) / 100,
                     note: d.note,
-                  })) || [],
+                  })),
                 );
-                toast("Current page exported.");
+                toast("Loaded records exported.");
               }}
             />
           </div>
@@ -479,12 +529,12 @@ export function DocumentsPage({
           </div>
         </div>
         <ErrorMessage error={error} />
-        {!data ? (
+        {loading ? (
           <Loading />
         ) : (
           <>
             <div className="docs-list-scroll" role="list">
-              {data.rows.map((d: any) => {
+              {rows.map((d: any) => {
                 const status = docStatus(d);
                 const outstanding = Math.max(0, d.total - d.paid - d.returned);
                 return (
@@ -589,7 +639,7 @@ export function DocumentsPage({
                   </button>
                 );
               })}
-              {!data.rows.length && (
+              {!rows.length && (
                 <Empty
                   title={`No ${label.toLowerCase()} yet`}
                   text="Your posted transactions will appear here."
@@ -597,27 +647,20 @@ export function DocumentsPage({
               )}
             </div>
             <div className="pagination docs-list-pager">
-              <span>{data.rows.length} records on this page</span>
-              <button
-                className="button"
-                disabled={!history.length}
-                onClick={() => {
-                  setAfter(history.at(-1) || "");
-                  setHistory((h) => h.slice(0, -1));
-                }}
-              >
-                Previous
-              </button>
-              <button
-                className="button"
-                disabled={!data.next}
-                onClick={() => {
-                  setHistory((h) => [...h, after]);
-                  setAfter(data.next);
-                }}
-              >
-                Next <ArrowRightIcon size={13} />
-              </button>
+              <span>
+                Showing {rows.length} record{rows.length === 1 ? "" : "s"}
+              </span>
+              {next ? (
+                <button
+                  className="button button-dark"
+                  disabled={loadingMore}
+                  onClick={loadMore}
+                >
+                  {loadingMore ? "Loading…" : "Load more"}
+                </button>
+              ) : (
+                rows.length > 0 && <span className="subtle">All loaded</span>
+              )}
             </div>
           </>
         )}
@@ -652,15 +695,59 @@ export function PeoplePage({
 }: PageProps & { kind: "customer" | "supplier" }) {
   const [q, setQ] = useState(""),
     [selected, setSelected] = useState<string | null>(null),
-    [after, setAfter] = useState(""),
-    [history, setHistory] = useState<string[]>([]),
+    [rows, setRows] = useState<Party[]>([]),
+    [next, setNext] = useState<string | null>(null),
+    [loading, setLoading] = useState(true),
+    [loadingMore, setLoadingMore] = useState(false),
+    [error, setError] = useState(""),
     [ledgerAfter, setLedgerAfter] = useState(""),
     [ledgerHistory, setLedgerHistory] = useState<string[]>([]);
-  const { data, error } = useLoad<{ rows: Party[]; next: string | null }>(
-    "parties",
-    { kind, q, after },
-    refresh,
-  );
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setError("");
+    setNext(null);
+    api<{ rows: Party[]; next: string | null }>("parties", {
+      kind,
+      q,
+      limit: LIST_PAGE,
+    })
+      .then((d) => {
+        if (!active) return;
+        setRows(d.rows);
+        setNext(d.next);
+      })
+      .catch((e) => {
+        if (active) setError(e.message);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [kind, q, refresh]);
+  async function loadMore() {
+    if (!next || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const d = await api<{ rows: Party[]; next: string | null }>("parties", {
+        kind,
+        q,
+        after: next,
+        limit: LIST_PAGE,
+      });
+      setRows((prev) => {
+        const seen = new Set(prev.map((p) => p.id));
+        return [...prev, ...d.rows.filter((p) => !seen.has(p.id))];
+      });
+      setNext(d.next);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoadingMore(false);
+    }
+  }
   const { data: detail, error: detailError } = useLoad<any>(
     selected ? "partyDetail" : "status",
     selected ? { id: selected, after: ledgerAfter, limit: 25 } : {},
@@ -674,7 +761,7 @@ export function PeoplePage({
     running -= signed(e);
     return row;
   });
-  const total = data?.rows.reduce((s, p) => s + p.balance, 0) || 0;
+  const total = rows.reduce((s, p) => s + p.balance, 0);
   function selectParty(id: string) {
     setSelected(id);
     setLedgerAfter("");
@@ -685,6 +772,7 @@ export function PeoplePage({
   return (
     <div className={`page-content people-page people-${kind}`}>
       <PageIntro
+        compact
         eyebrow="People & balances"
         title={kind === "customer" ? "Customers" : "Suppliers"}
         description={
@@ -702,17 +790,15 @@ export function PeoplePage({
       <div className="metrics-row people-metrics">
         <Metric
           label={
-            kind === "customer"
-              ? "Customers on this page"
-              : "Suppliers on this page"
+            kind === "customer" ? "Customers loaded" : "Suppliers loaded"
           }
-          value={String(data?.rows.length || 0)}
+          value={String(rows.length)}
         />
         <Metric
           label={
             kind === "customer"
-              ? "Receivables on this page"
-              : "Payables on this page"
+              ? "Receivables loaded"
+              : "Payables loaded"
           }
           value={af(total)}
         />
@@ -724,23 +810,19 @@ export function PeoplePage({
             <div className="list-toolbar">
               <Search
                 value={q}
-                onChange={(v) => {
-                  setQ(v);
-                  setAfter("");
-                  setHistory([]);
-                }}
+                onChange={setQ}
                 placeholder={`Search ${kind}s by name…`}
               />
               <ExportButton
                 onClick={() => {
                   exportCSV(
                     `vault-${kind}s`,
-                    data?.rows.map((p) => ({
+                    rows.map((p) => ({
                       name: p.name,
                       phone: p.phone,
                       email: p.email,
                       balance_AF: p.balance / 100,
-                    })) || [],
+                    })),
                   );
                   toast("Contacts exported.");
                 }}
@@ -755,12 +837,12 @@ export function PeoplePage({
             </div>
           </div>
           <ErrorMessage error={error} />
-          {!data ? (
+          {loading ? (
             <Loading />
           ) : (
             <>
               <div className="people-list-scroll" role="list">
-                {data.rows.map((p) => {
+                {rows.map((p) => {
                   const tone = balanceTone(p.balance);
                   return (
                     <button
@@ -813,7 +895,7 @@ export function PeoplePage({
                     </button>
                   );
                 })}
-                {!data.rows.length && (
+                {!rows.length && (
                   <Empty
                     title={`No ${kind}s found`}
                     text="Add a contact or try a different search."
@@ -821,27 +903,20 @@ export function PeoplePage({
                 )}
               </div>
               <div className="pagination people-list-pager">
-                <span>Up to 100 contacts per page</span>
-                <button
-                  className="button"
-                  disabled={!history.length}
-                  onClick={() => {
-                    setAfter(history.at(-1) || "");
-                    setHistory((h) => h.slice(0, -1));
-                  }}
-                >
-                  Previous
-                </button>
-                <button
-                  className="button"
-                  disabled={!data.next}
-                  onClick={() => {
-                    setHistory((h) => [...h, after]);
-                    setAfter(data.next || "");
-                  }}
-                >
-                  Next
-                </button>
+                <span>
+                  Showing {rows.length} contact{rows.length === 1 ? "" : "s"}
+                </span>
+                {next ? (
+                  <button
+                    className="button button-dark"
+                    disabled={loadingMore}
+                    onClick={loadMore}
+                  >
+                    {loadingMore ? "Loading…" : "Load more"}
+                  </button>
+                ) : (
+                  rows.length > 0 && <span className="subtle">All loaded</span>
+                )}
               </div>
             </>
           )}
@@ -1020,6 +1095,7 @@ export function CapitalPage({ refresh, open, toast, user }: PageProps) {
   return (
     <div className="page-content capital-page">
       <PageIntro
+        compact
         eyebrow="Owner capital"
         title="Capital & net worth"
         description="Track money you invest in the business, withdrawals, and how your net worth changes each month."
@@ -1253,6 +1329,7 @@ export function DayBookPage({ refresh, open, toast, user }: PageProps) {
   return (
     <div className="page-content daybook-page">
       <PageIntro
+        compact
         eyebrow="Finance"
         title="Daily book"
         description="Sales, trading profit, expenses and cash, all for one day."

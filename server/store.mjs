@@ -1911,18 +1911,20 @@ export class Store {
         kind: z.enum(["customer", "supplier"]),
         q: z.string().max(100).default(""),
         after: z.string().default(""),
+        limit: z.number().int().min(1).max(100).default(100),
       })
       .parse(input);
     const account = d.kind === "customer" ? "receivables" : "payables";
     const rows = this.all(
-      `SELECT p.*,COALESCE((SELECT SUM(${d.kind === "customer" ? "debit-credit" : "credit-debit"}) FROM party_totals j WHERE j.party_id=p.id AND j.account=?),0) balance FROM parties p WHERE p.kind=? AND p.name LIKE ? AND p.id>? ORDER BY p.id LIMIT 101`,
+      `SELECT p.*,COALESCE((SELECT SUM(${d.kind === "customer" ? "debit-credit" : "credit-debit"}) FROM party_totals j WHERE j.party_id=p.id AND j.account=?),0) balance FROM parties p WHERE p.kind=? AND p.name LIKE ? AND p.id>? ORDER BY p.id LIMIT ?`,
       account,
       d.kind,
       d.q + "%",
       d.after,
+      d.limit + 1,
     );
-    const more = rows.length > 100;
-    rows.length = Math.min(rows.length, 100);
+    const more = rows.length > d.limit;
+    rows.length = Math.min(rows.length, d.limit);
     return { rows, next: more ? rows.at(-1).id : null };
   }
   async createBackup(user, { destination, automatic = false } = {}) {

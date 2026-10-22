@@ -208,20 +208,22 @@ export function PageIntro({
   title,
   description,
   action,
+  compact = false,
 }: {
   eyebrow?: string;
   title: string;
   description: string;
   action?: React.ReactNode;
+  compact?: boolean;
 }) {
   return (
-    <div className="page-intro">
-      <div>
+    <div className={`page-intro${compact ? " page-intro-compact" : ""}`}>
+      <div className="page-intro-copy">
         {eyebrow && <div className="eyebrow">{eyebrow}</div>}
         <h2>{title}</h2>
         <p>{description}</p>
       </div>
-      {action}
+      {action ? <div className="page-intro-actions">{action}</div> : null}
     </div>
   );
 }
