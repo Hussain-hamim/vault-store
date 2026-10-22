@@ -2784,7 +2784,8 @@ input[type="number"]::-webkit-inner-spin-button {
 .invoice-top {
   display: flex;
   justify-content: space-between;
-  margin: 0 0 25px;
+  gap: 20px;
+  margin: 0 0 16px;
 }
 .invoice-top h2 {
   font-size: 22px;
@@ -4522,6 +4523,9 @@ input[type="number"]::-webkit-inner-spin-button {
 }
 
 /* The sales counter is a workspace, with history beside its bill editor. */
+.workspace-scroll.no-page-scroll {
+  overflow: hidden;
+}
 .sales-workspace {
   width: var(--content-wide);
   max-width: 100%;
@@ -4529,17 +4533,32 @@ input[type="number"]::-webkit-inner-spin-button {
   padding: var(--page-pad-y) var(--page-pad-x);
   box-sizing: border-box;
 }
+.sales-workspace.is-bill {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-bottom: 8px;
+}
+.sales-workspace.is-bill > [role="tabpanel"]:not([hidden]) {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
 .sales-tabs {
   display: flex;
   gap: 6px;
-  margin-bottom: 20px;
+  margin-bottom: 12px;
   border-bottom: 1px solid #dedee0;
-  padding-bottom: 12px;
+  padding-bottom: 8px;
+  flex: none;
 }
 .sales-tabs button {
   border: 0;
   border-radius: 9px;
-  padding: 12px 22px;
+  padding: 10px 18px;
   background: transparent;
   color: #6a6a70;
   font: inherit;
@@ -4563,6 +4582,410 @@ input[type="number"]::-webkit-inner-spin-button {
   overflow: hidden;
   border: 1px solid #e8e8e4;
   box-shadow: 0 18px 50px #1c1d2010;
+}
+.sales-workspace.is-bill .bill-editor {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-radius: 16px;
+  border-color: #d9e2c8;
+  background: #f5f6f2;
+  box-shadow: 0 14px 40px #1c1d2012;
+  overflow: hidden;
+}
+.sales-workspace.is-bill .sale-fit-form {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.sale-board {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+  gap: 12px;
+  padding: 12px;
+  overflow: hidden;
+}
+.sale-board-left,
+.sale-board-right {
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: hidden;
+}
+.sale-customer-panel,
+.sale-catalog-panel,
+.sale-bill-panel,
+.sale-pay-panel {
+  border: 1.5px solid #e1e6d4;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 1px 0 #ffffffaa inset;
+}
+.sale-customer-panel {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  background: linear-gradient(135deg, #f4f8ea 0%, #fff 60%);
+  border-color: #d7e0c0;
+}
+.sale-customer-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) minmax(128px, 0.4fr);
+  gap: 10px;
+  align-items: end;
+}
+.sale-customer-modes {
+  display: inline-flex;
+  align-self: end;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 999px;
+  background: #e8eed8;
+  border: 1px solid #d5dfbc;
+  margin-bottom: 1px;
+}
+.sale-customer-modes button {
+  border: 0;
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: transparent;
+  color: #5f6b3d;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 650;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.sale-customer-modes button.active,
+.sale-customer-modes button[aria-selected="true"] {
+  background: #243028;
+  color: #edff7d;
+}
+.sale-customer-fields,
+.purchase-party-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(120px, 0.45fr) minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+.sale-customer-name,
+.sale-customer-date {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.sale-customer-name > span,
+.sale-customer-date > span {
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #7a8460;
+}
+.sale-customer-name input,
+.sale-customer-date input,
+.sale-customer-name select {
+  width: 100%;
+  border: 1.5px solid #d5dfbc;
+  border-radius: 10px;
+  background: #fff;
+  padding: 9px 11px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #2a2e24;
+}
+.sale-customer-name small,
+.sale-customer-hint {
+  font-size: 10px;
+  color: #7d8668;
+  line-height: 1.3;
+}
+.sale-customer-panel .credit-hint {
+  margin: 0;
+  padding: 8px 10px;
+  font-size: 11px;
+}
+.sale-catalog-panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  overflow: hidden;
+}
+.sale-catalog-panel .trade-panel-head {
+  flex: none;
+}
+.sale-catalog-panel .trade-panel-head h3 {
+  font-size: 14px;
+  margin: 0;
+}
+.sale-catalog-panel .trade-barcode-scan,
+.sale-catalog-panel .search-input {
+  flex: none;
+}
+.sale-catalog-panel .search-input {
+  max-width: none;
+}
+.sale-board .sale-product-list.product-browser-list {
+  flex: 1;
+  min-height: 220px;
+  max-height: none;
+  overflow-x: hidden;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  align-content: stretch;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid #eceee4;
+  border-radius: 12px;
+  background: #f8f9f5;
+  scrollbar-width: thin;
+}
+.sale-board .product-pick-card {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+  width: 100%;
+  padding: 10px 12px;
+  min-height: 0;
+  height: auto;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.sale-board .product-pick-image {
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  margin-top: 2px;
+}
+.sale-board .product-pick-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  overflow: hidden;
+}
+.sale-board .product-pick-body strong {
+  display: block;
+  font-size: 13px;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sale-board .product-pick-body small {
+  display: block;
+  font-size: 11px;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sale-board .product-pick-meta {
+  margin-top: 2px;
+  gap: 8px;
+}
+.sale-board .product-pick-card > svg {
+  margin-top: 14px;
+  flex: none;
+}
+.sale-board-right {
+  background: transparent;
+}
+.sale-bill-panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  overflow: hidden;
+}
+.sale-bill-panel .trade-panel-head {
+  flex: none;
+}
+.sale-bill-panel .trade-panel-head h3 {
+  margin: 0;
+  font-size: 14px;
+}
+.sale-bill-panel .trade-panel-head p {
+  margin: 2px 0 0;
+  font-size: 11px;
+  color: #8a8f84;
+}
+.sale-bill-panel .cart-lines {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+  overflow-y: auto;
+  gap: 8px;
+}
+.sale-bill-panel .cart-empty {
+  flex: 1;
+  min-height: 120px;
+  padding: 18px;
+}
+.sale-bill-panel .cart-line {
+  padding: 10px 12px;
+  margin: 0;
+}
+.sale-pay-panel {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  background: linear-gradient(160deg, #f3f7ea 0%, #fff 55%);
+  border-color: #d7e0c0;
+}
+.bill-editor .sale-pay-panel .trade-totals {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  grid-template-columns: none;
+}
+.bill-editor .sale-pay-panel .trade-totals > div {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+}
+.bill-editor .sale-pay-panel .trade-totals > div span {
+  display: inline;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #8a8f84;
+  margin: 0;
+}
+.bill-editor .sale-pay-panel .trade-totals > div strong,
+.bill-editor .sale-pay-panel .trade-totals > div:first-child strong {
+  display: inline;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0;
+  color: #2f6d28;
+  font-variant-numeric: tabular-nums;
+}
+.bill-editor .sale-pay-panel .trade-totals > .field {
+  flex: 1 1 140px;
+  min-width: 120px;
+  margin: 0;
+}
+.bill-editor .sale-pay-panel .trade-totals > .field input {
+  padding: 7px 9px;
+  font-size: 12px;
+}
+.sale-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+  padding-top: 2px;
+}
+.sale-print-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: auto;
+  font-size: 12px;
+  font-weight: 600;
+  color: #5c6158;
+  cursor: pointer;
+  user-select: none;
+}
+.sale-print-check input {
+  width: 15px;
+  height: 15px;
+  accent-color: #243028;
+}
+.sale-actions .button-dark {
+  min-width: 140px;
+}
+.invoice-logo {
+  max-height: 56px;
+  max-width: 160px;
+  object-fit: contain;
+  display: block;
+  margin-bottom: 8px;
+}
+.bill-logo-preview {
+  width: 96px;
+  height: 96px;
+  border-radius: 12px;
+  border: 1.5px dashed #d5dfbc;
+  background: #f7f9f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+.bill-logo-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.bill-logo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+@media (max-width: 1100px) {
+  .sale-board {
+    grid-template-columns: 1fr;
+    overflow: auto;
+  }
+  .sale-board-left,
+  .sale-board-right {
+    overflow: visible;
+  }
+  .sale-catalog-panel,
+  .sale-bill-panel {
+    min-height: 280px;
+  }
+  .sale-customer-row {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+  .sale-customer-fields,
+  .purchase-party-fields {
+    grid-template-columns: 1fr;
+  }
+  .sales-workspace.is-bill {
+    height: auto;
+    overflow: auto;
+  }
+  .workspace-scroll.no-page-scroll {
+    overflow: auto;
+  }
 }
 .bill-editor .form-body.trade-body {
   padding: 22px 24px 10px;

@@ -28,8 +28,9 @@ Desktop testing: keep `npm run dev` running, then use `npm run desktop:dev` (not
 - New Purchase can create a product that is not yet in inventory (New product), then receive it on the same bill with AED cost and the invoice exchange rate.
 - Purchases use a full-page bill editor with purchase-history view/edit/hard-delete (owner/manager). Editing reverses unsold received batches and reposts; blocked if any of that purchase stock was sold, or if returns/payments are linked.
 - New Sale is a full-page bill editor, with a separate invoice-history section providing view, edit, hard-delete and download actions.
-- New Sale uses a two-column bill workspace: a fixed-height product catalog (search + scroll + Load more) beside the bill lines. Results show image, name, brand/model/SKU, specs and stock.
-- Cashiers can add a customer from the New Sale customer picker when leaving a balance unpaid; walk-in remains cash-only.
+- New Sale and New Purchase use the same two-column board: left = party/date (sale also has Type name | Existing beside the name) + product catalog (cards stack cleanly, ~3+ visible then scroll); right = bill lines, compact totals/paid, Print-after-save checkbox, Cancel and post. No note field on these boards.
+- Blank amount paid means unpaid (0), not full payment. Sale defaults to typing a customer name (saved to Customers); unpaid balances track on that customer. Existing walk-in remains cash-only. Payment due is not collected on sale/purchase boards.
+- Print bill after save (default on) opens the invoice modal and the browser print dialog. Settings → Store holds bill design: business name, logo, phone, email, address, and optional footer used on print/download.
 - Adding a customer or supplier uses opening balance (what they owe you / what you owe them) instead of credit limit; owner-only when the amount is greater than zero.
 - Customer/supplier ledgers show opening balances and payments newest-first with running outstanding, red/green amounts, and pagination; list Outstanding reflects that balance.
 - Invoice mutations must update stock and ledgers atomically and enforce access rights and closed periods.

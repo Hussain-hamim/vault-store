@@ -2386,16 +2386,24 @@ export function SettingsPage({ refresh, open, toast, user }: PageProps) {
   const [tab, setTab] = useState("Store"),
     [localError, setLocalError] = useState(""),
     [busy, setBusy] = useState(false),
-    [audit, setAudit] = useState<any[]>([]);
+    [audit, setAudit] = useState<any[]>([]),
+    [logo, setLogo] = useState("");
+  useEffect(() => {
+    setLogo(data?.store?.logo || "");
+  }, [data?.store?.logo, refresh]);
   async function save(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setBusy(true);
+    setLocalError("");
     try {
       const f = new FormData(e.currentTarget);
       await api("saveSettings", {
         name: f.get("name"),
         phone: f.get("phone"),
         address: f.get("address"),
+        email: f.get("email"),
+        bill_footer: f.get("bill_footer"),
+        logo,
       });
       toast("Store settings saved.");
     } catch (e: any) {
@@ -2403,6 +2411,29 @@ export function SettingsPage({ refresh, open, toast, user }: PageProps) {
     } finally {
       setBusy(false);
     }
+  }
+  function onLogoFile(file: File | null) {
+    if (!file) return;
+    if (!/^image\/(png|jpeg|jpg|webp|gif)$/i.test(file.type)) {
+      setLocalError("Logo must be a PNG, JPG, WEBP or GIF image.");
+      return;
+    }
+    if (file.size > 600_000) {
+      setLocalError("Logo image is too large (max about 600 KB).");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result || "");
+      if (result.length > 900_000) {
+        setLocalError("Logo image is too large after encoding.");
+        return;
+      }
+      setLocalError("");
+      setLogo(result);
+    };
+    reader.onerror = () => setLocalError("Could not read logo image.");
+    reader.readAsDataURL(file);
   }
   async function toggle(u: any) {
     try {
@@ -2445,9 +2476,12 @@ export function SettingsPage({ refresh, open, toast, user }: PageProps) {
           ))}
         </div>
         {tab === "Store" && data && (
-          <form className="settings-form" onSubmit={save}>
-            <h3>Store information</h3>
-            <Field label="Store name">
+          <form className="settings-form" onSubmit={save} key={refresh}>
+            <h3>Bill design</h3>
+            <p className="muted">
+              These details appear on printed and downloaded invoices.
+            </p>
+            <Field label="Business name">
               <input
                 name="name"
                 defaultValue={data.store.name}
@@ -2455,21 +2489,73 @@ export function SettingsPage({ refresh, open, toast, user }: PageProps) {
                 minLength={2}
               />
             </Field>
+            <Field label="Logo">
+              <div className="bill-logo-preview">
+                {logo ? (
+                  <img src={logo} alt="Store logo preview" />
+                ) : (
+                  <span className="muted">No logo</span>
+                )}
+              </div>
+              <div className="bill-logo-actions">
+                <label className="button">
+                  Choose image
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/gif"
+                    hidden
+                    onChange={(e) => {
+                      onLogoFile(e.target.files?.[0] || null);
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
+                {logo ? (
+                  <button
+                    type="button"
+                    className="button"
+                    onClick={() => setLogo("")}
+                  >
+                    Remove logo
+                  </button>
+                ) : null}
+              </div>
+            </Field>
             <div className="form-grid">
               <Field label="Phone">
-                <input name="phone" defaultValue={data.store.phone} />
+                <input name="phone" defaultValue={data.store.phone || ""} />
               </Field>
-              <Field label="Currency">
-                <input value="Afghan afghani · AFN (AF)" readOnly />
+              <Field label="Email">
+                <input
+                  name="email"
+                  type="email"
+                  defaultValue={data.store.email || ""}
+                />
               </Field>
             </div>
             <Field label="Address">
               <textarea
                 name="address"
-                defaultValue={data.store.address}
+                defaultValue={data.store.address || ""}
                 rows={2}
               />
             </Field>
+            <Field
+              label="Bill footer"
+              hint="Optional thank-you or return note under the totals."
+            >
+              <textarea
+                name="bill_footer"
+                defaultValue={data.store.bill_footer || ""}
+                rows={2}
+                placeholder="Thank you for shopping with us."
+              />
+            </Field>
+            <div className="form-grid">
+              <Field label="Currency">
+                <input value="Afghan afghani · AFN (AF)" readOnly />
+              </Field>
+            </div>
             <div className="info-box">
               <CheckCircleIcon size={18} />
               <p>
@@ -2478,7 +2564,7 @@ export function SettingsPage({ refresh, open, toast, user }: PageProps) {
               </p>
             </div>
             <button className="button button-dark" disabled={busy}>
-              {busy ? "Saving…" : "Save store details"}
+              {busy ? "Saving…" : "Save bill design"}
             </button>
           </form>
         )}

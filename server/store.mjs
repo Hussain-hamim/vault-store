@@ -2691,10 +2691,29 @@ export class Store {
             name: text.min(2),
             phone: text.default(""),
             address: text.default(""),
+            email: text.default(""),
+            logo: z
+              .string()
+              .max(900_000)
+              .default("")
+              .refine(
+                (v) =>
+                  !v ||
+                  /^data:image\/(png|jpeg|jpg|webp|gif);base64,/i.test(v),
+                "Logo must be a PNG, JPG, WEBP or GIF image.",
+              ),
+            bill_footer: text.default(""),
           })
           .parse(args);
         this.saveSetting("store", { ...this.setting("store"), ...d });
-        this.audit(user, "Update store settings", "store", d);
+        this.audit(user, "Update store settings", "store", {
+          name: d.name,
+          phone: d.phone,
+          address: d.address,
+          email: d.email,
+          bill_footer: d.bill_footer,
+          logo: d.logo ? "[logo updated]" : "",
+        });
         return { ok: true };
       }
       case "closePeriod": {

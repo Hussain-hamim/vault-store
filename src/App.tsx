@@ -496,7 +496,14 @@ export function App() {
             </div>
           </header>
         )}
-        <div className="workspace-scroll">
+        <div
+          className={`workspace-scroll${
+            (page === "Sales" && saleTab === "bill") ||
+            (page === "Purchases" && purchaseTab === "bill")
+              ? " no-page-scroll"
+              : ""
+          }`}
+        >
           {page === "Dashboard" ? (
             <Dashboard
               user={user}
@@ -507,7 +514,9 @@ export function App() {
           ) : ["Products", "Inventory"].includes(page) ? (
             <ProductsPage {...props} initialCategory={categoryFilter} />
           ) : page === "Sales" ? (
-            <div className="sales-workspace">
+            <div
+              className={`sales-workspace${saleTab === "bill" ? " is-bill" : ""}`}
+            >
               <div
                 className="sales-tabs"
                 role="tablist"
@@ -550,12 +559,18 @@ export function App() {
                     setSaleSeed(undefined);
                     setBillEpoch((v) => v + 1);
                   }}
-                  done={(s) => {
+                  done={(s, result: any) => {
                     toast(s);
                     setSaleTab("history");
                     setSaleEditId(undefined);
                     setSaleSeed(undefined);
                     setBillEpoch((v) => v + 1);
+                    if (result?.print && result?.id)
+                      open("invoice", {
+                        id: result.id,
+                        kind: result.kind || "sale",
+                        autoPrint: true,
+                      });
                   }}
                 />
               </div>
@@ -569,7 +584,9 @@ export function App() {
               </div>
             </div>
           ) : page === "Purchases" ? (
-            <div className="sales-workspace">
+            <div
+              className={`sales-workspace${purchaseTab === "bill" ? " is-bill" : ""}`}
+            >
               <div
                 className="sales-tabs"
                 role="tablist"
@@ -610,11 +627,17 @@ export function App() {
                     setPurchaseEditId(undefined);
                     setPurchaseEpoch((v) => v + 1);
                   }}
-                  done={(s) => {
+                  done={(s, result: any) => {
                     toast(s);
                     setPurchaseTab("history");
                     setPurchaseEditId(undefined);
                     setPurchaseEpoch((v) => v + 1);
+                    if (result?.print && result?.id)
+                      open("invoice", {
+                        id: result.id,
+                        kind: result.kind || "purchase",
+                        autoPrint: true,
+                      });
                   }}
                 />
               </div>
@@ -691,6 +714,7 @@ export function App() {
           user={user}
           close={close}
           done={done}
+          autoPrint={!!modal.data.autoPrint}
           edit={() =>
             open(
               modal.data.kind === "purchase" ? "purchaseEdit" : "saleEdit",

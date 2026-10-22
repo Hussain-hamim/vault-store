@@ -613,12 +613,22 @@ export function TradeForm({
     [searching, setSearching] = useState(true),
     [loadingMore, setLoadingMore] = useState(false),
     [scanCode, setScanCode] = useState(""),
-    [scanBusy, setScanBusy] = useState(false);
+    [scanBusy, setScanBusy] = useState(false),
+    [customerMode, setCustomerMode] = useState<"new" | "existing">(
+      documentId ? "existing" : "new",
+    ),
+    [customerName, setCustomerName] = useState(""),
+    [printAfter, setPrintAfter] = useState(true);
   const key = useRef(requestKey());
   const barcodeRef = useRef<HTMLInputElement>(null);
   const Frame = inline ? BillFrame : Modal;
   const purchase = kind === "purchase";
   const selectedParty = parties.find((p) => p.id === party);
+  const saleCustomerReady = purchase
+    ? Boolean(party)
+    : customerMode === "new"
+      ? customerName.trim().length >= 2
+      : Boolean(party);
   useEffect(() => {
     let active = true;
     setSearching(true);
@@ -672,12 +682,13 @@ export function TradeForm({
     let active = true;
     api<{ rows: Party[] }>("parties", {
       kind: purchase ? "supplier" : "customer",
+      limit: 100,
     })
       .then((d) => {
         if (!active) return;
         setParties(d.rows);
-        if (!documentId)
-          setParty(d.rows.find((p) => p.walk_in)?.id || d.rows[0]?.id || "");
+        if (!documentId && purchase)
+          setParty(d.rows[0]?.id || "");
       })
       .catch((e) => {
         if (active) setError(e.message);
@@ -716,6 +727,8 @@ export function TradeForm({
         if (active) {
           setInitial(doc);
           setParty(doc.party_id);
+          setCustomerMode("existing");
+          setCustomerName(doc.party_name || "");
           setPaid(String(doc.paid / 100));
           if (doc.fx_rate) setFxRate(fxRateInput(doc.fx_rate));
           setLines(loaded);
@@ -824,7 +837,37 @@ export function TradeForm({
       Math.round(Number(l.discount || 0) * 100),
     0,
   );
-  const payment = paid === "" ? total : Math.round(Number(paid) * 100);
+  const payment =
+    paid.trim() === "" ? 0 : Math.round(Number(paid) * 100 || 0);
+  async function resolveSalePartyId() {
+    if (purchase) {
+      if (!party) throw new Error("Choose a supplier.");
+      return party;
+    }
+    if (customerMode === "existing") {
+      if (!party) throw new Error("Choose a customer.");
+      return party;
+    }
+    const name = customerName.trim();
+    if (name.length < 2)
+      throw new Error("Enter the customer name (at least 2 characters).");
+    const match = parties.find(
+      (p) => !p.walk_in && p.name.toLowerCase() === name.toLowerCase(),
+    );
+    if (match) return match.id;
+    const created = await api<{ id: string }>("partyCreate", {
+      kind: "customer",
+      name,
+      request_key: requestKey(),
+    });
+    const refreshed = await api<{ rows: Party[] }>("parties", {
+      kind: "customer",
+      limit: 100,
+    });
+    setParties(refreshed.rows);
+    setParty(created.id);
+    return created.id;
+  }
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setBusy(true);
@@ -836,6 +879,7 @@ export function TradeForm({
         throw new Error(
           "Enter the AED→AFN exchange rate used for this Dubai purchase.",
         );
+      const partyId = await resolveSalePartyId();
       const payload = lines.map((l) => {
         const cost_aed =
           purchase && (l.costAed || "").trim() ? toMoney(l.costAed!) : 0;
@@ -857,16 +901,16 @@ export function TradeForm({
             : {}),
         };
       });
-      await api(
+      const posted = await api<any>(
         documentId ? (purchase ? "purchaseEdit" : "saleEdit") : kind,
         {
           ...(documentId ? { id: documentId, revision: initial.revision } : {}),
-          party_id: party,
+          party_id: partyId,
           lines: payload,
-          paid: paid === "" ? total : toMoney(paid),
+          paid: paid.trim() === "" ? 0 : toMoney(paid),
           date: f.get("date"),
-          due_date: f.get("due_date") || null,
-          note: f.get("note"),
+          due_date: null,
+          note: "",
           ...(purchase ? { fx_rate: rate } : {}),
           request_key: key.current,
         },
@@ -879,6 +923,11 @@ export function TradeForm({
           : documentId
             ? "Invoice updated. Stock, payment and profit recalculated."
             : "Sale posted. Invoice, stock and ledger saved.",
+        {
+          id: posted?.id,
+          kind: posted?.kind || kind,
+          print: printAfter && inline,
+        },
       );
     } catch (e: any) {
       setError(e.message);
@@ -909,297 +958,776 @@ export function TradeForm({
       {loading ? (
         <div className="form-body">Loading invoice…</div>
       ) : (
-        <form onSubmit={submit}>
-          <div className="form-body trade-body">
-            <div className="trade-meta">
-              {purchase && (
-                <div className="purchase-rate-bar">
-                  <Field
-                    label="AED rate in Afghanis"
-                    hint="How many AFN for 1 AED today. Every product line uses this rate."
-                  >
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.0001"
-                      value={fxRate}
-                      onChange={(e) => applyFxRate(e.target.value)}
-                      placeholder="e.g. 18.50"
-                      required
-                    />
-                  </Field>
-                  <p className="purchase-rate-note">
-                    {fxRate.trim()
-                      ? `1 AED = ${fxRate} AFN · line AF costs update automatically`
-                      : "Set the rate first, then enter each product’s AED cost."}
-                  </p>
-                </div>
-              )}
-              <div className="form-grid three">
-                <Field
-                  label={purchase ? "Supplier" : "Customer"}
-                  hint={
-                    !purchase
-                      ? "Add a named customer when any balance will remain unpaid."
-                      : undefined
-                  }
-                >
-                  <div className="inline-actions party-picker">
-                    <select
-                      value={party}
-                      onChange={(e) => setParty(e.target.value)}
-                      required
-                    >
-                      <option value="">
-                        Choose {purchase ? "supplier" : "customer"}
-                      </option>
-                      {parties.map((p) => (
-                        <option value={p.id} key={p.id}>
-                          {p.name}
-                          {p.walk_in ? " (cash only)" : ""}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      type="button"
-                      className="button"
-                      onClick={() => setAddingParty(true)}
-                    >
-                      <PlusIcon size={15} />
-                      Add
-                    </button>
-                  </div>
-                </Field>
-                <Field label="Invoice date">
-                  <input
-                    type="date"
-                    name="date"
-                    defaultValue={initial?.date || businessDate()}
-                    max={businessDate()}
-                    required
-                  />
-                </Field>
-                <Field label="Payment due (optional)">
-                  <input
-                    type="date"
-                    name="due_date"
-                    defaultValue={initial?.due_date || ""}
-                  />
-                </Field>
-              </div>
-              {!purchase && selectedParty?.walk_in && total - payment > 0 && (
-                <p className="credit-hint">
-                  Walk-in customers must pay in full. Add or choose a named
-                  customer to leave a balance unpaid.
-                </p>
-              )}
-            </div>
-            <div className="trade-workspace">
-              <section className="trade-catalog">
-                <div className="trade-panel-head">
-                  <div>
-                    <h3>Product catalog</h3>
-                    <p>
-                      {purchase
-                        ? "Search existing items, or add a new product for this purchase."
-                        : "Search or scroll the list, then add to the bill."}
-                    </p>
-                  </div>
-                  <div className="trade-catalog-actions">
-                    {purchase && (
-                      <button
-                        type="button"
-                        className="button"
-                        onClick={() => setAddingProduct(true)}
-                      >
-                        <PlusIcon size={15} />
-                        New product
-                      </button>
-                    )}
-                    <span className="subtle">
-                      {products.length}
-                      {next ? "+" : ""} shown
-                    </span>
-                  </div>
-                </div>
-                <div className="trade-barcode-scan">
-                  <BarcodeIcon size={18} />
-                  <input
-                    ref={barcodeRef}
-                    aria-label="Scan product barcode"
-                    placeholder="Scan barcode to add…"
-                    value={scanCode}
-                    onChange={(e) => setScanCode(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        scanBarcode();
-                      }
-                    }}
-                    inputMode="numeric"
-                    autoComplete="off"
-                  />
-                  <button
-                    type="button"
-                    className="button"
-                    disabled={scanBusy || !scanCode.trim()}
-                    onClick={scanBarcode}
-                  >
-                    {scanBusy ? "Looking…" : "Add"}
-                  </button>
-                </div>
-                <Search
-                  value={q}
-                  onChange={setQ}
-                  placeholder="Search by name, SKU or barcode…"
-                />
-                <div
-                  className="product-browser-list"
-                  role="listbox"
-                  aria-label="Available products"
-                >
-                  {searching ? (
-                    <div className="product-browser-empty">
-                      <span className="muted">Loading products…</span>
-                    </div>
-                  ) : products.length ? (
-                    <>
-                      {products.map((p) => {
-                        const specs = Object.entries(p.attributes || {})
-                          .filter(([, v]) => v)
-                          .slice(0, 3)
-                          .map(([k, v]) => `${k}: ${v}`)
-                          .join(" · ");
-                        const added = lines.some((l) => l.product.id === p.id);
-                        const out = !purchase && p.stock === 0;
-                        return (
-                          <button
-                            key={p.id}
-                            type="button"
-                            role="option"
-                            className="product-pick-card"
-                            disabled={added || out}
-                            onClick={() => add(p)}
+        <form
+          onSubmit={submit}
+          className={inline ? "sale-fit-form" : undefined}
+        >
+          {inline ? (
+            <div className={`sale-board${purchase ? " purchase-board" : ""}`}>
+              <section className="sale-board-left">
+                <div className="sale-customer-panel">
+                  {purchase ? (
+                    <div className="sale-customer-fields purchase-party-fields">
+                      <label className="sale-customer-name">
+                        <span>Supplier</span>
+                        <div className="inline-actions party-picker">
+                          <select
+                            value={party}
+                            onChange={(e) => setParty(e.target.value)}
+                            required
                           >
-                            <span className="product-pick-image">
-                              {p.image ? (
-                                <img src={p.image} alt="" />
-                              ) : (
-                                <PackageIcon size={28} weight="light" />
-                              )}
-                            </span>
-                            <span className="product-pick-body">
-                              <strong>{p.name}</strong>
-                              <small>
-                                {[p.brand, p.model, p.sku]
-                                  .filter(Boolean)
-                                  .join(" · ")}
-                                {p.barcode ? ` · ⌗ ${p.barcode}` : ""}
-                              </small>
-                              <small>
-                                {[
-                                  p.category,
-                                  p.condition,
-                                  p.location && `Loc ${p.location}`,
-                                  p.warranty,
-                                ]
-                                  .filter(Boolean)
-                                  .join(" · ")}
-                              </small>
-                              {specs ? <small>{specs}</small> : null}
-                              <span className="product-pick-meta">
-                                <em>{af(p.price)}</em>
-                                <em>
-                                  {purchase
-                                    ? "In catalog"
-                                    : out
-                                      ? "Out of stock"
-                                      : `${p.stock} in stock`}
-                                </em>
-                              </span>
-                            </span>
-                            <PlusIcon size={18} />
+                            <option value="">Choose supplier</option>
+                            {parties.map((p) => (
+                              <option value={p.id} key={p.id}>
+                                {p.name}
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            type="button"
+                            className="button"
+                            onClick={() => setAddingParty(true)}
+                          >
+                            <PlusIcon size={15} />
+                            Add
                           </button>
-                        );
-                      })}
-                      {next && (
-                        <button
-                          type="button"
-                          className="button product-load-more"
-                          disabled={loadingMore}
-                          onClick={loadMore}
-                        >
-                          {loadingMore ? "Loading…" : "Load more products"}
-                        </button>
-                      )}
-                    </>
+                        </div>
+                      </label>
+                      <label className="sale-customer-date">
+                        <span>Date</span>
+                        <input
+                          type="date"
+                          name="date"
+                          defaultValue={initial?.date || businessDate()}
+                          max={businessDate()}
+                          required
+                        />
+                      </label>
+                      <label className="sale-customer-name purchase-rate-field">
+                        <span>AED rate (AFN per 1 AED)</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.0001"
+                          value={fxRate}
+                          onChange={(e) => applyFxRate(e.target.value)}
+                          placeholder="e.g. 18.50"
+                          required
+                        />
+                        <small>
+                          {fxRate.trim()
+                            ? `1 AED = ${fxRate} AFN`
+                            : "Set rate before entering AED costs"}
+                        </small>
+                      </label>
+                    </div>
                   ) : (
-                    <div className="product-browser-empty">
-                      <PackageIcon size={28} weight="light" />
-                      <p>
-                        {q.trim()
-                          ? "No matching products. Try another search."
-                          : purchase
-                            ? "No products yet. Use New product to add the first item for this purchase."
-                            : "No products yet. Add products in Inventory first."}
-                      </p>
+                    <>
+                      <div className="sale-customer-row">
+                        <div
+                          className="sale-customer-modes"
+                          role="tablist"
+                          aria-label="Customer entry"
+                        >
+                          <button
+                            type="button"
+                            role="tab"
+                            aria-selected={customerMode === "new"}
+                            className={customerMode === "new" ? "active" : ""}
+                            onClick={() => setCustomerMode("new")}
+                          >
+                            Type name
+                          </button>
+                          <button
+                            type="button"
+                            role="tab"
+                            aria-selected={customerMode === "existing"}
+                            className={
+                              customerMode === "existing" ? "active" : ""
+                            }
+                            onClick={() => setCustomerMode("existing")}
+                          >
+                            Existing
+                          </button>
+                        </div>
+                        {customerMode === "new" ? (
+                          <label className="sale-customer-name">
+                            <span>Customer</span>
+                            <input
+                              value={customerName}
+                              onChange={(e) => setCustomerName(e.target.value)}
+                              placeholder="Type customer name…"
+                              minLength={2}
+                              required
+                              autoComplete="off"
+                            />
+                          </label>
+                        ) : (
+                          <label className="sale-customer-name">
+                            <span>Customer</span>
+                            <div className="inline-actions party-picker">
+                              <select
+                                value={party}
+                                onChange={(e) => setParty(e.target.value)}
+                                required
+                              >
+                                <option value="">Choose customer</option>
+                                {parties.map((p) => (
+                                  <option value={p.id} key={p.id}>
+                                    {p.name}
+                                    {p.walk_in ? " (cash only)" : ""}
+                                  </option>
+                                ))}
+                              </select>
+                              <button
+                                type="button"
+                                className="button"
+                                onClick={() => setAddingParty(true)}
+                              >
+                                <PlusIcon size={15} />
+                                Add
+                              </button>
+                            </div>
+                          </label>
+                        )}
+                        <label className="sale-customer-date">
+                          <span>Date</span>
+                          <input
+                            type="date"
+                            name="date"
+                            defaultValue={initial?.date || businessDate()}
+                            max={businessDate()}
+                            required
+                          />
+                        </label>
+                      </div>
+                      {customerMode === "new" && (
+                        <small className="sale-customer-hint">
+                          Saves to Customers · unpaid balance stays on ledger
+                        </small>
+                      )}
+                      {customerMode === "existing" &&
+                        selectedParty?.walk_in &&
+                        total - payment > 0 && (
+                          <p className="credit-hint">
+                            Walk-in must pay in full. Use Type name to leave a
+                            balance unpaid.
+                          </p>
+                        )}
+                    </>
+                  )}
+                </div>
+                <div className="sale-catalog-panel">
+                  <div className="trade-panel-head">
+                    <div>
+                      <h3>Product catalog</h3>
+                    </div>
+                    <div className="trade-catalog-actions">
                       {purchase && (
                         <button
                           type="button"
-                          className="button button-dark"
+                          className="button"
                           onClick={() => setAddingProduct(true)}
                         >
                           <PlusIcon size={15} />
                           New product
                         </button>
                       )}
+                      <span className="subtle">
+                        {products.length}
+                        {next ? "+" : ""} shown
+                      </span>
+                    </div>
+                  </div>
+                  <div className="trade-barcode-scan">
+                    <BarcodeIcon size={18} />
+                    <input
+                      ref={barcodeRef}
+                      aria-label="Scan product barcode"
+                      placeholder="Scan barcode to add…"
+                      value={scanCode}
+                      onChange={(e) => setScanCode(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          scanBarcode();
+                        }
+                      }}
+                      inputMode="numeric"
+                      autoComplete="off"
+                    />
+                    <button
+                      type="button"
+                      className="button"
+                      disabled={scanBusy || !scanCode.trim()}
+                      onClick={scanBarcode}
+                    >
+                      {scanBusy ? "Looking…" : "Add"}
+                    </button>
+                  </div>
+                  <Search
+                    value={q}
+                    onChange={setQ}
+                    placeholder="Search by name, SKU or barcode…"
+                  />
+                  <div
+                    className="product-browser-list sale-product-list"
+                    role="listbox"
+                    aria-label="Available products"
+                  >
+                    {searching ? (
+                      <div className="product-browser-empty">
+                        <span className="muted">Loading products…</span>
+                      </div>
+                    ) : products.length ? (
+                      <>
+                        {products.map((p) => {
+                          const detail = [
+                            p.brand,
+                            p.model,
+                            p.sku,
+                            p.barcode ? `⌗ ${p.barcode}` : "",
+                          ]
+                            .filter(Boolean)
+                            .join(" · ");
+                          const added = lines.some(
+                            (l) => l.product.id === p.id,
+                          );
+                          const out = !purchase && p.stock === 0;
+                          return (
+                            <button
+                              key={p.id}
+                              type="button"
+                              role="option"
+                              className="product-pick-card"
+                              disabled={added || out}
+                              onClick={() => add(p)}
+                            >
+                              <span className="product-pick-image">
+                                {p.image ? (
+                                  <img src={p.image} alt="" />
+                                ) : (
+                                  <PackageIcon size={24} weight="light" />
+                                )}
+                              </span>
+                              <span className="product-pick-body">
+                                <strong>{p.name}</strong>
+                                {detail ? <small>{detail}</small> : null}
+                                <span className="product-pick-meta">
+                                  <em>
+                                    {purchase
+                                      ? p.category || "Catalog"
+                                      : af(p.price)}
+                                  </em>
+                                  <em>
+                                    {purchase
+                                      ? "In catalog"
+                                      : out
+                                        ? "Out of stock"
+                                        : `${p.stock} in stock`}
+                                  </em>
+                                </span>
+                              </span>
+                              <PlusIcon size={18} />
+                            </button>
+                          );
+                        })}
+                        {next && (
+                          <button
+                            type="button"
+                            className="button product-load-more"
+                            disabled={loadingMore}
+                            onClick={loadMore}
+                          >
+                            {loadingMore ? "Loading…" : "Load more products"}
+                          </button>
+                        )}
+                      </>
+                    ) : (
+                      <div className="product-browser-empty">
+                        <PackageIcon size={28} weight="light" />
+                        <p>
+                          {q.trim()
+                            ? "No matching products. Try another search."
+                            : purchase
+                              ? "No products yet. Use New product to add one."
+                              : "No products yet. Add products in Inventory first."}
+                        </p>
+                        {purchase && (
+                          <button
+                            type="button"
+                            className="button button-dark"
+                            onClick={() => setAddingProduct(true)}
+                          >
+                            <PlusIcon size={15} />
+                            New product
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </section>
+              <section className="sale-board-right">
+                <div className="sale-bill-panel">
+                  <div className="trade-panel-head">
+                    <div>
+                      <h3>Bill lines</h3>
+                      <p>
+                        {lines.length
+                          ? `${lines.length} product${lines.length === 1 ? "" : "s"}`
+                          : "Add products from the catalog"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="cart-lines">
+                    {lines.map((l, i) => (
+                      <div className="cart-line" key={l.product.id}>
+                        <div className="cart-line-title">
+                          <ProductName product={l.product} />
+                          <button
+                            type="button"
+                            className="icon-button"
+                            aria-label={`Remove ${l.product.name}`}
+                            onClick={() =>
+                              setLines((ls) => ls.filter((_, j) => j !== i))
+                            }
+                          >
+                            <TrashIcon size={17} />
+                          </button>
+                        </div>
+                        <div className="form-grid three">
+                          <Field label="Quantity">
+                            <input
+                              aria-label={`${l.product.name} quantity`}
+                              type="number"
+                              min="1"
+                              max={purchase ? 100000 : l.product.stock}
+                              value={l.quantity}
+                              onChange={(e) =>
+                                update(i, "quantity", Number(e.target.value))
+                              }
+                              required
+                            />
+                          </Field>
+                          {purchase ? (
+                            <>
+                              <Field label="Cost (AED)">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={l.costAed ?? ""}
+                                  onChange={(e) =>
+                                    update(i, "costAed", e.target.value)
+                                  }
+                                  placeholder="0.00"
+                                  required
+                                />
+                              </Field>
+                              <Field label="Cost (AF)">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={l.price}
+                                  readOnly
+                                  tabIndex={-1}
+                                  placeholder={
+                                    fxRate.trim()
+                                      ? "Auto from rate"
+                                      : "Set AED rate"
+                                  }
+                                  required
+                                />
+                              </Field>
+                            </>
+                          ) : (
+                            <>
+                              <Field label="Unit price (AF)">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={l.price}
+                                  onChange={(e) =>
+                                    update(i, "price", e.target.value)
+                                  }
+                                  required
+                                />
+                              </Field>
+                              <Field label="Discount (AF)">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={l.discount}
+                                  onChange={(e) =>
+                                    update(i, "discount", e.target.value)
+                                  }
+                                  required
+                                />
+                              </Field>
+                            </>
+                          )}
+                        </div>
+                        {purchase && (
+                          <div className="form-grid" style={{ marginTop: 4 }}>
+                            <Field label="Line discount (AF)">
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={l.discount}
+                                onChange={(e) =>
+                                  update(i, "discount", e.target.value)
+                                }
+                                required
+                              />
+                            </Field>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  {!lines.length && (
+                    <div className="cart-empty">
+                      <ShoppingIllustration />
+                      <p>
+                        Add products from the left to build this{" "}
+                        {purchase ? "purchase" : "sale"}.
+                      </p>
                     </div>
                   )}
                 </div>
-              </section>
-              <section className="trade-cart">
-                <div className="trade-panel-head">
-                  <div>
-                    <h3>Bill lines</h3>
-                    <p>
-                      {lines.length
-                        ? `${lines.length} product${lines.length === 1 ? "" : "s"} on this invoice`
-                        : "Added products appear here."}
-                    </p>
+                <div className="sale-pay-panel">
+                  <div className="trade-totals">
+                    <div>
+                      <span>Invoice total</span>
+                      <strong>{af(total, 2)}</strong>
+                    </div>
+                    <div>
+                      <span>Balance remaining</span>
+                      <strong>{af(Math.max(0, total - payment), 2)}</strong>
+                    </div>
+                    <Field
+                      label="Amount paid now (AF)"
+                      hint="Blank or 0 = unpaid / on account."
+                    >
+                      <input
+                        name="paid"
+                        type="number"
+                        min="0"
+                        max={total / 100}
+                        step="0.01"
+                        value={paid}
+                        placeholder="0.00"
+                        onChange={(e) => setPaid(e.target.value)}
+                      />
+                    </Field>
+                  </div>
+                  <ErrorMessage error={error} />
+                  <div className="sale-actions">
+                    <label className="sale-print-check">
+                      <input
+                        type="checkbox"
+                        checked={printAfter}
+                        onChange={(e) => setPrintAfter(e.target.checked)}
+                      />
+                      <PrinterIcon size={15} />
+                      Print bill after save
+                    </label>
+                    <button
+                      type="button"
+                      className="button"
+                      onClick={close}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      className="button button-dark"
+                      disabled={
+                        busy ||
+                        !lines.length ||
+                        !saleCustomerReady ||
+                        (!!documentId && !initial)
+                      }
+                    >
+                      {busy
+                        ? "Posting…"
+                        : purchase
+                          ? documentId
+                            ? "Save purchase"
+                            : "Receive purchase"
+                          : documentId
+                            ? "Save invoice"
+                            : "Create sale"}
+                      <ArrowRightIcon size={16} />
+                    </button>
                   </div>
                 </div>
-                <div className="cart-lines">
-                  {lines.map((l, i) => (
-                    <div className="cart-line" key={l.product.id}>
-                      <div className="cart-line-title">
-                        <ProductName product={l.product} />
+              </section>
+            </div>
+          ) : (
+            <>
+              <div className="form-body trade-body">
+                <div className="trade-meta">
+                  {purchase && (
+                    <div className="purchase-rate-bar">
+                      <Field
+                        label="AED rate in Afghanis"
+                        hint="How many AFN for 1 AED today. Every product line uses this rate."
+                      >
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.0001"
+                          value={fxRate}
+                          onChange={(e) => applyFxRate(e.target.value)}
+                          placeholder="e.g. 18.50"
+                          required
+                        />
+                      </Field>
+                      <p className="purchase-rate-note">
+                        {fxRate.trim()
+                          ? `1 AED = ${fxRate} AFN · line AF costs update automatically`
+                          : "Set the rate first, then enter each product’s AED cost."}
+                      </p>
+                    </div>
+                  )}
+                  <div className="form-grid three">
+                    <Field label="Supplier">
+                      <div className="inline-actions party-picker">
+                        <select
+                          value={party}
+                          onChange={(e) => setParty(e.target.value)}
+                          required
+                        >
+                          <option value="">Choose supplier</option>
+                          {parties.map((p) => (
+                            <option value={p.id} key={p.id}>
+                              {p.name}
+                            </option>
+                          ))}
+                        </select>
                         <button
                           type="button"
-                          className="icon-button"
-                          aria-label={`Remove ${l.product.name}`}
-                          onClick={() =>
-                            setLines((ls) => ls.filter((_, j) => j !== i))
-                          }
+                          className="button"
+                          onClick={() => setAddingParty(true)}
                         >
-                          <TrashIcon size={17} />
+                          <PlusIcon size={15} />
+                          Add
                         </button>
                       </div>
-                      <div className="form-grid three">
-                        <Field label="Quantity">
-                          <input
-                            aria-label={`${l.product.name} quantity`}
-                            type="number"
-                            min="1"
-                            max={purchase ? 100000 : l.product.stock}
-                            value={l.quantity}
-                            onChange={(e) =>
-                              update(i, "quantity", Number(e.target.value))
-                            }
-                            required
-                          />
-                        </Field>
-                        {purchase ? (
-                          <>
+                    </Field>
+                    <Field label="Invoice date">
+                      <input
+                        type="date"
+                        name="date"
+                        defaultValue={initial?.date || businessDate()}
+                        max={businessDate()}
+                        required
+                      />
+                    </Field>
+                    <Field label="Payment due (optional)">
+                      <input
+                        type="date"
+                        name="due_date"
+                        defaultValue={initial?.due_date || ""}
+                      />
+                    </Field>
+                  </div>
+                </div>
+                <div className="trade-workspace">
+                  <section className="trade-catalog">
+                    <div className="trade-panel-head">
+                      <div>
+                        <h3>Product catalog</h3>
+                        <p>
+                          Search existing items, or add a new product for this
+                          purchase.
+                        </p>
+                      </div>
+                      <div className="trade-catalog-actions">
+                        <button
+                          type="button"
+                          className="button"
+                          onClick={() => setAddingProduct(true)}
+                        >
+                          <PlusIcon size={15} />
+                          New product
+                        </button>
+                        <span className="subtle">
+                          {products.length}
+                          {next ? "+" : ""} shown
+                        </span>
+                      </div>
+                    </div>
+                    <div className="trade-barcode-scan">
+                      <BarcodeIcon size={18} />
+                      <input
+                        ref={barcodeRef}
+                        aria-label="Scan product barcode"
+                        placeholder="Scan barcode to add…"
+                        value={scanCode}
+                        onChange={(e) => setScanCode(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            scanBarcode();
+                          }
+                        }}
+                        inputMode="numeric"
+                        autoComplete="off"
+                      />
+                      <button
+                        type="button"
+                        className="button"
+                        disabled={scanBusy || !scanCode.trim()}
+                        onClick={scanBarcode}
+                      >
+                        {scanBusy ? "Looking…" : "Add"}
+                      </button>
+                    </div>
+                    <Search
+                      value={q}
+                      onChange={setQ}
+                      placeholder="Search by name, SKU or barcode…"
+                    />
+                    <div
+                      className="product-browser-list"
+                      role="listbox"
+                      aria-label="Available products"
+                    >
+                      {searching ? (
+                        <div className="product-browser-empty">
+                          <span className="muted">Loading products…</span>
+                        </div>
+                      ) : products.length ? (
+                        <>
+                          {products.map((p) => {
+                            const specs = Object.entries(p.attributes || {})
+                              .filter(([, v]) => v)
+                              .slice(0, 3)
+                              .map(([k, v]) => `${k}: ${v}`)
+                              .join(" · ");
+                            const added = lines.some(
+                              (l) => l.product.id === p.id,
+                            );
+                            return (
+                              <button
+                                key={p.id}
+                                type="button"
+                                role="option"
+                                className="product-pick-card"
+                                disabled={added}
+                                onClick={() => add(p)}
+                              >
+                                <span className="product-pick-image">
+                                  {p.image ? (
+                                    <img src={p.image} alt="" />
+                                  ) : (
+                                    <PackageIcon size={28} weight="light" />
+                                  )}
+                                </span>
+                                <span className="product-pick-body">
+                                  <strong>{p.name}</strong>
+                                  <small>
+                                    {[p.brand, p.model, p.sku]
+                                      .filter(Boolean)
+                                      .join(" · ")}
+                                    {p.barcode ? ` · ⌗ ${p.barcode}` : ""}
+                                  </small>
+                                  {specs ? <small>{specs}</small> : null}
+                                  <span className="product-pick-meta">
+                                    <em>{af(p.price)}</em>
+                                    <em>In catalog</em>
+                                  </span>
+                                </span>
+                                <PlusIcon size={18} />
+                              </button>
+                            );
+                          })}
+                          {next && (
+                            <button
+                              type="button"
+                              className="button product-load-more"
+                              disabled={loadingMore}
+                              onClick={loadMore}
+                            >
+                              {loadingMore
+                                ? "Loading…"
+                                : "Load more products"}
+                            </button>
+                          )}
+                        </>
+                      ) : (
+                        <div className="product-browser-empty">
+                          <PackageIcon size={28} weight="light" />
+                          <p>
+                            {q.trim()
+                              ? "No matching products. Try another search."
+                              : "No products yet. Use New product to add the first item for this purchase."}
+                          </p>
+                          <button
+                            type="button"
+                            className="button button-dark"
+                            onClick={() => setAddingProduct(true)}
+                          >
+                            <PlusIcon size={15} />
+                            New product
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </section>
+                  <section className="trade-cart">
+                    <div className="trade-panel-head">
+                      <div>
+                        <h3>Bill lines</h3>
+                        <p>
+                          {lines.length
+                            ? `${lines.length} product${lines.length === 1 ? "" : "s"} on this invoice`
+                            : "Added products appear here."}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="cart-lines">
+                      {lines.map((l, i) => (
+                        <div className="cart-line" key={l.product.id}>
+                          <div className="cart-line-title">
+                            <ProductName product={l.product} />
+                            <button
+                              type="button"
+                              className="icon-button"
+                              aria-label={`Remove ${l.product.name}`}
+                              onClick={() =>
+                                setLines((ls) =>
+                                  ls.filter((_, j) => j !== i),
+                                )
+                              }
+                            >
+                              <TrashIcon size={17} />
+                            </button>
+                          </div>
+                          <div className="form-grid three">
+                            <Field label="Quantity">
+                              <input
+                                aria-label={`${l.product.name} quantity`}
+                                type="number"
+                                min="1"
+                                max={100000}
+                                value={l.quantity}
+                                onChange={(e) =>
+                                  update(
+                                    i,
+                                    "quantity",
+                                    Number(e.target.value),
+                                  )
+                                }
+                                required
+                              />
+                            </Field>
                             <Field label="Cost (AED)">
                               <input
                                 type="number"
@@ -1229,21 +1757,8 @@ export function TradeForm({
                                 required
                               />
                             </Field>
-                          </>
-                        ) : (
-                          <>
-                            <Field label="Unit price (AF)">
-                              <input
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                value={l.price}
-                                onChange={(e) =>
-                                  update(i, "price", e.target.value)
-                                }
-                                required
-                              />
-                            </Field>
+                          </div>
+                          <div className="form-grid" style={{ marginTop: 4 }}>
                             <Field label="Line discount (AF)">
                               <input
                                 type="number"
@@ -1256,102 +1771,81 @@ export function TradeForm({
                                 required
                               />
                             </Field>
-                          </>
-                        )}
-                      </div>
-                      {purchase && (
-                        <div className="form-grid" style={{ marginTop: 4 }}>
-                          <Field label="Line discount (AF)">
-                            <input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              value={l.discount}
-                              onChange={(e) =>
-                                update(i, "discount", e.target.value)
-                              }
-                              required
-                            />
-                          </Field>
+                          </div>
                         </div>
-                      )}
+                      ))}
                     </div>
-                  ))}
+                    {!lines.length && (
+                      <div className="cart-empty">
+                        <ShoppingIllustration />
+                        <p>
+                          Browse the catalog on the left and add products to
+                          start your purchase.
+                        </p>
+                      </div>
+                    )}
+                  </section>
                 </div>
-                {!lines.length && (
-                  <div className="cart-empty">
-                    <ShoppingIllustration />
-                    <p>
-                      Browse the catalog on the left and add products to start
-                      your {purchase ? "purchase" : "sale"}.
-                    </p>
+                <div className="trade-footer">
+                  <div className="trade-totals">
+                    <div>
+                      <span>Invoice total</span>
+                      <strong>{af(total, 2)}</strong>
+                    </div>
+                    <div>
+                      <span>Supplier balance remaining</span>
+                      <strong>{af(Math.max(0, total - payment), 2)}</strong>
+                    </div>
+                    <Field
+                      label="Amount paid now (AF)"
+                      hint="Leave blank for full payment. Enter 0 for credit."
+                    >
+                      <input
+                        name="paid"
+                        type="number"
+                        min="0"
+                        max={total / 100}
+                        step="0.01"
+                        value={paid}
+                        placeholder={(total / 100).toFixed(2)}
+                        onChange={(e) => setPaid(e.target.value)}
+                      />
+                    </Field>
                   </div>
-                )}
-              </section>
-            </div>
-            <div className="trade-footer">
-              <div className="trade-totals">
-                <div>
-                  <span>Invoice total</span>
-                  <strong>{af(total, 2)}</strong>
+                  <Field label="Note (optional)">
+                    <textarea
+                      name="note"
+                      defaultValue={initial?.note || ""}
+                      rows={2}
+                      placeholder="Additional details for this invoice"
+                    />
+                  </Field>
+                  <ErrorMessage error={error} />
                 </div>
-                <div>
-                  <span>
-                    {purchase
-                      ? "Supplier balance remaining"
-                      : "Customer balance remaining"}
-                  </span>
-                  <strong>{af(Math.max(0, total - payment), 2)}</strong>
-                </div>
-                <Field
-                  label="Amount paid now (AF)"
-                  hint="Leave blank for full payment. Enter 0 for credit."
-                >
-                  <input
-                    name="paid"
-                    type="number"
-                    min="0"
-                    max={total / 100}
-                    step="0.01"
-                    value={paid}
-                    placeholder={(total / 100).toFixed(2)}
-                    onChange={(e) => setPaid(e.target.value)}
-                  />
-                </Field>
               </div>
-              <Field label="Note (optional)">
-                <textarea
-                  name="note"
-                  defaultValue={initial?.note || ""}
-                  rows={2}
-                  placeholder="Additional details for this invoice"
-                />
-              </Field>
-              <ErrorMessage error={error} />
-            </div>
-          </div>
-          <div className="modal-actions">
-            <button type="button" className="button" onClick={close}>
-              Cancel
-            </button>
-            <button
-              className="button button-dark"
-              disabled={
-                busy || !lines.length || !party || (!!documentId && !initial)
-              }
-            >
-              {busy
-                ? "Posting…"
-                : purchase
-                  ? documentId
-                    ? "Save purchase changes"
-                    : "Receive purchase"
-                  : documentId
-                    ? "Save invoice changes"
-                    : "Post sale"}
-              <ArrowRightIcon size={16} />
-            </button>
-          </div>
+              <div className="modal-actions">
+                <button type="button" className="button" onClick={close}>
+                  Cancel
+                </button>
+                <button
+                  className="button button-dark"
+                  disabled={
+                    busy ||
+                    !lines.length ||
+                    !party ||
+                    (!!documentId && !initial)
+                  }
+                >
+                  {busy
+                    ? "Posting…"
+                    : documentId
+                      ? "Save purchase changes"
+                      : "Receive purchase"}
+                  <ArrowRightIcon size={16} />
+                </button>
+              </div>
+            </>
+          )}
         </form>
       )}
     </Frame>
@@ -1681,11 +2175,13 @@ export function InvoiceDialog({
   done,
   edit,
   remove,
+  autoPrint = false,
 }: {
   documentId: string;
   user: User;
   edit?: () => void;
   remove?: () => void;
+  autoPrint?: boolean;
 } & DialogProps) {
   const [doc, setDoc] = useState<any>(null),
     [store, setStore] = useState<any>(null),
@@ -1694,7 +2190,9 @@ export function InvoiceDialog({
     [busy, setBusy] = useState(false),
     [quantities, setQuantities] = useState<Record<string, number>>({});
   const key = useRef(requestKey());
+  const printed = useRef(false);
   useEffect(() => {
+    printed.current = false;
     Promise.all([api("document", { id: documentId }), api("status")])
       .then(([d, s]) => {
         setDoc(d);
@@ -1702,6 +2200,12 @@ export function InvoiceDialog({
       })
       .catch((e) => setError(e.message));
   }, [documentId]);
+  useEffect(() => {
+    if (!autoPrint || !doc || printed.current) return;
+    printed.current = true;
+    const t = window.setTimeout(() => window.print(), 250);
+    return () => window.clearTimeout(t);
+  }, [autoPrint, doc]);
   async function postReturn(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setBusy(true);
@@ -1740,9 +2244,18 @@ export function InvoiceDialog({
           <div className="form-body invoice-print" id="invoice-print">
             <div className="invoice-top">
               <div>
+                {store?.logo ? (
+                  <img
+                    className="invoice-logo"
+                    src={store.logo}
+                    alt=""
+                  />
+                ) : null}
                 <h2>{store?.name}</h2>
-                <p>{store?.address}</p>
-                <p>{store?.phone}</p>
+                {store?.address ? <p>{store.address}</p> : null}
+                <p>
+                  {[store?.phone, store?.email].filter(Boolean).join(" · ")}
+                </p>
               </div>
               <div>
                 <Badge tone="gray">
@@ -1835,6 +2348,9 @@ export function InvoiceDialog({
               </div>
             </div>
             {doc.note && <p className="invoice-note">{doc.note}</p>}
+            {store?.bill_footer ? (
+              <p className="invoice-note">{store.bill_footer}</p>
+            ) : null}
             <p className="subtle">
               All amounts in Afghan afghani (AFN). Tax disabled.
             </p>
