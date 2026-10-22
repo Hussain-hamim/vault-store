@@ -4,16 +4,28 @@
   background: #f4f4f3;
   font-synthesis: none;
   font-weight: 450;
-  font-size: 13px;
+  /* Fluid base so 100–150% Windows scaling and 1366–4K stay readable */
+  font-size: clamp(12.5px, 0.2vw + 11.6px, 14px);
   --lime: #ddf66f;
   --dark: #252527;
   --muted: #98989a;
   --line: #efefee;
   --green: #4c9f75;
   --red: #da7f87;
+  --page-pad-x: clamp(10px, 1.4vw, 18px);
+  --page-pad-y: clamp(10px, 1.2vw, 16px);
+  --content-wide: min(1280px, 100%);
+  --content-tight: min(960px, 100%);
 }
 * {
   box-sizing: border-box;
+}
+html,
+body,
+#root {
+  height: 100%;
+  max-width: 100%;
+  overflow: hidden;
 }
 body {
   margin: 0;
@@ -102,13 +114,16 @@ button:active {
 }
 .app-shell {
   display: flex;
+  width: 100%;
   height: 100dvh;
-  min-height: 620px;
+  max-height: 100dvh;
+  min-height: 0;
   overflow: hidden;
 }
 .sidebar {
-  width: 224px;
+  width: clamp(168px, 16vw, 240px);
   flex: none;
+  min-width: 0;
   background: #262628;
   color: #a5a5a7;
   display: flex;
@@ -621,10 +636,10 @@ button:active {
   z-index: 1;
 }
 .dashboard {
-  width: 100%;
-  max-width: 1280px;
+  width: var(--content-wide);
+  max-width: 100%;
   margin: 0 auto;
-  padding: 14px 18px 10px;
+  padding: var(--page-pad-y) var(--page-pad-x) 10px;
   box-sizing: border-box;
 }
 .dashboard-toolbar {
@@ -1362,10 +1377,10 @@ button:active {
   white-space: nowrap;
 }
 .page-content {
-  width: 100%;
-  max-width: 1280px;
+  width: var(--content-wide);
+  max-width: 100%;
   margin: 0 auto;
-  padding: 16px 18px;
+  padding: var(--page-pad-y) var(--page-pad-x);
   box-sizing: border-box;
 }
 .inventory-page.page-content,
@@ -1373,8 +1388,9 @@ button:active {
 .docs-page.page-content,
 .daybook-page.page-content,
 .capital-page.page-content {
-  max-width: 960px;
-  padding: 12px 12px;
+  width: var(--content-tight);
+  max-width: 100%;
+  padding: var(--page-pad-y) var(--page-pad-x);
 }
 .page-intro {
   display: flex;
@@ -1484,17 +1500,19 @@ button:active {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 12px;
   padding: 18px 20px;
   border-bottom: 1px solid #f1f1ef;
+  flex-wrap: wrap;
 }
 .search-input {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-width: 200px;
-  max-width: 340px;
+  min-width: 0;
+  max-width: min(340px, 100%);
   width: 100%;
+  flex: 1;
   border: 1px solid #eaeae7;
   border-radius: 7px;
   padding: 9px 10px;
@@ -3151,7 +3169,7 @@ input[type="number"]::-webkit-inner-spin-button {
 }
 @media (min-width: 1500px) {
   .sidebar {
-    width: 240px;
+    width: clamp(224px, 14vw, 248px);
   }
   .topbar {
     height: 89px;
@@ -4505,10 +4523,10 @@ input[type="number"]::-webkit-inner-spin-button {
 
 /* The sales counter is a workspace, with history beside its bill editor. */
 .sales-workspace {
-  width: 100%;
-  max-width: 1280px;
+  width: var(--content-wide);
+  max-width: 100%;
   margin: 0 auto;
-  padding: 14px 18px;
+  padding: var(--page-pad-y) var(--page-pad-x);
   box-sizing: border-box;
 }
 .sales-tabs {
@@ -6023,4 +6041,373 @@ input[type="number"]::-webkit-inner-spin-button {
 }
 .party-detail-summary {
   max-width: 320px;
+}
+
+/* ------------------------------------------------------------------ */
+/* PC responsive: resolutions + Windows display scale (100–175%)     */
+/* Targets effective CSS widths from ~1024 (1080p@150%) to ultrawide. */
+/* ------------------------------------------------------------------ */
+.img-fluid,
+img {
+  max-width: 100%;
+  height: auto;
+}
+.panel,
+.page-content,
+.sales-workspace,
+.dashboard,
+.inventory-list,
+.people-list,
+.docs-list,
+.bill-editor {
+  min-width: 0;
+}
+.table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.page-intro,
+.page-intro-compact,
+.bill-heading,
+.panel-heading {
+  flex-wrap: wrap;
+}
+.page-intro-actions,
+.inline-actions,
+.toolbar-right,
+.heading-actions {
+  flex-wrap: wrap;
+  max-width: 100%;
+}
+
+@media (min-width: 1600px) {
+  :root {
+    --content-wide: min(1360px, 100%);
+    --content-tight: min(1040px, 100%);
+  }
+  .capital-hero-card strong,
+  .daybook-metric strong {
+    font-size: 20px;
+  }
+}
+
+@media (max-width: 1440px) {
+  .store-decor-laptop,
+  .store-decor-headphones,
+  .store-decor-keyboard,
+  .store-decor-tablet {
+    transform: scale(0.88);
+    opacity: 0.32;
+  }
+  .store-decor-phone,
+  .store-decor-mouse,
+  .store-decor-chip {
+    opacity: 0.3;
+  }
+}
+
+/* Typical laptop / 1080p @ 125–150% scale */
+@media (max-width: 1280px) {
+  :root {
+    --content-tight: min(100%, 100%);
+    --page-pad-x: 12px;
+  }
+  .sidebar {
+    width: clamp(156px, 15vw, 200px);
+  }
+  .store-decor-item {
+    opacity: 0.22;
+  }
+  .store-decor-orb {
+    opacity: 0.45;
+  }
+  .page-intro-compact {
+    padding: 10px 12px;
+  }
+  .page-intro-compact h2 {
+    font-size: 18px;
+  }
+  .capital-hero-metrics,
+  .daybook-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .capital-split {
+    grid-template-columns: 1fr;
+  }
+  .people-layout.has-detail {
+    grid-template-columns: 1fr;
+  }
+  .trade-workspace {
+    grid-template-columns: 1fr;
+    min-height: 0;
+  }
+  .trade-catalog,
+  .trade-cart {
+    min-height: 280px;
+  }
+  .bill-heading h2 {
+    font-size: 22px;
+  }
+  .sales-tabs button {
+    padding: 10px 14px;
+  }
+}
+
+@media (max-width: 1100px) {
+  .store-decor {
+    display: none;
+  }
+  .page-intro,
+  .page-intro-compact {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .page-intro-actions,
+  .page-intro .inline-actions {
+    justify-content: flex-start;
+    max-width: none;
+  }
+  .metrics-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .list-toolbar .search-input {
+    max-width: none;
+    flex: 1 1 220px;
+  }
+  .toolbar-right {
+    flex: 1 1 auto;
+    justify-content: flex-end;
+  }
+  .capital-months-table {
+    max-height: 280px;
+  }
+  .daybook-cash {
+    flex-wrap: wrap;
+  }
+  .daybook-cash > svg {
+    display: none;
+  }
+  .inventory-list-cols,
+  .people-list-cols,
+  .docs-list-cols {
+    display: none;
+  }
+  .inventory-row-main,
+  .inventory-list.with-cost .inventory-row-main {
+    grid-template-columns: minmax(0, 1fr) auto auto 32px;
+    gap: 8px;
+  }
+  .inventory-list.with-cost .inventory-row-cost {
+    display: none;
+  }
+  .people-row {
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 0.8fr) auto 32px;
+  }
+  .people-row > :nth-child(2) {
+    display: none;
+  }
+  .docs-row,
+  .docs-expense .docs-row {
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto auto;
+    gap: 8px;
+  }
+  .docs-list-cols span:nth-child(2),
+  .docs-list-cols span:nth-child(5),
+  .docs-row > :nth-child(2),
+  .docs-row > :nth-child(5) {
+    display: none;
+  }
+  .capital-history-row {
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "date type"
+      "note amount"
+      "ref ref";
+  }
+  .capital-history-date {
+    grid-area: date;
+  }
+  .capital-history-type {
+    grid-area: type;
+  }
+  .capital-history-note {
+    grid-area: note;
+  }
+  .capital-history-row strong {
+    grid-area: amount;
+    justify-self: end;
+  }
+  .capital-history-ref {
+    grid-area: ref;
+  }
+}
+
+/* Compact height: 768p / 1080p@150% / short Electron windows */
+@media (max-height: 820px) {
+  .sidebar-brand {
+    height: 64px;
+  }
+  .topbar {
+    height: 64px;
+  }
+  .backup-promo {
+    display: none;
+  }
+  .page-intro-compact {
+    margin-bottom: 8px;
+    padding: 8px 10px;
+  }
+  .page-intro-compact p {
+    display: none;
+  }
+  .capital-hero-metrics,
+  .daybook-metrics,
+  .people-metrics {
+    margin-bottom: 8px;
+  }
+  .capital-hero-card,
+  .daybook-metric {
+    padding: 8px 10px;
+  }
+  .capital-hero-card strong,
+  .daybook-metric strong {
+    font-size: 16px;
+  }
+  .trade-workspace,
+  .trade-catalog,
+  .trade-cart {
+    min-height: 0;
+  }
+  .product-browser-list,
+  .bill-editor .cart-lines {
+    max-height: min(260px, 38vh);
+  }
+  .modal {
+    max-height: calc(100dvh - 16px);
+  }
+}
+
+@media (max-height: 700px) {
+  .offline-status {
+    display: none;
+  }
+  .nav-item {
+    height: 36px;
+  }
+  .page-intro-compact h2 {
+    font-size: 16px;
+  }
+  .stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .sidebar {
+    width: 148px;
+  }
+  .metrics-row,
+  .metrics-row.four,
+  .capital-hero-metrics,
+  .daybook-metrics {
+    grid-template-columns: 1fr 1fr;
+  }
+  .inventory-row-main,
+  .inventory-list.with-cost .inventory-row-main {
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "product go"
+      "stock price";
+  }
+  .inventory-row-product {
+    grid-area: product;
+  }
+  .inventory-row-go {
+    grid-area: go;
+  }
+  .inventory-row-main > .inventory-row-meta:not(.inventory-row-cost):not(
+      .inventory-row-price
+    ) {
+    grid-area: stock;
+  }
+  .inventory-row-price {
+    grid-area: price;
+    justify-self: end;
+  }
+  .people-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "identity go"
+      "status balance";
+  }
+  .people-row-identity {
+    grid-area: identity;
+  }
+  .people-row-go {
+    grid-area: go;
+  }
+  .people-row > :nth-child(3) {
+    grid-area: status;
+  }
+  .people-row-balance {
+    grid-area: balance;
+    justify-self: end;
+  }
+  .docs-row,
+  .docs-expense .docs-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .daybook-tx-row {
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "ref badge"
+      "total cash";
+  }
+  .daybook-tx-ref {
+    grid-area: ref;
+  }
+  .daybook-tx-row .badge {
+    grid-area: badge;
+  }
+  .daybook-tx-total {
+    grid-area: total;
+  }
+  .daybook-tx-cash {
+    grid-area: cash;
+  }
+  .bill-editor .form-body.trade-body {
+    padding: 14px;
+  }
+  .bill-heading {
+    padding: 16px;
+  }
+  .modal {
+    width: min(560px, calc(100vw - 16px));
+  }
+}
+
+@media (max-width: 700px) {
+  .metrics-row,
+  .metrics-row.four,
+  .capital-hero-metrics,
+  .daybook-metrics,
+  .stat-grid {
+    grid-template-columns: 1fr;
+  }
+  .sales-tabs {
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+  .page-intro-compact p {
+    display: none;
+  }
+}
+
+/* Prefer less motion on reduced-motion systems (already present elsewhere) */
+@media (prefers-reduced-motion: reduce) {
+  .store-decor-item,
+  .store-decor-orb {
+    animation: none !important;
+  }
 }
