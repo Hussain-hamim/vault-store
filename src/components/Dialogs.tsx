@@ -21,6 +21,7 @@ import {
   fxRateLabel,
   fxRateInput,
   moneyInput,
+  sanitizeNumericInput,
   requestKey,
   businessDate,
   Product,
@@ -38,6 +39,7 @@ import {
   Badge,
   Empty,
   ErrorMessage,
+  NumericInput,
 } from "./ui";
 type DialogProps = {
   close: () => void;
@@ -264,7 +266,9 @@ export function ProductForm({
         category,
         price: toMoney(f.get("price")),
         minimum: product?.minimum ?? 0,
-        reorder_level: Number(f.get("reorder_level")),
+        reorder_level: Number(
+          sanitizeNumericInput(String(f.get("reorder_level") || "0"), "integer"),
+        ),
         location: product?.location || "",
         condition: f.get("condition"),
         warranty: f.get("warranty"),
@@ -276,7 +280,12 @@ export function ProductForm({
           ? {
               opening_quantity: forPurchase
                 ? 0
-                : Number(f.get("opening_quantity") || 0),
+                : Number(
+                    sanitizeNumericInput(
+                      String(f.get("opening_quantity") || "0"),
+                      "integer",
+                    ),
+                  ),
             }
           : {}),
         image: productImage(category, resolvedAccessory),
@@ -467,8 +476,7 @@ export function ProductForm({
                   label={t("product.unitCostAed")}
                   hint={t("productForm.unitCostAedHint")}
                 >
-                  <input
-                    type="number"
+                  <NumericInput
                     min="0"
                     step="0.01"
                     value={costAed}
@@ -481,8 +489,7 @@ export function ProductForm({
                   label={t("productForm.fxRateAtPurchase")}
                   hint={t("productForm.fxRateDayHint")}
                 >
-                  <input
-                    type="number"
+                  <NumericInput
                     min="0"
                     step="0.0001"
                     value={fxRate}
@@ -505,10 +512,9 @@ export function ProductForm({
               </>
             )}
             <Field label={t("product.sellingPrice")}>
-              <input
+              <NumericInput
                 name="price"
                 defaultValue={product ? product.price / 100 : undefined}
-                type="number"
                 min="0"
                 step="0.01"
                 placeholder="0.00"
@@ -520,9 +526,9 @@ export function ProductForm({
                 label={t("productForm.openingQty")}
                 hint={t("productForm.openingQtyHint")}
               >
-                <input
+                <NumericInput
+                  kind="integer"
                   name="opening_quantity"
-                  type="number"
                   min="0"
                   max="100000"
                   defaultValue="0"
@@ -543,9 +549,9 @@ export function ProductForm({
               </Field>
             )}
             <Field label={t("product.reorder")}>
-              <input
+              <NumericInput
+                kind="integer"
                 name="reorder_level"
-                type="number"
                 min="0"
                 defaultValue={product?.reorder_level ?? 5}
                 required
@@ -1050,8 +1056,7 @@ export function TradeForm({
                       </label>
                       <label className="sale-customer-name purchase-rate-field">
                         <span>{t("sales.aedRate")}</span>
-                        <input
-                          type="number"
+                        <NumericInput
                           min="0"
                           step="0.0001"
                           value={fxRate}
@@ -1348,16 +1353,20 @@ export function TradeForm({
                         </div>
                         <div className="form-grid three">
                           <Field label={t("common.quantity")}>
-                            <input
+                            <NumericInput
+                              kind="integer"
                               aria-label={t("sales.productQty", {
                                 name: l.product.name,
                               })}
-                              type="number"
                               min="1"
                               max={purchase ? 100000 : l.product.stock}
                               value={l.quantity}
                               onChange={(e) =>
-                                update(i, "quantity", Number(e.target.value))
+                                update(
+                                  i,
+                                  "quantity",
+                                  Number(e.target.value) || 0,
+                                )
                               }
                               required
                             />
@@ -1365,8 +1374,7 @@ export function TradeForm({
                           {purchase ? (
                             <>
                               <Field label={t("sales.costAed")}>
-                                <input
-                                  type="number"
+                                <NumericInput
                                   min="0"
                                   step="0.01"
                                   value={l.costAed ?? ""}
@@ -1378,8 +1386,7 @@ export function TradeForm({
                                 />
                               </Field>
                               <Field label={t("sales.costAf")}>
-                                <input
-                                  type="number"
+                                <NumericInput
                                   min="0"
                                   step="0.01"
                                   value={l.price}
@@ -1397,8 +1404,7 @@ export function TradeForm({
                           ) : (
                             <>
                               <Field label={t("sales.unitPrice")}>
-                                <input
-                                  type="number"
+                                <NumericInput
                                   min="0"
                                   step="0.01"
                                   value={l.price}
@@ -1409,8 +1415,7 @@ export function TradeForm({
                                 />
                               </Field>
                               <Field label={t("sales.lineDiscount")}>
-                                <input
-                                  type="number"
+                                <NumericInput
                                   min="0"
                                   step="0.01"
                                   value={l.discount}
@@ -1426,8 +1431,7 @@ export function TradeForm({
                         {purchase && (
                           <div className="form-grid" style={{ marginTop: 4 }}>
                             <Field label={t("sales.lineDiscountAf")}>
-                              <input
-                                type="number"
+                              <NumericInput
                                 min="0"
                                 step="0.01"
                                 value={l.discount}
@@ -1467,9 +1471,8 @@ export function TradeForm({
                       label={t("sales.amountPaid")}
                       hint={t("sales.amountPaidHint")}
                     >
-                      <input
+                      <NumericInput
                         name="paid"
-                        type="number"
                         min="0"
                         max={total / 100}
                         step="0.01"
@@ -1531,8 +1534,7 @@ export function TradeForm({
                         label={t("sales.aedRateBar")}
                         hint={t("sales.aedRateBarHint")}
                       >
-                        <input
-                          type="number"
+                        <NumericInput
                           min="0"
                           step="0.0001"
                           value={fxRate}
@@ -1765,11 +1767,11 @@ export function TradeForm({
                           </div>
                           <div className="form-grid three">
                             <Field label={t("common.quantity")}>
-                              <input
+                              <NumericInput
+                                kind="integer"
                                 aria-label={t("sales.productQty", {
                                   name: l.product.name,
                                 })}
-                                type="number"
                                 min="1"
                                 max={100000}
                                 value={l.quantity}
@@ -1777,15 +1779,14 @@ export function TradeForm({
                                   update(
                                     i,
                                     "quantity",
-                                    Number(e.target.value),
+                                    Number(e.target.value) || 0,
                                   )
                                 }
                                 required
                               />
                             </Field>
                             <Field label={t("sales.costAed")}>
-                              <input
-                                type="number"
+                              <NumericInput
                                 min="0"
                                 step="0.01"
                                 value={l.costAed ?? ""}
@@ -1797,8 +1798,7 @@ export function TradeForm({
                               />
                             </Field>
                             <Field label={t("sales.costAf")}>
-                              <input
-                                type="number"
+                              <NumericInput
                                 min="0"
                                 step="0.01"
                                 value={l.price}
@@ -1815,8 +1815,7 @@ export function TradeForm({
                           </div>
                           <div className="form-grid" style={{ marginTop: 4 }}>
                             <Field label={t("sales.lineDiscountAf")}>
-                              <input
-                                type="number"
+                              <NumericInput
                                 min="0"
                                 step="0.01"
                                 value={l.discount}
@@ -1852,9 +1851,8 @@ export function TradeForm({
                       label={t("sales.amountPaid")}
                       hint={t("sales.paidHintPurchase")}
                     >
-                      <input
+                      <NumericInput
                         name="paid"
-                        type="number"
                         min="0"
                         max={total / 100}
                         step="0.01"
@@ -2026,9 +2024,8 @@ export function PartyForm({
                   : t("partyForm.openingHintSupplier")
               }
             >
-              <input
+              <NumericInput
                 name="opening_balance"
-                type="number"
                 min="0"
                 step="0.01"
                 defaultValue="0"
@@ -2098,9 +2095,8 @@ export function ExpenseForm({ close, done }: DialogProps) {
         <div className="form-body">
           <div className="form-grid">
             <Field label={t("expense.amount")}>
-              <input
+              <NumericInput
                 name="amount"
-                type="number"
                 min="0.01"
                 step="0.01"
                 required
@@ -2206,9 +2202,8 @@ export function PaymentForm({
       <form onSubmit={submit}>
         <div className="form-body">
           <Field label={t("payment.amount")}>
-            <input
+            <NumericInput
               name="amount"
-              type="number"
               min="0.01"
               max={party.balance / 100}
               step="0.01"
@@ -2470,15 +2465,15 @@ export function InvoiceDialog({
                       n: l.quantity - l.returned_quantity,
                     })}
                   >
-                    <input
-                      type="number"
+                    <NumericInput
+                      kind="integer"
                       min="0"
                       max={l.quantity - l.returned_quantity}
                       value={quantities[l.id] || 0}
                       onChange={(e) =>
                         setQuantities({
                           ...quantities,
-                          [l.id]: Number(e.target.value),
+                          [l.id]: Number(e.target.value) || 0,
                         })
                       }
                     />
@@ -2685,7 +2680,12 @@ export function ProductDetail({
     try {
       await api("adjust", {
         product_id: product.id,
-        quantity: Number(f.get("quantity")),
+        quantity: Number(
+          sanitizeNumericInput(
+            String(f.get("quantity") || "0"),
+            "signed-integer",
+          ),
+        ),
         cost: toMoney(f.get("cost") || "0"),
         note: f.get("note"),
         request_key: key.current,
@@ -2788,17 +2788,16 @@ export function ProductDetail({
                 label={t("productDetail.qtyChange")}
                 hint={t("productDetail.adjustHint")}
               >
-                <input
+                <NumericInput
+                  kind="signed-integer"
                   name="quantity"
-                  type="number"
                   required
                   defaultValue="1"
                 />
               </Field>
               <Field label={t("productDetail.unitCostAdd")}>
-                <input
+                <NumericInput
                   name="cost"
-                  type="number"
                   min="0"
                   step="0.01"
                   defaultValue="0"
@@ -3221,9 +3220,8 @@ export function OwnerMovement({ close, done }: DialogProps) {
             </select>
           </Field>
           <Field label={t("owner.amount")}>
-            <input
+            <NumericInput
               name="amount"
-              type="number"
               min="0.01"
               step="0.01"
               required
@@ -3302,9 +3300,8 @@ export function OpeningBalanceForm({
                 : t("opening.amountSupplier")
             }
           >
-            <input
+            <NumericInput
               name="amount"
-              type="number"
               min="0.01"
               step="0.01"
               required

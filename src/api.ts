@@ -173,8 +173,46 @@ export const shortMoney = (amount = 0) => {
       ? `${(n / 1000).toFixed(1)}K`
       : n.toFixed(0);
 };
+/**
+ * Map Eastern Arabic-Indic (٠-٩) and Persian/Pashto (۰-۹) digits to ASCII 0-9.
+ * Also normalizes Arabic decimal/thousands separators so amount fields work
+ * when the OS keyboard layout is Pashto or Dari.
+ */
+export function normalizeDigits(value: string): string {
+  return String(value ?? "")
+    .replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+    .replace(/[\u06F0-\u06F9]/g, (d) => String(d.charCodeAt(0) - 0x06F0))
+    .replace(/\u066B/g, ".")
+    .replace(/\u066C/g, "")
+    .replace(/[\u200E\u200F\u202A-\u202E]/g, "");
+}
+
+/** Keep a typed amount/qty string as ASCII digits (and optional sign/dot). */
+export function sanitizeNumericInput(
+  value: string,
+  kind: "decimal" | "integer" | "signed-decimal" | "signed-integer" = "decimal",
+): string {
+  let s = normalizeDigits(value).replace(/,/g, "");
+  const signed = kind.startsWith("signed");
+  const integer = kind.endsWith("integer");
+  let sign = "";
+  if (signed && s.startsWith("-")) {
+    sign = "-";
+    s = s.slice(1);
+  } else if (signed && s.startsWith("+")) {
+    s = s.slice(1);
+  }
+  if (integer) return sign + s.replace(/[^\d]/g, "");
+  s = s.replace(/[^\d.]/g, "");
+  const dot = s.indexOf(".");
+  if (dot !== -1) {
+    s = s.slice(0, dot + 1) + s.slice(dot + 1).replace(/\./g, "");
+  }
+  return sign + s;
+}
+
 export function toMoney(value: FormDataEntryValue | null | string) {
-  const s = String(value ?? "0").trim();
+  const s = normalizeDigits(String(value ?? "0")).trim().replace(/,/g, "");
   if (!/^\d+(\.\d{1,2})?$/.test(s))
     throw new Error("Enter a positive amount with up to two decimal places.");
   const [whole, fraction = ""] = s.split(".");
@@ -184,7 +222,7 @@ export function toMoney(value: FormDataEntryValue | null | string) {
 }
 /** Parse AFN-per-AED rate into a scaled integer (×10_000). */
 export function toFxRate(value: FormDataEntryValue | null | string) {
-  const s = String(value ?? "").trim();
+  const s = normalizeDigits(String(value ?? "")).trim().replace(/,/g, "");
   if (!s) return 0;
   if (!/^\d+(\.\d{1,4})?$/.test(s))
     throw new Error("Enter the exchange rate with up to four decimal places.");

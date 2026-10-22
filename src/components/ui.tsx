@@ -6,8 +6,89 @@ import {
   ArrowUpRightIcon,
   PackageIcon,
 } from "@phosphor-icons/react";
-import { af } from "../api";
+import { af, sanitizeNumericInput } from "../api";
 import { useT } from "../i18n";
+
+type NumericKind = "decimal" | "integer" | "signed-decimal" | "signed-integer";
+
+/** Amount/qty field that always stores Western digits, even with a Pashto/Dari keyboard. */
+export function NumericInput({
+  kind = "decimal",
+  className,
+  onChange,
+  onPaste,
+  inputMode,
+  lang = "en",
+  dir = "ltr",
+  ...props
+}: Omit<React.ComponentProps<"input">, "type"> & {
+  kind?: NumericKind;
+}) {
+  const mode =
+    inputMode ??
+    (kind === "integer" || kind === "signed-integer" ? "numeric" : "decimal");
+
+  function applyValue(
+    el: HTMLInputElement,
+    raw: string,
+    event: React.SyntheticEvent<HTMLInputElement>,
+  ) {
+    const next = sanitizeNumericInput(raw, kind);
+    if (el.value !== next) el.value = next;
+    onChange?.(event as React.ChangeEvent<HTMLInputElement>);
+  }
+
+  const { value, defaultValue, ...rest } = props;
+  const normalizedValue =
+    value === undefined || value === null
+      ? value
+      : sanitizeNumericInput(String(value), kind);
+  const normalizedDefault =
+    defaultValue === undefined || defaultValue === null
+      ? defaultValue
+      : sanitizeNumericInput(String(defaultValue), kind);
+
+  return (
+    <input
+      {...rest}
+      type="text"
+      inputMode={mode}
+      lang={lang}
+      dir={dir}
+      autoComplete="off"
+      spellCheck={false}
+      data-numeric={kind}
+      className={["numeric-input", className].filter(Boolean).join(" ")}
+      value={normalizedValue}
+      defaultValue={normalizedDefault}
+      onChange={(e) => applyValue(e.currentTarget, e.currentTarget.value, e)}
+      onPaste={(e) => {
+        onPaste?.(e);
+        if (e.defaultPrevented) return;
+        const text = e.clipboardData.getData("text");
+        if (!text) return;
+        e.preventDefault();
+        const el = e.currentTarget;
+        const start = el.selectionStart ?? el.value.length;
+        const end = el.selectionEnd ?? el.value.length;
+        const merged =
+          el.value.slice(0, start) +
+          sanitizeNumericInput(text, kind) +
+          el.value.slice(end);
+        applyValue(el, merged, e);
+        const caret = Math.min(
+          start + sanitizeNumericInput(text, kind).length,
+          el.value.length,
+        );
+        try {
+          el.setSelectionRange(caret, caret);
+        } catch {
+          /* ignore */
+        }
+      }}
+    />
+  );
+}
 export function Modal({
   title,
   subtitle,

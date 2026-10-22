@@ -41,6 +41,7 @@ import {
   Metric,
   Field,
   ExportButton,
+  NumericInput,
 } from "./ui";
 export type PageProps = {
   refresh: number;
@@ -1525,8 +1526,7 @@ export function DayBookPage({ refresh, open, toast, user }: PageProps) {
               <strong className="amt-cash">{af(data.closing)}</strong>
             </div>
             <Field label={t("daybook.countedCash")}>
-              <input
-                type="number"
+              <NumericInput
                 min="0"
                 step="0.01"
                 placeholder={t("daybook.countedPh")}

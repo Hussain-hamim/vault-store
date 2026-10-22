@@ -2536,6 +2536,14 @@ input[type="number"]::-webkit-inner-spin-button {
   -webkit-appearance: none;
   margin: 0;
 }
+/* Western digits + LTR even when UI / OS keyboard is Pashto or Dari */
+.numeric-input,
+input[data-numeric] {
+  direction: ltr;
+  unicode-bidi: isolate;
+  font-variant-numeric: tabular-nums;
+  text-align: start;
+}
 .field input::placeholder,
 .field textarea::placeholder {
   color: #b2b2b6;
