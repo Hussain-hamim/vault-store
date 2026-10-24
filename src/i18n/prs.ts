@@ -2,6 +2,17 @@ import type { MessageTree } from "./types";
 
 /** Dari UI — Afghan shop/accounting terms used in everyday trade. */
 export const prs: MessageTree = {
+  appearance: {
+    title: "ظاهر",
+    hint: "یک ظاهر انتخاب کنید. انتخاب شما برای کاربرتان در این کمپیوتر ذخیره می‌شود.",
+    navy: "سرمه‌ای و مرجانی",
+    light: "روشن",
+    dark: "تیره",
+    ocean: "فیروزه‌ای",
+    sand: "شنی گرم",
+    selected: "انتخاب شده",
+    saveFailed: "ظاهر تطبیق شد، اما در این کمپیوتر ذخیره نشد.",
+  },
   photos: {
     title: "عکس جنس",
     exact: "عکس مدل: {model}",

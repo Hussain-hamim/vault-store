@@ -95,6 +95,14 @@ app
       );
     await win.loadURL("http://127.0.0.1:4173/");
     await wait('!!document.querySelector(".auth-form")');
+    assert.match(
+      await js('document.querySelector(".auth-company-credit").textContent'),
+      /Built by Radefy Systems/,
+    );
+    assert.equal(
+      await js('document.querySelectorAll(".auth-company-credit a").length'),
+      3,
+    );
     await js(
       'localStorage.setItem("vault-session",' +
         JSON.stringify(auth.token) +
@@ -300,11 +308,23 @@ app
       await js('document.querySelector(".company-page").textContent'),
       /Built by Radefy Systems/,
     );
-    await key("F1");
-    await wait('!!document.querySelector(".contact-pending")');
+    assert.equal(
+      await js(
+        'document.querySelectorAll(".company-hero .company-logo").length',
+      ),
+      1,
+    );
     assert.equal(
       await js('document.querySelectorAll(".company-contact-list a").length'),
-      0,
+      3,
+    );
+    await key("F1");
+    await wait(
+      'document.querySelectorAll(".company-contact-list a").length === 3',
+    );
+    assert.equal(
+      await js('document.querySelectorAll(".company-contact-list a").length'),
+      3,
     );
     await key("k", { ctrlKey: true });
     await wait('document.activeElement?.getAttribute("role")==="combobox"');
@@ -611,7 +631,7 @@ app
       );
       assert.ok(
         await js(
-          `document.querySelector('#purchase-bill-panel .cart-line').getBoundingClientRect().height < 120`,
+          `document.querySelector('#purchase-bill-panel .cart-line').getBoundingClientRect().height < ${width <= 1100 ? 160 : 120}`,
         ),
       );
       assert.ok(

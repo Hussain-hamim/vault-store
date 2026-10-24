@@ -7,6 +7,8 @@ import "@fontsource-variable/plus-jakarta-sans";
 import "@fontsource-variable/vazirmatn";
 import "./styles.css";
 import "./theme.css";
+import "./appearance.css";
+import "./responsive.css";
 
 const EASTERN_DIGIT = /[\u0660-\u0669\u06F0-\u06F9\u066B\u066C]/;
 

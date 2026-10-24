@@ -12,7 +12,7 @@ import {
 } from "@phosphor-icons/react";
 import brand from "../../shared/brand.json";
 import { supportLinks } from "../../server/support.mjs";
-import { BrandMark } from "./Brand";
+import { CompanyLogo } from "./CompanyCredit";
 import { useI18n } from "../i18n";
 import { availableActions, shortcutLabel } from "../shortcuts.mjs";
 import { Modal } from "./ui";
@@ -159,12 +159,10 @@ export function CompanyPage({
   help: () => void;
 }) {
   const { t } = useI18n();
-  const [error, setError] = useState("");
-  const links = supportLinks(brand.support);
   return (
     <section className="company-page page-content">
       <header className="company-hero">
-        <BrandMark />
+        <CompanyLogo />
         <div>
           <span className="company-eyebrow">{brand.company}</span>
           <h1>{kind === "about" ? brand.name : t("company.supportTitle")}</h1>
@@ -184,6 +182,7 @@ export function CompanyPage({
               <h2>{t("company.builtBy")}</h2>
             </div>
             <p>{t("company.aboutBody")}</p>
+            <CompanyContacts />
             <div className="company-capabilities">
               {[
                 {
@@ -275,40 +274,7 @@ export function CompanyPage({
                 <h2>{t("company.contactTitle")}</h2>
               </div>
               <p>{t("company.contactBody")}</p>
-              {links.length ? (
-                <div className="company-contact-list">
-                  {links.map((link) => (
-                    <a
-                      key={link.id}
-                      href={link.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={async (e) => {
-                        if (window.vault?.openExternal) {
-                          e.preventDefault();
-                          try {
-                            await window.vault.openExternal(link.url);
-                          } catch {
-                            setError(t("company.contactError"));
-                          }
-                        }
-                      }}
-                    >
-                      <span>
-                        <small>{t("company." + link.id)}</small>
-                        <strong dir="ltr">{link.value}</strong>
-                      </span>
-                      <ArrowUpRightIcon size={20} />
-                    </a>
-                  ))}
-                </div>
-              ) : (
-                <div className="contact-pending">
-                  <InfoIcon size={22} />
-                  <p>{t("company.contactPending")}</p>
-                </div>
-              )}
-              {error && <p role="alert">{error}</p>}
+              <CompanyContacts />
             </div>
             <div className="company-panel">
               <div className="company-section-title">
@@ -339,5 +305,49 @@ export function CompanyPage({
         {brand.name} · {t("company.madeBy")} <strong>{brand.company}</strong>
       </footer>
     </section>
+  );
+}
+
+function CompanyContacts() {
+  const { t } = useI18n();
+  const [error, setError] = useState("");
+  const links = supportLinks(brand.support);
+  return (
+    <>
+      {links.length ? (
+        <div className="company-contact-list">
+          {links.map((link) => (
+            <a
+              key={link.id}
+              href={link.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={async (e) => {
+                if (window.vault?.openExternal) {
+                  e.preventDefault();
+                  try {
+                    await window.vault.openExternal(link.url);
+                  } catch {
+                    setError(t("company.contactError"));
+                  }
+                }
+              }}
+            >
+              <span>
+                <small>{t("company." + link.id)}</small>
+                <strong dir="ltr">{link.value}</strong>
+              </span>
+              <ArrowUpRightIcon size={20} />
+            </a>
+          ))}
+        </div>
+      ) : (
+        <div className="contact-pending">
+          <InfoIcon size={22} />
+          <p>{t("company.contactPending")}</p>
+        </div>
+      )}
+      {error && <p role="alert">{error}</p>}
+    </>
   );
 }

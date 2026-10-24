@@ -1,3 +1,4 @@
+import { AppearanceSettings } from "../appearance";
 import { ProductPhoto } from "./ProductPhoto";
 import { CurrencyPicker, CurrencyFlag } from "./CurrencyPicker";
 import { useEffect, useState } from "react";
@@ -2247,6 +2248,7 @@ export function SettingsPage({
     }
   }
   const settingsTabs = [
+    { id: "appearance", label: t("appearance.title") },
     ...(canManage ? [{ id: "store", label: t("settings.tabStore") }] : []),
     ...(user.permissions.includes("users")
       ? [
@@ -2293,6 +2295,9 @@ export function SettingsPage({
           ))}
         </nav>
         <div className="settings-detail">
+          {tab === "appearance" && (
+            <AppearanceSettings key={user.id} userId={user.id} />
+          )}
           {tab === "capital" && user.permissions.includes("finance") && (
             <CapitalPage
               user={user}

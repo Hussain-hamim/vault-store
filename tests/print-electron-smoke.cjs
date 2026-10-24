@@ -57,6 +57,10 @@ app
     for (const options of tests) {
       let doc = {
         kind: options.report ? "report" : "invoice",
+        companyCredit: {
+          label: "Built by Radefy Systems",
+          whatsapp: "+93 77 170 7272",
+        },
         locale: "prs",
         title: "بل / Invoice",
         reference: "PRINT-TEST-001",
@@ -173,6 +177,17 @@ app
           );
           const text = bytes.toString("latin1");
           assert.equal(bytes.subarray(0, 5).toString(), "%PDF-");
+          if (!options.report) {
+            assert.match(text, /\/Subtype\s*\/Link/);
+            assert.ok(
+              text.includes("https://www.radefysystems.com/"),
+              "PDF includes clickable company website",
+            );
+            assert.ok(
+              text.includes("https://wa.me/93771707272"),
+              "PDF includes clickable WhatsApp chat",
+            );
+          }
           const box = text.match(
             /\/MediaBox\s*\[\s*0\s+0\s+([\d.]+)\s+([\d.]+)\s*\]/,
           );

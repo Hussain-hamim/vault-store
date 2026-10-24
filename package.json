@@ -12,7 +12,7 @@
     "desktop": "electron .",
     "desktop:dev": "node scripts/desktop-dev.mjs",
     "build": "tsc --noEmit && vite build && node scripts/prepare-sites-build.mjs",
-    "test": "node --test tests/store.test.mjs tests/preload.test.mjs tests/printing.test.mjs tests/reports.test.mjs tests/brand.test.mjs tests/product-photos.test.mjs",
+    "test": "node --test tests/store.test.mjs tests/preload.test.mjs tests/printing.test.mjs tests/reports.test.mjs tests/brand.test.mjs tests/product-photos.test.mjs tests/appearance.test.mjs",
     "test:sites": "node --test tests/sites-worker.test.mjs",
     "package:mac": "npm run build && electron-builder --mac --dir",
     "package:win": "npm run build && electron-builder --win nsis",
@@ -23,7 +23,8 @@
     "test:print:desktop": "electron tests/print-electron-smoke.cjs",
     "build:icons": "node scripts/build-brand-icons.mjs",
     "test:brand:desktop": "electron tests/brand-ui-smoke.cjs",
-    "test:photos:desktop": "electron tests/product-photos-ui-smoke.cjs"
+    "test:photos:desktop": "electron tests/product-photos-ui-smoke.cjs",
+    "test:responsive:desktop": "electron tests/responsive-electron-smoke.cjs"
   },
   "dependencies": {
     "@fontsource-variable/plus-jakarta-sans": "^5.2.8",

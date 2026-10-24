@@ -2,6 +2,17 @@ import type { MessageTree } from "./types";
 
 /** Pashto UI — Afghan electronics-store business terms (not literal English calques). */
 export const ps: MessageTree = {
+  appearance: {
+    title: "بڼه",
+    hint: "یوه بڼه وټاکئ. ستاسو ټاکنه په دې کمپیوټر کې ستاسو د کارن لپاره ساتل کېږي.",
+    navy: "سمندري آبي او مرجاني",
+    light: "روښانه",
+    dark: "تیاره",
+    ocean: "فیروزه‌يي",
+    sand: "تود شګلنی",
+    selected: "ټاکل شوې",
+    saveFailed: "بڼه بدله شوه، خو په دې کمپیوټر کې ونه ساتل شوه.",
+  },
   photos: {
     title: "د توکي انځور",
     exact: "د ماډل انځور: {model}",

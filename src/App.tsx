@@ -1,3 +1,5 @@
+import { CompanyCredit } from "./components/CompanyCredit";
+import { useUserTheme } from "./appearance";
 import {
   useNotificationSummary,
   NotificationButton,
@@ -223,6 +225,7 @@ export function App() {
     [globalOpen, setGlobalOpen] = useState(false),
     [palette, setPalette] = useState(false),
     [saleSeed, setSaleSeed] = useState<Product | undefined>();
+  useUserTheme(user?.id);
   const notifications = useNotificationSummary(user, refresh);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -1242,6 +1245,7 @@ function Auth({
             {t("auth.dataStays")}
           </p>
         </form>
+        <CompanyCredit />
       </div>
     </div>
   );

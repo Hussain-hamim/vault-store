@@ -25,6 +25,7 @@ export type PrintSection = {
 };
 export type PrintDocument = {
   kind: "invoice" | "report";
+  companyCredit?: { label: string; whatsapp: string };
   title: string;
   reference?: string;
   subtitle?: string;

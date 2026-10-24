@@ -1,0 +1,407 @@
+/* Size workspaces by their usable width, including sidebar and browser zoom. */
+.main-workspace {
+  container: workspace / inline-size;
+  min-width: 0;
+}
+.sidebar-scroll {
+  min-height: 0;
+}
+.sidebar-brand,
+.sidebar > .user-menu,
+.sidebar > .offline-status {
+  flex-shrink: 0;
+}
+.field,
+.form-grid > *,
+.settings-shell > *,
+.panel > * {
+  min-width: 0;
+}
+input,
+select,
+textarea {
+  max-width: 100%;
+}
+.sales-tabs {
+  overflow-x: auto;
+  min-width: 0;
+}
+.sales-tabs button {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.sales-workspace.is-bill {
+  height: 100%;
+  overflow: hidden;
+}
+.sales-workspace.is-bill .sale-fit-form {
+  overflow-y: auto;
+}
+.sale-board {
+  grid-template-columns: minmax(0, 1fr);
+  overflow: visible;
+  flex: 1 0 auto;
+}
+.sale-board-left,
+.sale-board-right {
+  min-height: 0;
+  overflow: visible;
+}
+.sale-customer-row {
+  grid-template-columns: minmax(0, 1fr) minmax(120px, 0.65fr);
+}
+.sale-customer-modes {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+.sale-board .sale-product-list.product-browser-list {
+  min-height: 120px;
+}
+.sale-catalog-panel,
+.sale-bill-panel {
+  min-height: 240px;
+}
+.sale-customer-date input {
+  min-width: 0;
+}
+.sale-actions .button-dark {
+  min-width: 0;
+}
+.sale-print-check {
+  flex-wrap: wrap;
+  font-size: 11px;
+}
+.bill-editor .sale-board .cart-line .field > span {
+  white-space: normal;
+  line-height: 1.35;
+}
+.sale-board .trade-panel-head {
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.sale-board .trade-panel-head > * {
+  min-width: 0;
+}
+.sale-pay-panel .field input {
+  min-width: 0;
+}
+@container workspace (min-width: 600px) {
+  .sale-board {
+    grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr);
+    flex: 1 0 480px;
+    overflow: hidden;
+  }
+  .sale-board-left,
+  .sale-board-right {
+    overflow: hidden;
+  }
+  .sale-catalog-panel {
+    min-height: 0;
+  }
+  .sale-bill-panel {
+    min-height: 140px;
+  }
+}
+@container workspace (min-width: 1040px) {
+  .sale-customer-row {
+    grid-template-columns: auto minmax(0, 1fr) minmax(120px, 0.5fr);
+  }
+  .sale-customer-modes {
+    grid-column: auto;
+  }
+}
+@container workspace (max-width: 900px) {
+  .sale-board {
+    padding: 8px;
+    gap: 8px;
+  }
+  .sale-customer-panel {
+    padding: 8px;
+  }
+  .sale-catalog-panel,
+  .sale-bill-panel {
+    padding: 8px;
+  }
+  .sale-board .product-pick-card {
+    grid-template-columns: 36px minmax(0, 1fr) auto;
+    padding: 8px;
+    gap: 8px;
+  }
+  .sale-board .product-pick-image {
+    width: 36px;
+    height: 36px;
+  }
+  .bill-editor .purchase-board .sale-bill-panel .cart-line > .form-grid.three {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .sale-payment-currency {
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
+    gap: 6px;
+  }
+  .sale-actions {
+    gap: 6px;
+  }
+  .sale-print-check {
+    flex-basis: 100%;
+  }
+  .settings-shell {
+    grid-template-columns: 150px minmax(0, 1fr);
+  }
+  .settings-shell .settings-navigation {
+    flex-direction: column;
+    padding: 8px;
+  }
+  .company-hero {
+    padding: 20px;
+    gap: 14px;
+  }
+  .company-hero h1 {
+    font-size: 24px;
+  }
+  .company-support-grid,
+  .company-capabilities {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@container workspace (max-width: 600px) {
+  .settings-shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .settings-shell .settings-navigation {
+    flex-direction: row;
+    overflow-x: auto;
+  }
+  .settings-navigation button {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+  .sale-customer-row {
+    grid-template-columns: minmax(0, 1fr) minmax(120px, 0.65fr);
+  }
+  .bill-editor .purchase-board .purchase-party-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Keep the reference desktop inventory anatomy in narrow Mac preview windows. */
+@container workspace (min-width: 600px) {
+  .inventory-list .inventory-list-cols,
+  .inventory-list .inventory-row-main {
+    display: grid;
+    grid-template-columns:
+      minmax(0, 1fr) minmax(64px, 0.24fr) minmax(88px, 0.3fr)
+      28px;
+    grid-template-areas: none;
+    gap: 10px;
+    align-items: center;
+  }
+  .inventory-list.with-cost .inventory-list-cols,
+  .inventory-list.with-cost .inventory-row-main {
+    grid-template-columns:
+      minmax(0, 1fr) minmax(58px, 0.21fr) minmax(80px, 0.28fr)
+      minmax(88px, 0.3fr) 28px;
+  }
+  .inventory-list.with-cost .inventory-row-cost,
+  .inventory-list.with-cost .inventory-list-cols span:nth-child(3) {
+    display: block;
+  }
+  .inventory-list .inventory-row-product,
+  .inventory-list .inventory-row-go,
+  .inventory-list .inventory-row-meta,
+  .inventory-list
+    .inventory-row-main
+    > .inventory-row-meta:not(.inventory-row-cost):not(.inventory-row-price) {
+    grid-area: auto;
+    min-width: 0;
+  }
+  .inventory-list .inventory-row-price {
+    justify-self: stretch;
+  }
+  .inventory-list .inventory-row-specs {
+    margin-inline-start: 48px;
+  }
+}
+@container workspace (min-width: 600px) and (max-width: 900px) {
+  .inventory-list-sticky .list-toolbar {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .inventory-list-sticky .search-input {
+    flex: 1 1 180px;
+  }
+  .inventory-list-sticky .toolbar-right {
+    flex: 1 1 auto;
+  }
+  .inventory-list .inventory-row-main {
+    gap: 7px;
+  }
+  .inventory-list .inventory-row-cost strong,
+  .inventory-list .inventory-row-price strong {
+    font-size: 11px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .inventory-list .inventory-row-product {
+    gap: 8px;
+  }
+  .inventory-list .inventory-row-go {
+    width: 28px;
+    height: 28px;
+  }
+  .inventory-list .inventory-chip {
+    white-space: normal;
+  }
+  .inventory-list .inventory-row-specs {
+    margin-inline-start: 48px;
+  }
+}
+
+/* Use the desktop anatomy consistently before falling back to phone layouts. */
+@container workspace (min-width: 600px) {
+  .people-list .people-list-cols,
+  .people-list .people-row {
+    display: grid;
+    grid-template-columns:
+      minmax(0, 1.7fr) minmax(0, 0.9fr) minmax(0, 0.8fr)
+      minmax(0, 1fr) 28px;
+    grid-template-areas: none;
+    gap: 8px;
+  }
+  .people-list .people-row > * {
+    grid-area: auto;
+    min-width: 0;
+  }
+  .people-list .people-row > :nth-child(2) {
+    display: block;
+    overflow-wrap: anywhere;
+  }
+  .people-list .people-row-balance {
+    justify-self: stretch;
+  }
+  .people-list .people-row-go {
+    width: 28px;
+    height: 28px;
+  }
+  .docs-list .docs-list-cols,
+  .docs-list .docs-row {
+    display: grid;
+    grid-template-columns:
+      minmax(0, 1.2fr) minmax(0, 0.85fr) minmax(0, 1.2fr)
+      repeat(3, minmax(0, 0.9fr)) minmax(0, 1fr);
+    gap: 7px;
+  }
+  .docs-expense .docs-list-cols,
+  .docs-expense .docs-row {
+    grid-template-columns:
+      minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1.3fr)
+      minmax(0, 1fr) minmax(0, 0.8fr) 28px;
+  }
+  .docs-list .docs-row > *,
+  .docs-list .docs-list-cols > * {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .docs-list .docs-row > :nth-child(2),
+  .docs-list .docs-row > :nth-child(5),
+  .docs-list .docs-list-cols span:nth-child(2),
+  .docs-list .docs-list-cols span:nth-child(5) {
+    display: block;
+  }
+  .daybook-tx-row {
+    grid-template-columns: minmax(0, 1.4fr) auto auto auto;
+    grid-template-areas: none;
+  }
+  .daybook-tx-row > *,
+  .daybook-tx-row .badge {
+    grid-area: auto;
+    min-width: 0;
+  }
+}
+@container workspace (min-width: 600px) and (max-width: 760px) {
+  .sale-board {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 6px;
+    padding: 6px;
+  }
+  .sale-board-left,
+  .sale-board-right {
+    gap: 6px;
+  }
+  .sale-customer-row {
+    grid-template-columns: minmax(0, 1fr) 120px;
+    gap: 6px;
+  }
+  .sale-board .sale-product-list.product-browser-list {
+    padding: 4px;
+  }
+  .sale-board .product-pick-card {
+    grid-template-columns: 30px minmax(0, 1fr) 16px;
+    gap: 6px;
+    padding: 7px;
+  }
+  .sale-board .product-pick-image {
+    width: 30px;
+    height: 30px;
+  }
+  .sale-board .product-pick-body strong {
+    font-size: 12px;
+  }
+  .sale-board .product-pick-body small {
+    font-size: 10px;
+  }
+  .sale-board .trade-barcode-scan {
+    flex-wrap: wrap;
+  }
+  .sale-customer-panel .party-picker {
+    flex-wrap: wrap;
+  }
+  .bill-editor .sale-board .sale-pay-panel .trade-totals {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 5px;
+  }
+  .bill-editor .sale-board .trade-totals > .field {
+    grid-column: 1 / -1;
+    min-width: 0;
+  }
+  .bill-editor .sale-board .trade-totals > div {
+    flex-wrap: wrap;
+  }
+  .sale-pay-panel {
+    padding: 7px;
+  }
+  .sale-payment-currency {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 0.7fr);
+  }
+  .bill-editor .sale-board .cart-line > .form-grid.three {
+    gap: 5px;
+  }
+}
+@container workspace (min-width: 600px) and (max-width: 760px) {
+  .sale-board .trade-catalog-tools {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+  }
+  .sale-customer-panel .party-picker .button {
+    font-size: 0;
+    gap: 0;
+    padding-inline: 8px;
+    min-width: 30px;
+  }
+}
+
+/* Match the centered reference composition in full-size Chrome windows. */
+@media (min-width: 1100px) {
+  .sidebar {
+    width: clamp(176px, 17.4vw, 248px);
+  }
+}
+@container workspace (min-width: 900px) {
+  .inventory-page.page-content,
+  .people-page.page-content,
+  .docs-page.page-content,
+  .daybook-page.page-content,
+  .capital-page.page-content {
+    width: min(1040px, 82%);
+  }
+}

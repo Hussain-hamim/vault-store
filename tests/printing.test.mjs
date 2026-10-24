@@ -95,6 +95,11 @@ test("every theme/layout/paper uses one escaped standalone renderer and preserve
         const html = renderPrintDocument(model(), { paper, layout, theme });
         assert.ok(html.startsWith("<!doctype html>"));
         assert.ok(html.includes(`layout-${layout} theme-${theme}`));
+        assert.match(html, /<footer class="company-print-credit">/);
+        assert.match(html, /href="https:\/\/www\.radefysystems\.com\/"/);
+        assert.match(html, /href="https:\/\/wa\.me\/93771707272"/);
+        assert.match(html, /WhatsApp: \+93 77 170 7272/);
+        assert.match(html, /<svg viewBox="0 0 100 100"/);
         assert.match(html, /Core i7/);
         assert.match(html, /Precision/);
         assert.match(html, /SKU-001/);
@@ -130,6 +135,7 @@ test("logo/spec/footer switches, Arabic locales and offline assets survive previ
   });
   assert.doesNotMatch(short, /Core i7|Thank you|<img/);
   assert.match(short, /SKU-001/);
+  assert.match(short, /<footer class="company-print-credit">/);
   for (const value of [
     "https://example.com/logo.png",
     "file:///private/key",

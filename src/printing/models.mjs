@@ -1,3 +1,4 @@
+import brand from "../../shared/brand.json" with { type: "json" };
 export function invoicePrintModel(
   doc,
   store,
@@ -22,6 +23,10 @@ export function invoicePrintModel(
   };
   return {
     kind: "invoice",
+    companyCredit: {
+      label: t("company.builtBy"),
+      whatsapp: brand.support.whatsapp,
+    },
     locale,
     store,
     source: { type: "invoice", id: doc.id },

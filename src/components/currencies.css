@@ -23,7 +23,7 @@
   height: 17px;
   object-fit: cover;
   border-radius: 3px;
-  box-shadow: 0 0 0 1px #15283c1a;
+  box-shadow: 0 0 0 1px var(--paint-bg-15283c1a, #15283c1a);
   vertical-align: middle;
   flex-shrink: 0;
 }
@@ -125,7 +125,7 @@
   min-width: 0;
 }
 .bill-editor .purchase-board .trade-totals .field small {
-  color: #61736c;
+  color: var(--paint-fg-61736c, #61736c);
 }
 .invoice-payment-conversion {
   display: flex;
@@ -177,7 +177,7 @@
 }
 .ledger-foreign-payment {
   margin-top: 4px;
-  color: #2b7c70;
+  color: var(--paint-fg-2b7c70, #2b7c70);
   font-size: 11px;
   line-height: 1.5;
 }

@@ -83,7 +83,14 @@ test("shortcuts protect typing, overlays, IME, AltGr and reject three-key combin
   assert.equal(shortcutAction(event("k"), { ...options, overlay: true }), null);
 });
 test("support links accept configured contacts and reject unsafe destinations", () => {
-  assert.deepEqual(supportLinks(brand.support), []);
+  assert.deepEqual(
+    supportLinks(brand.support).map((link) => link.url),
+    [
+      "https://www.radefysystems.com/",
+      "mailto:hello@radefysystems.com",
+      "https://wa.me/93771707272",
+    ],
+  );
   assert.deepEqual(
     supportLinks({
       website: "https://example.com/support",

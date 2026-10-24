@@ -1,6 +1,17 @@
 import type { MessageTree } from "./types";
 
 export const en: MessageTree = {
+  appearance: {
+    title: "Appearance",
+    hint: "Choose a theme. Your choice is remembered for your user on this computer.",
+    navy: "Navy & Coral",
+    light: "Light",
+    dark: "Dark",
+    ocean: "Ocean Teal",
+    sand: "Warm Sand",
+    selected: "Selected",
+    saveFailed: "Theme applied, but could not be saved on this computer.",
+  },
   photos: {
     title: "Product photo",
     exact: "Model photo: {model}",
