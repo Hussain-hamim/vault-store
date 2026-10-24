@@ -9,6 +9,79 @@ function send(id, result, error) {
 parentPort.on("message", (m) => {
   queue = queue.then(async () => {
     try {
+      if (m.command === "_recoveryOwner") {
+        const owner = store.one(
+          "SELECT id,name,username FROM users WHERE role='Owner' AND active=1 ORDER BY created_at,id LIMIT 1",
+        );
+        send(
+          m.id,
+          owner ? { ...owner, storeName: store.setting("store").name } : null,
+        );
+        return;
+      }
+      if (m.command === "_recoverySignIn") {
+        const a = m.args;
+        if (
+          !a ||
+          typeof a.ownerId !== "string" ||
+          typeof a.requestId !== "string"
+        )
+          throw Error("INVALID_REQUEST");
+        const result = store.transaction(() => {
+          const owner = store.one(
+            "SELECT * FROM users WHERE id=? AND role='Owner' AND active=1",
+            a.ownerId,
+          );
+          if (!owner) throw Error("OWNER_UNAVAILABLE");
+          store.run("DELETE FROM sessions");
+          store.audit(owner, "Owner recovery sign in", owner.id);
+          return store.session(owner);
+        });
+        store.sessions.clear();
+        send(m.id, result);
+        return;
+      }
+      if (m.command === "_recoveryApply") {
+        const a = m.args;
+        if (
+          !a ||
+          !/^[a-f0-9]{32}:[a-f0-9]{128}$/.test(a.hash) ||
+          typeof a.requestId !== "string"
+        )
+          throw Error("INVALID_REQUEST");
+        let username;
+        const session = store.transaction(() => {
+          const owner = store.one(
+            "SELECT * FROM users WHERE id=? AND role='Owner' AND active=1",
+            a.ownerId,
+          );
+          if (!owner) throw Error("OWNER_UNAVAILABLE");
+          username = owner.username;
+          const applied = store.setting("ownerRecoveryApplied") || [];
+          if (!applied.includes(a.requestId)) {
+            store.run(
+              "UPDATE users SET password=? WHERE id=?",
+              a.hash,
+              owner.id,
+            );
+            store.saveSetting("ownerRecoveryApplied", [
+              ...applied,
+              a.requestId,
+            ]);
+            store.audit(owner, "Owner password recovered", owner.id);
+          }
+          store.run("DELETE FROM sessions");
+          return typeof a.verifyPassword === "string"
+            ? store.login({
+                username: owner.username,
+                password: a.verifyPassword,
+              })
+            : store.session(owner);
+        });
+        store.sessions.clear();
+        send(m.id, { username, ...session });
+        return;
+      }
       if (backupRunning && m.command === "backupSettings")
         throw new Error(
           "Wait for the current backup before changing its destinations.",
@@ -75,3 +148,6 @@ parentPort.on("message", (m) => {
     }
   });
 });
+
+// Signal only after imports, database migrations and the message handler are ready.
+parentPort.postMessage({ ready: true });

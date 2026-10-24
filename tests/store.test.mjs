@@ -3000,3 +3000,17 @@ test("purchase refund validation is atomic and preview batches reflect sold disc
   assert.equal(returned.total, 1000);
   balanced(f.s);
 });
+
+test("local login permits immediate retries after repeated incorrect passwords", (t) => {
+  const f = fixture(t);
+  for (let i = 0; i < 12; i++)
+    assert.throws(
+      () => f.s.login({ username: "owner", password: "incorrect-password" }),
+      /Incorrect username or password/,
+    );
+  const session = f.s.login({
+    username: "owner",
+    password: "secure-test-password",
+  });
+  assert.equal(f.s.auth(session.token).username, "owner");
+});

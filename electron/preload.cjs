@@ -12,6 +12,17 @@ contextBridge.exposeInMainWorld(
       if (!reply.ok) throw new Error(reply.error);
       return reply.result;
     },
+    recovery: async (action, args) => {
+      const reply = await ipcRenderer.invoke("vault:recovery", action, args);
+      if (!reply.ok) throw new Error(reply.error);
+      return reply.result;
+    },
+    activationStatus: () => ipcRenderer.invoke("vault:activation-status"),
+    activate: async (key) => {
+      const reply = await ipcRenderer.invoke("vault:activate", key);
+      if (!reply.ok) throw new Error(reply.error);
+      return reply.result;
+    },
     openExternal: (url) => ipcRenderer.invoke("vault:open-support", url),
     pickFolder: () => ipcRenderer.invoke("vault:folder"),
     pickBackup: () => ipcRenderer.invoke("vault:backup-file"),

@@ -98,6 +98,22 @@ export function productDetailLine(product: {
 declare global {
   interface Window {
     vault?: {
+      recovery?: (
+        action: string,
+        args?: Record<string, unknown>,
+      ) => Promise<any>;
+      activationStatus?: () => Promise<{
+        active: boolean;
+        required: boolean;
+        mode: string;
+        error?: string;
+      }>;
+      activate?: (key: string) => Promise<{
+        active: boolean;
+        required: boolean;
+        mode: string;
+        error?: string;
+      }>;
       request: (command: string, args: unknown, token?: string) => Promise<any>;
       openExternal?: (url: string) => Promise<void>;
       pickFolder: () => Promise<string | null>;

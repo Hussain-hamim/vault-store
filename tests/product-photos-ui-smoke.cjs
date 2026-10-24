@@ -55,6 +55,11 @@ app
         { ...product, price: 300000 },
         auth.token,
       );
+    ipcMain.handle("vault:activation-status", () => ({
+      active: true,
+      required: false,
+      mode: "development",
+    }));
     ipcMain.handle("vault:command", async (_event, command, args, token) => {
       try {
         return { ok: true, result: await db.request(command, args, token) };
@@ -167,6 +172,26 @@ app
     await wait(
       'document.querySelector(".product-photo-picker .product-photo")?.dataset.photoKind==="custom" && document.querySelector(".product-photo-picker img")?.src.startsWith("data:image/jpeg")',
     );
+    const uploadedPreview = await js(
+      'document.querySelector(".product-photo-picker img").src',
+    );
+    await fill('[name="model"]', "Galaxy S24 Ultra");
+    await fill('[name="brand"]', "Apple", "change");
+    await fill('[name="category"]', "Computers", "change");
+    await fill('[name="model"]', "MacBook Air M3");
+    assert.equal(
+      await js('document.querySelector(".product-photo-picker img").src'),
+      uploadedPreview,
+    );
+    assert.equal(
+      await js(
+        'document.querySelector(".product-photo-picker .product-photo").dataset.photoKind',
+      ),
+      "custom",
+    );
+    await fill('[name="category"]', "Mobiles", "change");
+    await fill('[name="brand"]', "Samsung", "change");
+    await fill('[name="model"]', "Galaxy S24");
     await fill('[name="name"]', "Exact uploaded Samsung");
     await fill('[name="sku"]', "PHOTO-UPLOADED");
     await fill('[name="price"]', "3000");

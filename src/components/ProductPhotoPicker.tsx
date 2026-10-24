@@ -30,7 +30,7 @@ export function ProductPhotoPicker({
     normalizeImageText(product.model),
     product.attributes?.Type || "",
   ].join("|");
-  const original = useRef({ identity, image: existingImage });
+  const original = useRef(existingImage);
   const [uploaded, setUploaded] = useState<{
       identity: string;
       src: string;
@@ -38,17 +38,14 @@ export function ProductPhotoPicker({
     [saved, setSaved] = useState<{ identity: string; src: string } | null>(
       null,
     ),
-    [automatic, setAutomatic] = useState(""),
+    [automatic, setAutomatic] = useState(false),
     [error, setError] = useState(""),
     [reading, setReading] = useState(false),
     [searching, setSearching] = useState(false);
-  const originalPhoto =
-    original.current.identity === identity &&
-    isStoredPhoto(original.current.image)
-      ? original.current.image
-      : "";
-  const upload = uploaded?.identity === identity ? uploaded.src : "";
-  const useAuto = automatic === identity;
+  const originalPhoto = isStoredPhoto(original.current) ? original.current : "";
+  // A manual upload belongs to this form, even while product details change.
+  const upload = uploaded?.src || "";
+  const useAuto = automatic;
   const savedRef = !useAuto
     ? upload
       ? ""
@@ -110,7 +107,7 @@ export function ProductPhotoPicker({
     try {
       const src = await prepareProductPhoto(file);
       setUploaded({ identity, src });
-      setAutomatic("");
+      setAutomatic(false);
     } catch (e: any) {
       setError(
         t(e.message?.startsWith("photos.") ? e.message : "photos.unreadable"),
@@ -170,7 +167,7 @@ export function ProductPhotoPicker({
               type="button"
               onClick={() => {
                 setUploaded(null);
-                setAutomatic(identity);
+                setAutomatic(true);
                 setError("");
               }}
             >

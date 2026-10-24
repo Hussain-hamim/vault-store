@@ -326,7 +326,6 @@ export class Store {
         { id: r.user_id, expires: r.expires_at },
       ]),
     );
-    this.attempts = new Map();
     this.backupBusy = false;
     this.run(
       "INSERT OR IGNORE INTO settings VALUES (?,?)",
@@ -527,20 +526,13 @@ export class Store {
   login(data) {
     const name = z.string().max(60).parse(data.username).toLowerCase();
     const pass = z.string().max(128).parse(data.password);
-    const a = this.attempts.get(name) || { count: 0, until: 0 };
-    if (a.until > Date.now())
-      throw new Error("Too many attempts. Try again in five minutes.");
     const u = this.one(
       "SELECT * FROM users WHERE username=? AND active=1",
       name,
     );
     if (!u || !passwordValid(pass, u.password)) {
-      a.count++;
-      if (a.count >= 5) a.until = Date.now() + 300_000;
-      this.attempts.set(name, a);
       throw new Error("Incorrect username or password.");
     }
-    this.attempts.delete(name);
     this.audit(u, "Sign in", u.id);
     return this.session(u);
   }
@@ -2555,6 +2547,10 @@ export class Store {
     if (command === "status")
       return {
         setup: !this.one("SELECT id FROM users LIMIT 1"),
+        ownerUsername:
+          this.one(
+            "SELECT username FROM users WHERE role='Owner' AND active=1 ORDER BY created_at,id LIMIT 1",
+          )?.username || "",
         store: this.setting("store"),
         permissions: PERMISSIONS,
         roles: ROLES,
@@ -2609,6 +2605,26 @@ export class Store {
     switch (command) {
       case "me":
         return user;
+      case "ownerPasswordChange": {
+        if (user.role !== "Owner") throw new Error("Owner access required.");
+        const password = z.string().min(10).max(128).parse(args.password);
+        const result = this.transaction(() => {
+          const owner = this.one(
+            "SELECT * FROM users WHERE id=? AND active=1",
+            user.id,
+          );
+          this.run(
+            "UPDATE users SET password=? WHERE id=?",
+            passwordHash(password),
+            user.id,
+          );
+          this.run("DELETE FROM sessions");
+          this.audit(user, "Owner password changed", user.id);
+          return this.login({ username: owner.username, password });
+        });
+        this.sessions.clear();
+        return result;
+      }
       case "logout":
         this.sessions.delete(token);
         this.run("DELETE FROM sessions WHERE token=?", token);
@@ -2661,7 +2677,10 @@ export class Store {
         if (d.minimum > d.price)
           throw new Error("Minimum price cannot exceed selling price.");
         return this.transaction(() => {
-          const productPhoto = saveProductPhoto(this, d);
+          const productPhoto = saveProductPhoto(this, {
+            ...d,
+            image: args.image === undefined ? existing.image : d.image,
+          });
           this.run(
             "UPDATE products SET sku=?,barcode=?,name=?,brand=?,model=?,category=?,price=?,minimum=?,reorder_level=?,location=?,condition=?,warranty=?,attributes=?,serialized=0,image=? WHERE id=?",
             d.sku,

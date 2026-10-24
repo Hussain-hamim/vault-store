@@ -6,11 +6,12 @@ const {
   Menu,
   session,
   shell,
+  safeStorage,
 } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
 const { pathToFileURL } = require("node:url");
-let db, mainWindow;
+let db, mainWindow, licensing, recovery;
 let serviceRoot;
 let reloadingWorker = false;
 const backupMode = process.argv.includes("--backup-mode");
@@ -49,7 +50,16 @@ async function createDatabaseWorker() {
   const { createWorker } = await import(
     pathToFileURL(path.join(serviceRoot, "client.mjs")).href
   );
-  return createWorker(path.join(app.getPath("userData"), "vault.sqlite"));
+  const worker = createWorker(
+    path.join(app.getPath("userData"), "vault.sqlite"),
+  );
+  try {
+    await worker.request("status");
+    return worker;
+  } catch (error) {
+    await worker.close();
+    throw error;
+  }
 }
 async function waitForDevUi(ms = 15000) {
   const start = Date.now();
@@ -100,9 +110,125 @@ function watchServerForReload() {
   }
 }
 async function start() {
+  const existingDatabase = fs.existsSync(
+    path.join(app.getPath("userData"), "vault.sqlite"),
+  );
   db = await createDatabaseWorker();
+  const { LicenseManager } = require("./licensing.cjs");
+  licensing = new LicenseManager({
+    enabled: app.isPackaged,
+    directory: app.getPath("userData"),
+    safeStorage,
+    config: require("../shared/licensing.json"),
+  });
+  const legacyInitialized =
+    existingDatabase && !(await db.request("status")).setup;
+  await licensing.initialize({ legacyInitialized });
+  if (app.isPackaged && licensing.hash) {
+    const { RecoveryManager } = require("./recovery.cjs");
+    recovery = new RecoveryManager({
+      licensing,
+      request: (...args) => db.request(...args),
+    });
+    try {
+      licensing.recoveryPublicKey = recovery.identity().publicKey;
+    } catch {}
+    if (licensing.state.active && !backupMode) {
+      void recovery.sync();
+      const timer = setInterval(() => {
+        if (licensing.state.active) void recovery.sync();
+      }, 300000);
+      timer.unref();
+    }
+  }
+  ipcMain.handle("vault:recovery", async (event, action, args = {}) => {
+    trusted(event);
+    try {
+      licensing.assertActive();
+      if (!recovery) throw Error("DESKTOP_ONLY");
+      if (action === "status") return { ok: true, result: recovery.status() };
+      if (action === "prepare")
+        return { ok: true, result: await recovery.sync() };
+      if (action === "sync" || action === "enroll") {
+        if (action === "sync") {
+          const user = await db.request("me", {}, args.token);
+          if (user.role !== "Owner") throw Error("OWNER_ONLY");
+        } else if (
+          typeof args.enrollmentCode !== "string" ||
+          !args.enrollmentCode.trim()
+        )
+          throw Error("INVALID_INPUT");
+        if (
+          args.enrollmentCode != null &&
+          (typeof args.enrollmentCode !== "string" ||
+            args.enrollmentCode.length > 120)
+        )
+          throw Error("INVALID_INPUT");
+        return { ok: true, result: await recovery.sync(args.enrollmentCode) };
+      }
+      if (action === "recover")
+        return { ok: true, result: await recovery.recover(args.code) };
+      if (action === "reset")
+        return {
+          ok: true,
+          result: await recovery.reset(args.code, args.password),
+        };
+      throw Error("INVALID_INPUT");
+    } catch (e) {
+      return {
+        ok: false,
+        error: [
+          "NETWORK_ERROR",
+          "ENROLLMENT_REQUIRED",
+          "INVALID_CODE",
+          "WRONG_STORE",
+          "EXPIRED_CODE",
+          "CODE_USED",
+          "RATE_LIMITED",
+          "RETRY_PASSWORD",
+          "INVALID_INPUT",
+          "BUSY",
+          "INVALID_RESPONSE",
+          "DESKTOP_ONLY",
+          "STORAGE_UNAVAILABLE",
+          "OWNER_ONLY",
+        ].includes(e.message)
+          ? e.message
+          : "SERVICE_UNAVAILABLE",
+      };
+    }
+  });
+  ipcMain.handle("vault:activation-status", async (event) => {
+    trusted(event);
+    return licensing.status().error
+      ? licensing.initialize({ legacyInitialized })
+      : licensing.status();
+  });
+  ipcMain.handle("vault:activate", async (event, key) => {
+    trusted(event);
+    try {
+      return { ok: true, result: await licensing.activate(key) };
+    } catch (error) {
+      return {
+        ok: false,
+        error: [
+          "INVALID_KEY",
+          "KEY_IN_USE",
+          "RATE_LIMITED",
+          "NETWORK_ERROR",
+          "INVALID_RECEIPT",
+          "DEVICE_UNAVAILABLE",
+          "STORAGE_UNAVAILABLE",
+          "ACTIVATION_BUSY",
+        ].includes(error.code)
+          ? error.code
+          : "SERVICE_UNAVAILABLE",
+      };
+    }
+  });
   if (backupMode) {
     try {
+      licensing.assertActive();
       await db.request("_automaticBackup");
       app.exit(0);
     } catch (e) {
@@ -116,7 +242,20 @@ async function start() {
     if (typeof command !== "string" || command.startsWith("_"))
       throw new Error("Unknown operation.");
     try {
-      return { ok: true, result: await db.request(command, args, token) };
+      licensing.assertActive();
+      const result = await db.request(command, args, token);
+      if (
+        recovery &&
+        [
+          "setup",
+          "saveSettings",
+          "userCreate",
+          "userPermissions",
+          "userUpdate",
+        ].includes(command)
+      )
+        void recovery.sync();
+      return { ok: true, result };
     } catch (error) {
       return { ok: false, error: error.message };
     }
@@ -141,6 +280,7 @@ async function start() {
   });
   ipcMain.handle("vault:folder", async (event) => {
     trusted(event);
+    licensing.assertActive();
     const r = await dialog.showOpenDialog(mainWindow, {
       title: "Choose backup folder",
       properties: ["openDirectory", "createDirectory"],
@@ -149,6 +289,7 @@ async function start() {
   });
   ipcMain.handle("vault:backup-file", async (event) => {
     trusted(event);
+    licensing.assertActive();
     const r = await dialog.showOpenDialog(mainWindow, {
       title: "Choose a Radefy TechMart recovery copy",
       filters: [{ name: "SQLite backup", extensions: ["sqlite"] }],
@@ -158,6 +299,7 @@ async function start() {
   });
   ipcMain.handle("vault:schedule", async (event, token) => {
     trusted(event);
+    licensing.assertActive();
     const user = await db.request("me", {}, token);
     if (!user.permissions.includes("backups"))
       throw new Error("Backup permission required.");
@@ -172,6 +314,7 @@ async function start() {
   });
   ipcMain.handle("vault:restore", async (event, file, token) => {
     trusted(event);
+    licensing.assertActive();
     const user = await db.request("me", {}, token);
     if (user.role !== "Owner" || !user.permissions.includes("backups"))
       throw new Error("Only a store owner can restore data.");
@@ -208,6 +351,7 @@ async function start() {
   let printBusy = false;
   ipcMain.handle("vault:render-print", async (event, input, token) => {
     trusted(event);
+    licensing.assertActive();
     if (printBusy)
       return {
         ok: false,
@@ -356,13 +500,15 @@ async function start() {
   }
   const timer = setInterval(
     () =>
+      licensing.state.active &&
       db
         ?.request("_automaticBackup")
         .catch((e) => console.error("Backup:", e.message)),
     60_000,
   );
   timer.unref();
-  db.request("_automaticBackup").catch((e) => console.error(e.message));
+  if (licensing.state.active)
+    db.request("_automaticBackup").catch((e) => console.error(e.message));
 }
 app
   .whenReady()

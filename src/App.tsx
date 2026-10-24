@@ -1,3 +1,4 @@
+import { OwnerRecovery } from "./components/OwnerRecovery";
 import { CompanyCredit } from "./components/CompanyCredit";
 import { useUserTheme } from "./appearance";
 import {
@@ -513,6 +514,7 @@ export function App() {
       <Auth
         setup={status.setup}
         storeName={status.store.name}
+        ownerUsername={status.ownerUsername}
         onSuccess={(s) => {
           setToken(s.token);
           setUser(s.user);
@@ -1135,13 +1137,17 @@ export function App() {
 function Auth({
   setup,
   storeName,
+  ownerUsername,
   onSuccess,
 }: {
   setup: boolean;
   storeName: string;
+  ownerUsername?: string;
   onSuccess: (s: any) => void;
 }) {
   const { t, dir } = useI18n();
+  const [recover, setRecover] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
   async function submit(e: React.FormEvent<HTMLFormElement>) {
@@ -1186,65 +1192,91 @@ function Auth({
         <small>{t("auth.footer")}</small>
       </div>
       <div className="auth-form-container">
-        <form className="auth-form" onSubmit={submit}>
-          <span className="auth-form-icon">
-            <ShieldCheckIcon size={30} />
-          </span>
-          <h2>{setup ? t("auth.makeHome") : t("auth.welcomeBack")}</h2>
-          <p>
-            {setup
-              ? t("auth.setupHint")
-              : t("auth.signInHint", { store: storeName })}
-          </p>
-          {setup && (
-            <>
-              <Field label={t("auth.storeName")}>
-                <input
-                  name="storeName"
-                  placeholder={t("auth.storeNamePh")}
-                  required
-                  minLength={2}
-                />
-              </Field>
-              <Field label={t("auth.fullName")}>
-                <input name="name" required minLength={2} />
-              </Field>
-            </>
-          )}
-          <Field label={t("auth.username")}>
-            <input
-              name="username"
-              required
-              minLength={3}
-              autoComplete="username"
-            />
-          </Field>
-          <Field
-            label={t("auth.password")}
-            hint={setup ? t("auth.passwordHint") : ""}
-          >
-            <input
-              name="password"
-              type="password"
-              required
-              minLength={setup ? 10 : 1}
-              autoComplete={setup ? "new-password" : "current-password"}
-            />
-          </Field>
-          <ErrorMessage error={error} />
-          <button className="button button-dark full" disabled={busy}>
-            {busy
-              ? t("common.opening")
-              : setup
-                ? t("auth.createStore")
-                : t("auth.signIn")}
-            <ArrowRightIcon size={16} />
-          </button>
-          <p className="auth-note">
-            <ShieldCheckIcon size={14} />
-            {t("auth.dataStays")}
-          </p>
-        </form>
+        {recover ? (
+          <OwnerRecovery
+            storeName={storeName}
+            onClose={() => setRecover(false)}
+            onSuccess={onSuccess}
+          />
+        ) : (
+          <form className="auth-form" onSubmit={submit}>
+            <span className="auth-form-icon">
+              <ShieldCheckIcon size={30} />
+            </span>
+            <h2>{setup ? t("auth.makeHome") : t("auth.welcomeBack")}</h2>
+            <p>
+              {setup
+                ? t("auth.setupHint")
+                : t("auth.signInHint", { store: storeName })}
+            </p>
+            {setup && (
+              <>
+                <Field label={t("auth.storeName")}>
+                  <input
+                    name="storeName"
+                    placeholder={t("auth.storeNamePh")}
+                    required
+                    minLength={2}
+                  />
+                </Field>
+                <Field label={t("auth.fullName")}>
+                  <input name="name" required minLength={2} />
+                </Field>
+              </>
+            )}
+            <Field label={t("auth.username")}>
+              <input
+                name="username"
+                defaultValue={setup ? "" : ownerUsername}
+                required
+                minLength={3}
+                autoComplete="username"
+              />
+            </Field>
+            <Field
+              label={t("auth.password")}
+              hint={setup ? t("auth.passwordHint") : ""}
+            >
+              <input
+                name="password"
+                type={showPassword ? "text" : "password"}
+                required
+                minLength={setup ? 10 : 1}
+                autoComplete={setup ? "new-password" : "current-password"}
+              />
+            </Field>
+            <label>
+              <input
+                type="checkbox"
+                checked={showPassword}
+                onChange={(e) => setShowPassword(e.target.checked)}
+              />{" "}
+              {t("recovery.showPassword")}
+            </label>
+            <ErrorMessage error={error} />
+            <button className="button button-dark full" disabled={busy}>
+              {busy
+                ? t("common.opening")
+                : setup
+                  ? t("auth.createStore")
+                  : t("auth.signIn")}
+              <ArrowRightIcon size={16} />
+            </button>
+            <p className="auth-note">
+              <ShieldCheckIcon size={14} />
+              {t("auth.dataStays")}
+            </p>
+            {!setup && window.vault?.recovery && (
+              <button
+                type="button"
+                className="button full"
+                onClick={() => setRecover(true)}
+              >
+                {t("recovery.forgot")}
+              </button>
+            )}
+          </form>
+        )}
         <CompanyCredit />
       </div>
     </div>

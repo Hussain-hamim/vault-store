@@ -1,6 +1,94 @@
 import type { MessageTree } from "./types";
 
 export const en: MessageTree = {
+  recovery: {
+    loginTitle: "Sign in with a recovery code",
+    simpleHint:
+      "Enter the latest code from support. You will go straight into this store. Internet is required.",
+    settingsHint:
+      "Recovery codes let you sign in without your password. Changing your password below is optional.",
+    openStore: "Open my store",
+    showPassword: "Show password",
+    changePassword: "Change password",
+    passwordSaved: "Password changed. You are still signed in.",
+
+    title: "Owner account recovery",
+    hint: "Normal login works offline. For recovery, connect to the internet and contact Radefy Systems with this installation reference. We verify ownership before issuing a code.",
+    forgot: "Forgot login?",
+    registered: "Online recovery is ready.",
+    pending:
+      "Connect to the internet to check recovery availability. If it is not ready, contact support with this installation reference.",
+    lastSync: "Last synchronized",
+    reference: "Installation reference",
+    supportDetails: "Support details",
+    device: "Device reference",
+    publicKey: "Installation public key",
+    sync: "Check recovery status",
+    code: "One-time recovery code",
+    newPassword: "New password (at least 10 characters)",
+    confirm: "Confirm new password",
+    reset: "Reset owner password",
+    working: "Recovering…",
+    back: "Back to sign in",
+    success:
+      "Password reset. Your username is {username}. Sign in with your new password.",
+    errors: {
+      WRONG_STORE:
+        "This code is for a different store. Ask support for a code for the shop shown above.",
+      EXPIRED_CODE: "This code has expired. Ask support for a fresh code.",
+      CODE_USED:
+        "This code has already been used. Sign in normally or ask support for a fresh code.",
+
+      STORAGE_UNAVAILABLE:
+        "Recovery identity could not be saved or read. Contact support.",
+      NETWORK_ERROR: "Connect to the internet and try again.",
+      ENROLLMENT_REQUIRED:
+        "Contact support with this installation reference to enable recovery on this computer.",
+      INVALID_CODE:
+        "This code is invalid, expired or replaced. Ask support for a new code.",
+      RATE_LIMITED: "Too many attempts. Wait a minute and retry.",
+      RETRY_PASSWORD:
+        "Use the same new password for this interrupted recovery, or ask support for a new code.",
+      INVALID_INPUT:
+        "Check the code and enter a password of 10–128 characters.",
+      BUSY: "A recovery operation is running. Please wait.",
+      INVALID_RESPONSE:
+        "The recovery authorization could not be verified. Contact support.",
+      PASSWORD_MISMATCH: "The two passwords must match.",
+      SERVICE_UNAVAILABLE: "Recovery service is unavailable. Try again later.",
+    },
+  },
+  activation: {
+    checking: "Checking activation…",
+    eyebrow: "Your store, your computer",
+    headline: "Activate once. Work offline.",
+    story:
+      "Your license unlocks one computer. After activation, your store and accounts stay on this computer.",
+    internet: "Internet is required for activation only.",
+    title: "Activate TechMart",
+    hint: "Enter the activation key provided by Radefy Systems.",
+    key: "Activation key",
+    activate: "Activate this computer",
+    activating: "Activating…",
+    after: "After activation, create your local owner account.",
+    errors: {
+      INVALID_KEY: "This key is invalid. Check it and try again.",
+      KEY_IN_USE:
+        "This key has already activated another computer. Contact Radefy Systems for a new key.",
+      RATE_LIMITED: "Too many attempts. Wait a minute and try again.",
+      NETWORK_ERROR:
+        "Could not reach the activation service. Connect to the internet and try again.",
+      INVALID_RECEIPT:
+        "Activation could not be verified on this computer. Re-enter your key or contact support.",
+      DEVICE_UNAVAILABLE:
+        "Could not identify this computer. Contact Radefy Systems.",
+      STORAGE_UNAVAILABLE:
+        "Could not save activation securely. Unlock your computer’s keychain and check storage permissions, then retry.",
+      ACTIVATION_BUSY: "Activation is already in progress. Please wait.",
+      SERVICE_UNAVAILABLE:
+        "The activation service is unavailable. Please try again or contact support.",
+    },
+  },
   appearance: {
     title: "Appearance",
     hint: "Choose a theme. Your choice is remembered for your user on this computer.",

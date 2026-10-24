@@ -162,7 +162,11 @@ test("every bundled photo is local, non-empty and has an attributable source and
     assert.ok(credits.includes(photo.licenseUrl));
   }
   assert.deepEqual(
-    JSON.parse(readFileSync(new URL("../public/assets/products/CREDITS.json", import.meta.url))),
+    JSON.parse(
+      readFileSync(
+        new URL("../public/assets/products/CREDITS.json", import.meta.url),
+      ),
+    ),
     PRODUCT_PHOTO_CATALOG,
   );
   assert.ok(
@@ -388,5 +392,33 @@ test("staff without product-read access cannot fetch photo blobs or model matche
   await assert.rejects(
     f.s.dispatch("productCreate", product(), session.token),
     /Permission/,
+  );
+});
+
+test("editing product details without a photo field preserves the custom photo until explicitly replaced", async (t) => {
+  const f = fixture(t),
+    draft = product({ photo_data: data(png, "png") });
+  const created = await f.s.dispatch("productCreate", draft, f.token);
+  const before = f.s.one(
+    "SELECT image FROM products WHERE id=?",
+    created.id,
+  ).image;
+  const changed = {
+    ...draft,
+    id: created.id,
+    category: "Mobiles",
+    brand: "Samsung",
+    model: "Galaxy S24",
+  };
+  delete changed.photo_data;
+  await f.s.dispatch("productUpdate", changed, f.token);
+  assert.equal(
+    f.s.one("SELECT image FROM products WHERE id=?", created.id).image,
+    before,
+  );
+  await f.s.dispatch("productUpdate", { ...changed, image: "" }, f.token);
+  assert.match(
+    f.s.one("SELECT image FROM products WHERE id=?", created.id).image,
+    /samsung-galaxy-s24/,
   );
 });

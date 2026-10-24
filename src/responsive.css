@@ -405,3 +405,6 @@ textarea {
     width: min(1040px, 82%);
   }
 }
+.activation-form input[name="activationKey"] { font-family: ui-monospace, monospace; font-size: 12px; letter-spacing: .025em; }
+.activation-form .activation-retry { display: block; margin-top: 14px; }
+.activation-screen .auth-story h1 { max-width: 540px; }

@@ -47,6 +47,11 @@ app
       { kind: "customer", name: "Balance customer", opening_balance: 250000 },
       auth.token,
     );
+    ipcMain.handle("vault:activation-status", () => ({
+      active: true,
+      required: false,
+      mode: "development",
+    }));
     ipcMain.handle("vault:command", async (_event, command, args, token) => {
       try {
         return { ok: true, result: await db.request(command, args, token) };

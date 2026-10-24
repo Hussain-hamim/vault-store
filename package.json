@@ -12,19 +12,26 @@
     "desktop": "electron .",
     "desktop:dev": "node scripts/desktop-dev.mjs",
     "build": "tsc --noEmit && vite build && node scripts/prepare-sites-build.mjs",
-    "test": "node --test tests/store.test.mjs tests/preload.test.mjs tests/printing.test.mjs tests/reports.test.mjs tests/brand.test.mjs tests/product-photos.test.mjs tests/appearance.test.mjs",
+    "test": "node --test tests/store.test.mjs tests/preload.test.mjs tests/printing.test.mjs tests/reports.test.mjs tests/brand.test.mjs tests/product-photos.test.mjs tests/appearance.test.mjs tests/licensing.test.mjs tests/licensing-credentials.test.mjs tests/database-worker.test.mjs tests/recovery.test.mjs",
     "test:sites": "node --test tests/sites-worker.test.mjs",
-    "package:mac": "npm run build && electron-builder --mac --dir",
-    "package:win": "npm run build && electron-builder --win nsis",
+    "package:mac": "npm run license:check && npm run build && electron-builder --mac --dir && node scripts/check-packaged.mjs darwin",
+    "package:win": "npm run license:check && npm run build && electron-builder --win nsis && node scripts/check-packaged.mjs win32",
     "backup": "node server/backup-cli.mjs",
     "benchmark": "node scripts/benchmark.mjs",
-    "package:mac:dmg": "npm run build && electron-builder --mac dmg",
+    "package:mac:dmg": "npm run license:check && npm run build && electron-builder --mac dmg && node scripts/check-packaged.mjs darwin",
     "test:print": "node --test tests/printing.test.mjs",
     "test:print:desktop": "electron tests/print-electron-smoke.cjs",
     "build:icons": "node scripts/build-brand-icons.mjs",
     "test:brand:desktop": "electron tests/brand-ui-smoke.cjs",
     "test:photos:desktop": "electron tests/product-photos-ui-smoke.cjs",
-    "test:responsive:desktop": "electron tests/responsive-electron-smoke.cjs"
+    "test:responsive:desktop": "electron tests/responsive-electron-smoke.cjs",
+    "license:keys": "node scripts/licensing/keys.mjs",
+    "license:check": "node scripts/licensing/check.mjs",
+    "test:activation": "node --test tests/licensing.test.mjs tests/licensing-credentials.test.mjs",
+    "test:activation:desktop": "electron tests/activation-electron-smoke.cjs && electron tests/activation-electron-smoke.cjs --legacy",
+    "license:recovery": "node scripts/licensing/recovery.mjs",
+    "test:recovery:live": "node scripts/licensing/recovery-live.mjs",
+    "test:recovery:desktop": "electron tests/recovery-electron-smoke.cjs"
   },
   "dependencies": {
     "@fontsource-variable/plus-jakarta-sans": "^5.2.8",
@@ -64,7 +71,8 @@
     ],
     "asarUnpack": [
       "server/**/*",
-      "node_modules/zod/**/*"
+      "node_modules/zod/**/*",
+      "shared/**/*"
     ],
     "mac": {
       "category": "public.app-category.business",

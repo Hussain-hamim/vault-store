@@ -1,0 +1,6 @@
+{
+  "endpoint": "https://radefy-techmart-activation.radefy-systems.workers.dev/v1/activate",
+  "publicKeys": {
+    "v1": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAPCJ37GgutGboZ86amiZtkuUm3e/jOAr/nhK/hF+jVAk=\n-----END PUBLIC KEY-----\n"
+  }
+}

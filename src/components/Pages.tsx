@@ -1,3 +1,4 @@
+import { OwnerRecovery } from "./OwnerRecovery";
 import { AppearanceSettings } from "../appearance";
 import { ProductPhoto } from "./ProductPhoto";
 import { CurrencyPicker, CurrencyFlag } from "./CurrencyPicker";
@@ -2248,6 +2249,9 @@ export function SettingsPage({
     }
   }
   const settingsTabs = [
+    ...(user.role === "Owner" && window.vault?.recovery
+      ? [{ id: "recovery", label: t("recovery.title") }]
+      : []),
     { id: "appearance", label: t("appearance.title") },
     ...(canManage ? [{ id: "store", label: t("settings.tabStore") }] : []),
     ...(user.permissions.includes("users")
@@ -2295,6 +2299,9 @@ export function SettingsPage({
           ))}
         </nav>
         <div className="settings-detail">
+          {tab === "recovery" && user.role === "Owner" && (
+            <OwnerRecovery settings />
+          )}
           {tab === "appearance" && (
             <AppearanceSettings key={user.id} userId={user.id} />
           )}
