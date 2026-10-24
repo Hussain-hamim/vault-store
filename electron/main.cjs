@@ -5,6 +5,7 @@ const {
   dialog,
   Menu,
   session,
+  shell,
 } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
@@ -14,7 +15,16 @@ let serviceRoot;
 let reloadingWorker = false;
 const backupMode = process.argv.includes("--backup-mode");
 const uiOrigin = "http://127.0.0.1:4173";
-app.setName("Vault Store");
+const { brand, userDataPath } = require("./brand.cjs");
+// Pin the original profile before setting the new display name: upgrades retain data and sessions.
+app.setPath(
+  "userData",
+  userDataPath(
+    app.getPath("appData"),
+    process.env.RADEFY_USER_DATA || process.env.REDIFY_USER_DATA,
+  ),
+);
+app.setName(brand.name);
 if (!backupMode && !app.requestSingleInstanceLock()) {
   app.quit();
 }
@@ -111,6 +121,24 @@ async function start() {
       return { ok: false, error: error.message };
     }
   });
+  ipcMain.handle("vault:open-support", async (event, url) => {
+    trusted(event);
+    const { supportLinks } = await import(
+      pathToFileURL(path.join(serviceRoot, "support.mjs")).href
+    );
+    const { productPhotoCreditUrls } = await import(
+      pathToFileURL(path.join(serviceRoot, "product-images.mjs")).href
+    );
+    if (
+      typeof url !== "string" ||
+      !(
+        supportLinks(brand.support).some((link) => link.url === url) ||
+        productPhotoCreditUrls().includes(url)
+      )
+    )
+      throw new Error("Unknown support destination.");
+    await shell.openExternal(url);
+  });
   ipcMain.handle("vault:folder", async (event) => {
     trusted(event);
     const r = await dialog.showOpenDialog(mainWindow, {
@@ -122,8 +150,8 @@ async function start() {
   ipcMain.handle("vault:backup-file", async (event) => {
     trusted(event);
     const r = await dialog.showOpenDialog(mainWindow, {
-      title: "Choose a Vault recovery copy",
-      filters: [{ name: "Vault SQLite backup", extensions: ["sqlite"] }],
+      title: "Choose a Radefy TechMart recovery copy",
+      filters: [{ name: "SQLite backup", extensions: ["sqlite"] }],
       properties: ["openFile"],
     });
     return r.canceled ? null : r.filePaths[0];
@@ -177,27 +205,68 @@ async function start() {
       throw e;
     }
   });
-  ipcMain.handle("vault:invoice-pdf", async (event, id, token) => {
+  let printBusy = false;
+  ipcMain.handle("vault:render-print", async (event, input, token) => {
     trusted(event);
-    const doc = await db.request("document", { id }, token);
-    const result = await dialog.showSaveDialog(mainWindow, {
-      title: "Download invoice PDF",
-      defaultPath: `${doc.number}.pdf`,
-      filters: [{ name: "PDF", extensions: ["pdf"] }],
-    });
-    if (result.canceled || !result.filePath) return { cancelled: true };
-    const bytes = await mainWindow.webContents.printToPDF({
-      printBackground: true,
-      pageSize: "A4",
-      preferCSSPageSize: true,
-    });
-    await fs.promises.writeFile(result.filePath, bytes);
-    return { ok: true };
-  });
-  ipcMain.handle("vault:print", (event) => {
-    trusted(event);
-    mainWindow.webContents.print({ printBackground: true });
-    return { ok: true };
+    if (printBusy)
+      return {
+        ok: false,
+        error: "Another print job is open. Finish it before starting another.",
+      };
+    printBusy = true;
+    try {
+      const { validatePrintJob, withPrintWindow } = require("./printing.cjs");
+      const job = validatePrintJob(input);
+      const user = await db.request("me", {}, token);
+      if (job.kind === "invoice")
+        await db.request("document", { id: job.source.id }, token);
+      else if (!user.permissions.includes(job.source.permission))
+        throw new Error("Permission required: " + job.source.permission);
+      const { electronPrintOptions } = await import(
+        pathToFileURL(path.join(serviceRoot, "print-options.mjs")).href
+      );
+      let destination;
+      if (job.mode === "pdf") {
+        const filename = job.title.replace(/[\\/:*?"<>|\u0000-\u001f]/g, "-");
+        const result = await dialog.showSaveDialog(mainWindow, {
+          title: job.title,
+          defaultPath: filename + ".pdf",
+          filters: [{ name: "PDF", extensions: ["pdf"] }],
+        });
+        if (result.canceled || !result.filePath)
+          return { ok: true, result: { cancelled: true } };
+        destination = result.filePath;
+      }
+      const result = await withPrintWindow(
+        BrowserWindow,
+        job.html,
+        mainWindow,
+        async (contents) => {
+          if (job.mode === "pdf") {
+            const bytes = await contents.printToPDF(
+              electronPrintOptions(job.options, job.kind, true),
+            );
+            await fs.promises.writeFile(destination, bytes);
+            return { saved: true };
+          }
+          return new Promise((resolve, reject) =>
+            contents.print(
+              electronPrintOptions(job.options, job.kind),
+              (success, reason) => {
+                if (success) resolve({ printed: true });
+                else if (/cancel/i.test(reason)) resolve({ cancelled: true });
+                else reject(new Error(reason || "Could not print document."));
+              },
+            ),
+          );
+        },
+      );
+      return { ok: true, result };
+    } catch (error) {
+      return { ok: false, error: error.message };
+    } finally {
+      printBusy = false;
+    }
   });
   session.defaultSession.setPermissionRequestHandler(
     (_webContents, _permission, callback) => callback(false),
@@ -207,8 +276,9 @@ async function start() {
     height: 980,
     minWidth: 900,
     minHeight: 650,
-    backgroundColor: "#f4f4f3",
-    title: "Vault Store",
+    backgroundColor: "#f3f6fa",
+    icon: path.join(app.getAppPath(), "build/icon.png"),
+    title: brand.name,
     show: false,
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
@@ -228,10 +298,18 @@ async function start() {
       event.preventDefault();
   });
   mainWindow.once("ready-to-show", () => mainWindow.show());
+  app.setAboutPanelOptions({
+    applicationName: brand.name,
+    applicationVersion: app.getVersion(),
+    copyright: "Developed by " + brand.company,
+    iconPath: path.join(app.getAppPath(), "build/icon.png"),
+  });
+  if (process.platform === "darwin")
+    app.dock?.setIcon(path.join(app.getAppPath(), "build/icon.png"));
   Menu.setApplicationMenu(
     Menu.buildFromTemplate([
       {
-        label: "Vault Store",
+        label: brand.name,
         submenu: [{ role: "about" }, { type: "separator" }, { role: "quit" }],
       },
       {
@@ -296,7 +374,7 @@ app
     return start();
   })
   .catch((e) => {
-    dialog.showErrorBox("Vault Store could not start", e.message);
+    dialog.showErrorBox(brand.name + " could not start", e.message);
     app.exit(1);
   });
 app.on("window-all-closed", () => {

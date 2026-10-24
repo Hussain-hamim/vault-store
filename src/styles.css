@@ -1498,8 +1498,7 @@ html[dir="rtl"] .period-picker select {
   padding: 12px 14px;
   border: 1.5px solid #e4e7dc;
   border-radius: 14px;
-  background:
-    linear-gradient(135deg, #f7f9f0 0%, #fff 42%, #f4f8fa 100%);
+  background: linear-gradient(135deg, #f7f9f0 0%, #fff 42%, #f4f8fa 100%);
   box-shadow: 0 1px 0 #ffffffaa inset;
 }
 .page-intro-compact .eyebrow {
@@ -5630,6 +5629,47 @@ html[dir="rtl"] .sale-customer-name select {
   background: #fff;
   box-shadow: inset 0 1px 0 #ffffffaa;
 }
+.trade-catalog-tools {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 8px;
+  flex: none;
+  min-width: 0;
+}
+.trade-catalog-tools > .trade-barcode-scan,
+.trade-catalog-tools > .search-input {
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  height: 40px;
+  margin: 0;
+}
+.trade-catalog-tools > .trade-barcode-scan {
+  padding: 4px 8px;
+  gap: 6px;
+}
+.trade-catalog-tools > .trade-barcode-scan > svg,
+.trade-catalog-tools > .search-input > svg {
+  flex-shrink: 0;
+}
+.trade-catalog-tools input {
+  min-width: 0;
+  text-overflow: ellipsis;
+}
+.trade-catalog-tools .trade-barcode-scan input {
+  width: 0;
+  font-size: 11px;
+}
+.trade-catalog-tools .trade-barcode-scan .button {
+  min-height: 28px;
+  padding: 4px 9px;
+}
+@media (max-width: 560px) {
+  .trade-catalog-tools {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 .trade-barcode-scan {
   display: flex;
   align-items: center;
@@ -6091,8 +6131,7 @@ html[dir="rtl"] .sale-customer-name select {
 }
 .capital-history-row {
   display: grid;
-  grid-template-columns:
-    96px 100px 110px minmax(0, 1fr) auto;
+  grid-template-columns: 96px 100px 110px minmax(0, 1fr) auto;
   gap: 10px;
   align-items: center;
   width: 100%;
@@ -6339,7 +6378,10 @@ html[dir="rtl"] .sale-customer-name select {
   display: grid;
   grid-template-columns:
     minmax(140px, 1.3fr) minmax(90px, 0.7fr) minmax(120px, 1fr)
-    minmax(90px, 0.7fr) minmax(90px, 0.7fr) minmax(80px, 0.6fr) minmax(90px, 0.9fr);
+    minmax(90px, 0.7fr) minmax(90px, 0.7fr) minmax(80px, 0.6fr) minmax(
+      90px,
+      0.9fr
+    );
   gap: 10px;
   align-items: center;
   padding: 4px 12px 8px;
@@ -6368,7 +6410,10 @@ html[dir="rtl"] .sale-customer-name select {
   display: grid;
   grid-template-columns:
     minmax(140px, 1.3fr) minmax(90px, 0.7fr) minmax(120px, 1fr)
-    minmax(90px, 0.7fr) minmax(90px, 0.7fr) minmax(80px, 0.6fr) minmax(90px, 0.9fr);
+    minmax(90px, 0.7fr) minmax(90px, 0.7fr) minmax(80px, 0.6fr) minmax(
+      90px,
+      0.9fr
+    );
   gap: 10px;
   align-items: center;
   width: 100%;
@@ -6578,8 +6623,10 @@ html[dir="rtl"] .sale-customer-name select {
 .inventory-list-cols,
 .inventory-row-main {
   display: grid;
-  grid-template-columns:
-    minmax(240px, 1fr) minmax(88px, 0.35fr) minmax(110px, 0.4fr) 36px;
+  grid-template-columns: minmax(240px, 1fr) minmax(88px, 0.35fr) minmax(
+      110px,
+      0.4fr
+    ) 36px;
   gap: 12px;
   align-items: center;
 }
@@ -6875,8 +6922,10 @@ html[dir="rtl"] .sale-customer-name select {
   .inventory-row-main,
   .inventory-list.with-cost .inventory-list-cols,
   .inventory-list.with-cost .inventory-row-main {
-    grid-template-columns:
-      minmax(180px, 1fr) minmax(80px, 0.35fr) minmax(100px, 0.4fr) 36px;
+    grid-template-columns: minmax(180px, 1fr) minmax(80px, 0.35fr) minmax(
+        100px,
+        0.4fr
+      ) 36px;
   }
   .inventory-list.with-cost .inventory-list-cols span:nth-child(3),
   .inventory-list.with-cost .inventory-row-cost {
@@ -6904,9 +6953,8 @@ html[dir="rtl"] .sale-customer-name select {
   .inventory-row-go {
     grid-area: go;
   }
-  .inventory-row-main > .inventory-row-meta:not(.inventory-row-cost):not(
-      .inventory-row-price
-    ) {
+  .inventory-row-main
+    > .inventory-row-meta:not(.inventory-row-cost):not(.inventory-row-price) {
     grid-area: stock;
   }
   .inventory-row-price {
@@ -7325,9 +7373,8 @@ img {
   .inventory-row-go {
     grid-area: go;
   }
-  .inventory-row-main > .inventory-row-meta:not(.inventory-row-cost):not(
-      .inventory-row-price
-    ) {
+  .inventory-row-main
+    > .inventory-row-meta:not(.inventory-row-cost):not(.inventory-row-price) {
     grid-area: stock;
   }
   .inventory-row-price {

@@ -12,12 +12,15 @@ contextBridge.exposeInMainWorld(
       if (!reply.ok) throw new Error(reply.error);
       return reply.result;
     },
+    openExternal: (url) => ipcRenderer.invoke("vault:open-support", url),
     pickFolder: () => ipcRenderer.invoke("vault:folder"),
     pickBackup: () => ipcRenderer.invoke("vault:backup-file"),
     restore: (file, token) => ipcRenderer.invoke("vault:restore", file, token),
     installSchedule: (token) => ipcRenderer.invoke("vault:schedule", token),
-    saveInvoicePDF: (id, token) =>
-      ipcRenderer.invoke("vault:invoice-pdf", id, token),
-    print: () => ipcRenderer.invoke("vault:print"),
+    renderPrint: async (job, token) => {
+      const reply = await ipcRenderer.invoke("vault:render-print", job, token);
+      if (!reply.ok) throw new Error(reply.error);
+      return reply.result;
+    },
   }),
 );

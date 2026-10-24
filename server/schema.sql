@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS products(id TEXT PRIMARY KEY,sku TEXT NOT NULL UNIQUE
 CREATE UNIQUE INDEX IF NOT EXISTS idx_barcode ON products(barcode) WHERE barcode<>'';
 CREATE INDEX IF NOT EXISTS idx_products_name ON products(name COLLATE NOCASE,id);
 CREATE INDEX IF NOT EXISTS idx_products_category ON products(category,active,id);
+CREATE INDEX IF NOT EXISTS idx_products_reorder ON products((stock=0) DESC,sku,id) WHERE active=1 AND stock<=reorder_level;
 CREATE TABLE IF NOT EXISTS documents(id TEXT PRIMARY KEY,number TEXT NOT NULL UNIQUE,kind TEXT NOT NULL,party_id TEXT REFERENCES parties(id),date TEXT NOT NULL,total INTEGER NOT NULL DEFAULT 0,paid INTEGER NOT NULL DEFAULT 0,cost INTEGER NOT NULL DEFAULT 0,discount INTEGER NOT NULL DEFAULT 0,note TEXT NOT NULL DEFAULT '',category TEXT NOT NULL DEFAULT '',original_id TEXT REFERENCES documents(id),due_date TEXT,request_key TEXT NOT NULL UNIQUE,user_id TEXT REFERENCES users(id),created_at TEXT NOT NULL) STRICT;
 CREATE INDEX IF NOT EXISTS idx_documents_date ON documents(date,kind,id);
 CREATE INDEX IF NOT EXISTS idx_documents_party ON documents(party_id,date,id);
@@ -16,6 +17,7 @@ CREATE INDEX IF NOT EXISTS idx_lines_product ON document_lines(product_id,docume
 CREATE INDEX IF NOT EXISTS idx_lines_original ON document_lines(original_line_id);
 CREATE TABLE IF NOT EXISTS batches(id TEXT PRIMARY KEY,product_id TEXT NOT NULL REFERENCES products(id),line_id TEXT REFERENCES document_lines(id),quantity INTEGER NOT NULL,remaining INTEGER NOT NULL CHECK(remaining>=0 AND remaining<=quantity),unit_cost INTEGER NOT NULL CHECK(unit_cost>=0),received_at TEXT NOT NULL) STRICT;
 CREATE INDEX IF NOT EXISTS idx_batches_fifo ON batches(product_id,received_at,id) WHERE remaining>0;
+CREATE INDEX IF NOT EXISTS idx_batches_history ON batches(product_id,received_at);
 CREATE INDEX IF NOT EXISTS idx_batches_line ON batches(line_id);
 CREATE TABLE IF NOT EXISTS devices(id TEXT PRIMARY KEY,product_id TEXT NOT NULL REFERENCES products(id),batch_id TEXT NOT NULL REFERENCES batches(id),serial TEXT NOT NULL UNIQUE,imei1 TEXT NOT NULL DEFAULT '',imei2 TEXT NOT NULL DEFAULT '',status TEXT NOT NULL CHECK(status IN ('in_stock','sold','returned_supplier')),sale_line_id TEXT REFERENCES document_lines(id)) STRICT;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_imei1 ON devices(imei1) WHERE imei1<>'';
@@ -32,7 +34,7 @@ CREATE INDEX IF NOT EXISTS idx_journal_party ON journal(party_id,account,date,id
 CREATE TABLE IF NOT EXISTS payment_allocations(id TEXT PRIMARY KEY,payment_id TEXT NOT NULL REFERENCES documents(id),invoice_id TEXT NOT NULL REFERENCES documents(id),amount INTEGER NOT NULL CHECK(amount>0)) STRICT;
 CREATE TABLE IF NOT EXISTS audit(id INTEGER PRIMARY KEY AUTOINCREMENT,user_id TEXT REFERENCES users(id),action TEXT NOT NULL,entity_id TEXT NOT NULL,details TEXT NOT NULL,created_at TEXT NOT NULL) STRICT;
 CREATE TABLE IF NOT EXISTS backup_runs(id TEXT PRIMARY KEY,created_at TEXT NOT NULL,path TEXT NOT NULL,status TEXT NOT NULL,checksum TEXT NOT NULL DEFAULT '',size INTEGER NOT NULL DEFAULT 0,message TEXT NOT NULL DEFAULT '') STRICT;
-PRAGMA user_version=1;
+PRAGMA user_version=2;
 CREATE TABLE IF NOT EXISTS daily_totals(date TEXT NOT NULL,account TEXT NOT NULL,debit INTEGER NOT NULL DEFAULT 0,credit INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(date,account)) WITHOUT ROWID, STRICT;
 CREATE TRIGGER IF NOT EXISTS journal_daily_insert AFTER INSERT ON journal BEGIN
  INSERT INTO daily_totals(date,account,debit,credit) VALUES(NEW.date,NEW.account,NEW.debit,NEW.credit)
@@ -60,3 +62,13 @@ CREATE TRIGGER IF NOT EXISTS journal_party_delete AFTER DELETE ON journal WHEN O
 END;
 CREATE TABLE IF NOT EXISTS invoice_revisions(document_id TEXT PRIMARY KEY REFERENCES documents(id),revision INTEGER NOT NULL DEFAULT 0) STRICT;
 CREATE TABLE IF NOT EXISTS invoice_operations(request_key TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id),action TEXT NOT NULL,result TEXT NOT NULL) STRICT;
+
+CREATE TABLE IF NOT EXISTS expense_accounts(id TEXT PRIMARY KEY,name TEXT NOT NULL COLLATE NOCASE UNIQUE,created_at TEXT NOT NULL) STRICT;
+CREATE TABLE IF NOT EXISTS consignment_payout_allocations(id TEXT PRIMARY KEY,payment_id TEXT NOT NULL REFERENCES documents(id),sale_id TEXT NOT NULL REFERENCES documents(id),owner_id TEXT NOT NULL REFERENCES parties(id),amount INTEGER NOT NULL CHECK(amount>0)) STRICT;
+CREATE INDEX IF NOT EXISTS idx_consignment_payout_sale ON consignment_payout_allocations(sale_id,owner_id);
+
+CREATE INDEX IF NOT EXISTS idx_party_totals_account ON party_totals(account,party_id);
+
+-- Product thumbnails are content-addressed BLOBs so catalog pages remain small.
+CREATE TABLE IF NOT EXISTS product_photos(id TEXT PRIMARY KEY,mime TEXT NOT NULL,data BLOB NOT NULL,created_at TEXT NOT NULL) STRICT;
+CREATE INDEX IF NOT EXISTS idx_product_photo_match ON products(category,brand COLLATE NOCASE,model COLLATE NOCASE) WHERE substr(image,1,6)='photo:';

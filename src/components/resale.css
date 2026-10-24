@@ -1,0 +1,133 @@
+.resale-page {
+  max-width: 1080px;
+  margin: 0 auto;
+}
+.resale-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.resale-header h2 {
+  margin: 0 0 7px;
+  font-size: 20px;
+  color: #374b50;
+}
+.resale-header p {
+  margin: 0;
+  color: #697c7c;
+  font-size: 11px;
+}
+.resale-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 15px 0;
+}
+.resale-summary article {
+  padding: 16px;
+  border: 1px solid #cfe2e4;
+  background: #f0f8f7;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.resale-summary span {
+  font-size: 11px;
+  color: #536f70;
+}
+.resale-summary strong {
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+}
+.resale-list {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin: 12px 0;
+}
+.resale-row {
+  padding: 15px;
+  background: #fff;
+  border: 1px solid #dce8e5;
+  border-inline-start: 4px solid #73b3ad;
+  border-radius: 12px;
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  flex-wrap: wrap;
+  font-size: 12px;
+}
+.resale-row > div:first-child {
+  flex: 1;
+  min-width: 190px;
+}
+.resale-row small {
+  display: block;
+  margin: 5px 0;
+  color: #718382;
+  font-size: 10px;
+}
+.resale-row strong {
+  line-height: 1.6;
+}
+.expense-account-create {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.expense-account-create .field {
+  flex: 1;
+  margin-bottom: 0;
+}
+.expense-account-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 10px 0 15px;
+}
+.resale-owner-balance {
+  border-top: 1px solid #dde8df;
+  padding-top: 12px;
+  margin-top: 14px;
+}
+.resale-owner-balance strong {
+  display: block;
+  font-size: 19px;
+  margin: 8px 0;
+}
+.owner-ledger-tabs {
+  display: flex;
+  gap: 7px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.owner-ledger-tabs .selected {
+  background: #e0efee;
+  color: #275c5d;
+  border-color: #a6cecb;
+}
+@media (max-width: 1100px) {
+  .resale-summary strong {
+    font-size: 18px;
+  }
+  .resale-row {
+    gap: 12px;
+  }
+  .expense-account-create {
+    flex-wrap: wrap;
+  }
+}
+.resale-intake-section { padding:18px; border:1px solid #dce8e9; border-radius:12px; background:#fbfdfd; margin-bottom:15px; }
+.resale-intake-section h3 { font-size:13px; margin:0 0 15px; color:#2a6765; }
+.resale-intake-heading { display:flex; align-items:center; justify-content:space-between; gap:15px; margin-bottom:16px; }
+.resale-intake-heading h3 { margin:0; }
+.resale-mode-switch { display:flex; border:1px solid #d1e3df; border-radius:8px; padding:3px; background:white; }
+.resale-mode-switch button { border:0; padding:7px 11px; background:transparent; font:inherit; font-size:10px; color:#64817b; cursor:pointer; border-radius:5px; }
+.resale-mode-switch button[aria-pressed="true"] { color:#24695f; background:#e6f3ef; font-weight:700; }
+.resale-intake-section .help-note { margin:5px 0 0; font-size:10px; line-height:1.7; }
+@media(max-width:650px){.resale-intake-heading{align-items:flex-start;flex-direction:column}.resale-intake-section{padding:13px}}

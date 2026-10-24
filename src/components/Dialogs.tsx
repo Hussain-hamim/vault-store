@@ -1,3 +1,7 @@
+import { ProductPhoto } from "./ProductPhoto";
+import { ProductPhotoPicker, type PhotoValue } from "./ProductPhotoPicker";
+import { CurrencyPicker, CurrencyFlag } from "./CurrencyPicker";
+import { expenseAccountName } from "../expense-accounts";
 import { useEffect, useState, useRef } from "react";
 import {
   PlusIcon,
@@ -15,6 +19,7 @@ import {
   api,
   af,
   aed,
+  foreignMoney,
   toMoney,
   toFxRate,
   afnFromAed,
@@ -27,10 +32,12 @@ import {
   Product,
   Party,
   User,
-  downloadInvoice,
   productSpecEntries,
 } from "../api";
-import { useT } from "../i18n";
+import { useT, useI18n } from "../i18n";
+import { PrintDialog } from "../printing/PrintDialog";
+import { invoicePrintModel } from "../printing/models.mjs";
+import type { PrintDocument } from "../printing/types";
 import {
   Modal,
   Field,
@@ -45,7 +52,7 @@ type DialogProps = {
   close: () => void;
   done: (message: string, result?: unknown) => void;
 };
-const PRODUCT_BRANDS = [
+export const PRODUCT_BRANDS = [
   "Apple",
   "Dell",
   "Samsung",
@@ -93,17 +100,14 @@ function accessoryChoices(current?: string) {
     return [current, ...ACCESSORY_TYPES];
   return ACCESSORY_TYPES;
 }
-const PRODUCT_CATEGORIES = [
+export const PRODUCT_CATEGORIES = [
   "Computers",
   "Mobiles",
   "Tablets",
   "Storage",
   "Accessories",
 ] as const;
-function categoryLabel(
-  tr: (key: string) => string,
-  category: string,
-) {
+export function categoryLabel(tr: (key: string) => string, category: string) {
   const keys: Record<string, string> = {
     Computers: "inventory.computers",
     Mobiles: "inventory.mobiles",
@@ -113,7 +117,7 @@ function categoryLabel(
   };
   return tr(keys[category] || category);
 }
-function specFieldLabel(tr: (key: string) => string, key: string) {
+export function specFieldLabel(tr: (key: string) => string, key: string) {
   const map: Record<string, string> = {
     CPU: "product.cpu",
     RAM: "product.ram",
@@ -127,46 +131,6 @@ function specFieldLabel(tr: (key: string) => string, key: string) {
     Wattage: "productForm.wattage",
   };
   return tr(map[key] || key);
-}
-const ACCESSORY_IMAGES: Record<string, string> = {
-  Keyboard: "/assets/keyboard.jpg",
-  Mouse: "/assets/mouse.jpg",
-  Headphones: "/assets/headphones.png",
-  Charger: "/assets/adapter.png",
-  Cable: "/assets/cable.jpg",
-  Case: "/assets/case.jpg",
-  "Mouse pad": "/assets/mouse-pad.jpg",
-  Plush: "/assets/plush.jpg",
-  "Hard disk": "/assets/storage.png",
-  Webcam: "/assets/webcam.jpg",
-  Hub: "/assets/hub.jpg",
-  Speaker: "/assets/speaker.jpg",
-};
-function productImage(category: string, accessoryType = "") {
-  if (category === "Computers") return "/assets/laptop.png";
-  if (category === "Tablets") return "/assets/tablet.png";
-  if (category === "Mobiles") return "/assets/phone.png";
-  if (category === "Storage") return "/assets/storage.png";
-  if (category !== "Accessories") return "/assets/adapter.png";
-  if (ACCESSORY_IMAGES[accessoryType]) return ACCESSORY_IMAGES[accessoryType];
-  const t = accessoryType.toLowerCase();
-  if (t.includes("key")) return ACCESSORY_IMAGES.Keyboard;
-  if (t.includes("mouse pad") || t.includes("mousepad"))
-    return ACCESSORY_IMAGES["Mouse pad"];
-  if (t.includes("mouse")) return ACCESSORY_IMAGES.Mouse;
-  if (t.includes("headphone") || t.includes("earbud") || t.includes("airpod"))
-    return ACCESSORY_IMAGES.Headphones;
-  if (t.includes("charg") || t.includes("adapter") || t.includes("power"))
-    return ACCESSORY_IMAGES.Charger;
-  if (t.includes("cable") || t.includes("cord")) return ACCESSORY_IMAGES.Cable;
-  if (t.includes("case") || t.includes("cover")) return ACCESSORY_IMAGES.Case;
-  if (t.includes("plush") || t.includes("toy")) return ACCESSORY_IMAGES.Plush;
-  if (t.includes("hard") || t.includes("disk") || t.includes("ssd") || t.includes("storage"))
-    return ACCESSORY_IMAGES["Hard disk"];
-  if (t.includes("web") || t.includes("cam")) return ACCESSORY_IMAGES.Webcam;
-  if (t.includes("hub") || t.includes("dock")) return ACCESSORY_IMAGES.Hub;
-  if (t.includes("speaker") || t.includes("audio")) return ACCESSORY_IMAGES.Speaker;
-  return ACCESSORY_IMAGES.Charger;
 }
 export function ProductForm({
   close,
@@ -185,12 +149,18 @@ export function ProductForm({
   const [category, setCategory] = useState(product?.category || "Computers"),
     [brandPick, setBrandPick] = useState(product?.brand || "Apple"),
     [brandOther, setBrandOther] = useState(""),
+    [model, setModel] = useState(product?.model || ""),
+    [photo, setPhoto] = useState<PhotoValue>({ image: product?.image || "" }),
+    [photoBusy, setPhotoBusy] = useState(false),
     [accessoryPick, setAccessoryPick] = useState(
       product?.attributes?.Type || "Keyboard",
     ),
     [accessoryOther, setAccessoryOther] = useState(""),
+    [currency, setCurrency] = useState(product?.currency || "AED"),
     [costAed, setCostAed] = useState(
-      product?.cost_aed ? moneyInput(product.cost_aed) : "",
+      (product?.cost_foreign ?? product?.cost_aed)
+        ? moneyInput(product?.cost_foreign ?? product?.cost_aed ?? 0)
+        : "",
     ),
     [fxRate, setFxRate] = useState(
       product?.fx_rate ? fxRateInput(product.fx_rate) : "",
@@ -232,12 +202,12 @@ export function ProductForm({
       let cost_aed = 0,
         fx_rate = 0;
       if (forPurchase) {
-        // Purchase bill records AED cost + rate; catalog starts at zero stock.
+        // The purchase bill records currency, supplier cost and rate; catalog starts at zero stock.
       } else {
         cost_aed = costAed.trim() ? toMoney(costAed) : 0;
         fx_rate = fxRate.trim() ? toFxRate(fxRate) : 0;
         if (!cost_aed || !fx_rate)
-          throw new Error(t("productForm.errCostRate"));
+          throw new Error(t("currencies.costRateRequired"));
       }
       const attributes: Record<string, string> = {};
       for (const k of [
@@ -267,13 +237,18 @@ export function ProductForm({
         price: toMoney(f.get("price")),
         minimum: product?.minimum ?? 0,
         reorder_level: Number(
-          sanitizeNumericInput(String(f.get("reorder_level") || "0"), "integer"),
+          sanitizeNumericInput(
+            String(f.get("reorder_level") || "0"),
+            "integer",
+          ),
         ),
         location: product?.location || "",
         condition: f.get("condition"),
         warranty: f.get("warranty"),
         attributes,
-        cost_aed,
+        currency,
+        cost_foreign: cost_aed,
+        cost_aed: currency === "AED" ? cost_aed : 0,
         fx_rate,
         unit_cost: afnFromAed(cost_aed, fx_rate),
         ...(!product
@@ -288,7 +263,7 @@ export function ProductForm({
                   ),
             }
           : {}),
-        image: productImage(category, resolvedAccessory),
+        ...photo,
       });
       done(
         product
@@ -314,10 +289,6 @@ export function ProductForm({
           : ["Compatibility", "Wattage", "Color"];
   const previewAccessory =
     accessoryPick === "Other" ? accessoryOther.trim() : accessoryPick;
-  const previewImage = productImage(
-    category,
-    category === "Accessories" ? previewAccessory : "",
-  );
   return (
     <Modal
       title={
@@ -341,23 +312,19 @@ export function ProductForm({
             <PackageIcon size={17} />
             {t("productForm.info")}
           </div>
-          <div className="product-form-preview">
-            <img src={previewImage} alt="" />
-            <div>
-              <strong>{t("productForm.image")}</strong>
-              <small>
-                {category === "Accessories"
-                  ? previewAccessory
-                    ? t("productForm.accessoryPhoto", {
-                        type: previewAccessory,
-                      })
-                    : t("productForm.pickAccessory")
-                  : t("productForm.categoryPhoto", {
-                      category: categoryLabel(t, category),
-                    })}
-              </small>
-            </div>
-          </div>
+          <ProductPhotoPicker
+            product={{
+              category,
+              brand: brandPick === "Other" ? brandOther : brandPick,
+              model,
+              attributes: {
+                Type: category === "Accessories" ? previewAccessory : "",
+              },
+            }}
+            existingImage={product?.image}
+            onChange={setPhoto}
+            onBusy={setPhotoBusy}
+          />
           <div className="form-grid">
             <Field label={t("product.name")}>
               <input
@@ -370,6 +337,7 @@ export function ProductForm({
             </Field>
             <Field label={t("product.category")}>
               <select
+                name="category"
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
               >
@@ -409,12 +377,13 @@ export function ProductForm({
             )}
             <Field label={t("productForm.companyBrand")}>
               <select
+                name="brand"
                 value={brandPick}
                 onChange={(e) => setBrandPick(e.target.value)}
                 required
               >
                 {brandChoices(product?.brand).map((b) => (
-                  <option key={b}>
+                  <option key={b} value={b}>
                     {b === "Other" ? t("common.other") : b}
                   </option>
                 ))}
@@ -433,7 +402,8 @@ export function ProductForm({
             <Field label={t("product.model")}>
               <input
                 name="model"
-                defaultValue={product?.model}
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
                 placeholder={t("productForm.modelPh")}
                 required
               />
@@ -469,12 +439,24 @@ export function ProductForm({
             </Field>
           </div>
           <div className="form-section-title">{t("productForm.pricing")}</div>
+          {!forPurchase && (
+            <Field label={t("currencies.choose")}>
+              <CurrencyPicker
+                value={currency}
+                onChange={(code) => {
+                  setCurrency(code);
+                  setCostAed("");
+                  setFxRate(code === "AFN" ? "1" : "");
+                }}
+              />
+            </Field>
+          )}
           <div className="form-grid">
             {!forPurchase && (
               <>
                 <Field
-                  label={t("product.unitCostAed")}
-                  hint={t("productForm.unitCostAedHint")}
+                  label={t("currencies.unitCost", { code: currency })}
+                  hint={t("currencies.costHint")}
                 >
                   <NumericInput
                     min="0"
@@ -486,21 +468,28 @@ export function ProductForm({
                   />
                 </Field>
                 <Field
-                  label={t("productForm.fxRateAtPurchase")}
-                  hint={t("productForm.fxRateDayHint")}
+                  label={
+                    <span className="currency-rate-label">
+                      <CurrencyFlag code={currency} />
+                      {t("currencies.rate", { code: currency })}
+                      <CurrencyFlag code="AFN" />
+                    </span>
+                  }
+                  hint={t("currencies.rateHint")}
                 >
                   <NumericInput
                     min="0"
                     step="0.0001"
                     value={fxRate}
+                    readOnly={currency === "AFN"}
                     onChange={(e) => setFxRate(e.target.value)}
-                    placeholder={t("sales.aedRatePh")}
+                    placeholder={t("currencies.ratePlaceholder")}
                     required
                   />
                 </Field>
                 <Field
                   label={t("product.unitCostAf")}
-                  hint={t("productForm.unitCostAfHint")}
+                  hint={t("currencies.afnCostHint")}
                 >
                   <input
                     value={unitCostAfn ? moneyInput(unitCostAfn) : ""}
@@ -601,7 +590,7 @@ export function ProductForm({
           <button type="button" className="button" onClick={close}>
             {t("common.cancel")}
           </button>
-          <button className="button button-dark" disabled={busy}>
+          <button className="button button-dark" disabled={busy || photoBusy}>
             {busy
               ? t("common.saving")
               : product
@@ -621,7 +610,7 @@ type CartLine = {
   quantity: number;
   price: string;
   discount: string;
-  /** Per-unit Dubai cost in AED (major units string). */
+  /** Per-unit supplier quote in the selected currency (major-unit string). */
   costAed?: string;
 };
 function BillFrame({
@@ -657,7 +646,9 @@ export function TradeForm({
     [party, setParty] = useState(""),
     [lines, setLines] = useState<CartLine[]>([]),
     [paid, setPaid] = useState(""),
-    [fxRate, setFxRate] = useState(""),
+    [paymentInForeign, setPaymentInForeign] = useState(true),
+    [currency, setCurrency] = useState(kind === "purchase" ? "AED" : "AFN"),
+    [fxRate, setFxRate] = useState(kind === "purchase" ? "" : "1"),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [initial, setInitial] = useState<any>(null),
@@ -741,8 +732,7 @@ export function TradeForm({
       .then((d) => {
         if (!active) return;
         setParties(d.rows);
-        if (!documentId && purchase)
-          setParty(d.rows[0]?.id || "");
+        if (!documentId && purchase) setParty(d.rows[0]?.id || "");
       })
       .catch((e) => {
         if (active) setError(e.message);
@@ -764,17 +754,16 @@ export function TradeForm({
               (p: Product) => p.id === line.product_id,
             );
             if (!found)
-              throw new Error(
-                t("sales.errProductGone", { name: line.name }),
-              );
+              throw new Error(t("sales.errProductGone", { name: line.name }));
             return {
               product: { ...found, stock: found.stock + line.quantity },
               quantity: line.quantity,
               price: String(line.price / 100),
               discount: String(line.discount / 100),
-              costAed: line.cost_aed
-                ? moneyInput(line.cost_aed)
-                : undefined,
+              costAed:
+                (line.cost_foreign ?? line.cost_aed)
+                  ? moneyInput(line.cost_foreign ?? line.cost_aed)
+                  : "0",
             };
           }),
         );
@@ -783,8 +772,21 @@ export function TradeForm({
           setParty(doc.party_id);
           setCustomerMode("existing");
           setCustomerName(doc.party_name || "");
-          setPaid(String(doc.paid / 100));
-          if (doc.fx_rate) setFxRate(fxRateInput(doc.fx_rate));
+          const hasForeignPayment = doc.paid_foreign != null;
+          setPaymentInForeign(hasForeignPayment);
+          setPaid(moneyInput(hasForeignPayment ? doc.paid_foreign : doc.paid));
+          setCurrency(
+            kind === "sale" && !hasForeignPayment
+              ? "AFN"
+              : doc.currency || "AED",
+          );
+          setFxRate(
+            kind === "sale" && !hasForeignPayment
+              ? "1"
+              : doc.fx_rate
+                ? fxRateInput(doc.fx_rate)
+                : "",
+          );
           setLines(loaded);
         }
       })
@@ -808,7 +810,11 @@ export function TradeForm({
   }
   function add(p: Product) {
     if (lines.some((l) => l.product.id === p.id)) return;
-    const costAedMajor = p.cost_aed ? moneyInput(p.cost_aed) : "";
+    const sourceCost =
+      p.currency === currency || (!p.currency && currency === "AED")
+        ? (p.cost_foreign ?? p.cost_aed ?? 0)
+        : 0;
+    const costAedMajor = sourceCost ? moneyInput(sourceCost) : "";
     setLines((ls) =>
       ls.some((l) => l.product.id === p.id)
         ? ls
@@ -838,8 +844,7 @@ export function TradeForm({
         limit: 1,
       });
       const p = d.rows[0];
-      if (!p)
-        throw new Error(t("sales.errBarcode", { code }));
+      if (!p) throw new Error(t("sales.errBarcode", { code }));
       if (!purchase && p.stock <= 0)
         throw new Error(t("sales.errOutOfStock", { name: p.name }));
       if (lines.some((l) => l.product.id === p.id))
@@ -884,6 +889,20 @@ export function TradeForm({
       }),
     );
   }
+  function changeCurrency(code: string) {
+    setCurrency(code);
+    setPaid("");
+    setPaymentInForeign(true);
+    const rate = code === "AFN" ? "1" : "";
+    setFxRate(rate);
+    setLines((current) =>
+      current.map((l) => ({
+        ...l,
+        costAed: code === "AFN" ? l.price : "",
+        price: code === "AFN" ? l.price : "",
+      })),
+    );
+  }
   const total = lines.reduce(
     (s, l) =>
       s +
@@ -891,8 +910,19 @@ export function TradeForm({
       Math.round(Number(l.discount || 0) * 100),
     0,
   );
-  const payment =
-    paid.trim() === "" ? 0 : Math.round(Number(paid) * 100 || 0);
+  const payment = (() => {
+    try {
+      const amount = paid.trim() === "" ? 0 : toMoney(paid);
+      return paymentInForeign
+        ? afnFromAed(amount, fxRate.trim() ? toFxRate(fxRate) : 0)
+        : amount;
+    } catch {
+      return 0;
+    }
+  })();
+  const paymentHint = paymentInForeign
+    ? t("currencies.paymentPreview", { amount: af(payment, 2) })
+    : t("sales.amountPaidHint");
   async function resolveSalePartyId() {
     if (purchase) {
       if (!party) throw new Error(t("sales.errChooseSupplier"));
@@ -927,9 +957,12 @@ export function TradeForm({
     setError("");
     const f = new FormData(e.currentTarget);
     try {
-      const rate = purchase && fxRate.trim() ? toFxRate(fxRate) : 0;
+      const enteredPaid = paid.trim() === "" ? 0 : toMoney(paid);
+      const rate = fxRate.trim() ? toFxRate(fxRate) : 0;
+      if (paymentInForeign && !rate)
+        throw new Error(t("currencies.rateRequired"));
       if (purchase && lines.some((l) => (l.costAed || "").trim()) && !rate)
-        throw new Error(t("sales.errFxRate"));
+        throw new Error(t("currencies.rateRequired"));
       const partyId = await resolveSalePartyId();
       const payload = lines.map((l) => {
         const cost_aed =
@@ -939,7 +972,7 @@ export function TradeForm({
           const expected = afnFromAed(cost_aed, rate);
           if (Math.abs(price - expected) > 1)
             throw new Error(
-              t("sales.errAfnCost", { name: l.product.name }),
+              t("currencies.costMismatch", { name: l.product.name }),
             );
         }
         return {
@@ -948,7 +981,12 @@ export function TradeForm({
           price,
           discount: toMoney(l.discount),
           ...(purchase
-            ? { cost_aed, fx_rate: cost_aed ? rate : 0 }
+            ? {
+                currency,
+                cost_foreign: cost_aed,
+                cost_aed: currency === "AED" ? cost_aed : 0,
+                fx_rate: rate,
+              }
             : {}),
         };
       });
@@ -958,11 +996,12 @@ export function TradeForm({
           ...(documentId ? { id: documentId, revision: initial.revision } : {}),
           party_id: partyId,
           lines: payload,
-          paid: paid.trim() === "" ? 0 : toMoney(paid),
+          paid: payment,
+          ...(paymentInForeign ? { paid_foreign: enteredPaid } : {}),
           date: f.get("date"),
           due_date: null,
           note: "",
-          ...(purchase ? { fx_rate: rate } : {}),
+          ...(purchase || paymentInForeign ? { currency, fx_rate: rate } : {}),
           request_key: key.current,
         },
       );
@@ -977,7 +1016,7 @@ export function TradeForm({
         {
           id: posted?.id,
           kind: posted?.kind || kind,
-          print: printAfter && inline,
+          print: printAfter === true,
         },
       );
     } catch (e: any) {
@@ -988,158 +1027,62 @@ export function TradeForm({
   }
   return (
     <>
-    <Frame
-      title={
-        purchase
-          ? initial
-            ? t("sales.editDoc", { number: initial.number })
-            : t("sales.receivePurchase")
-          : initial
-            ? t("sales.editDoc", { number: initial.number })
-            : t("sales.newBill")
-      }
-      subtitle={
-        purchase
-          ? t("sales.subtitlePurchase")
-          : t("sales.subtitleSale")
-      }
-      onClose={close}
-      wide
-    >
-      {loading ? (
-        <div className="form-body">{t("sales.loadingInvoice")}</div>
-      ) : (
-        <form
-          onSubmit={submit}
-          className={inline ? "sale-fit-form" : undefined}
-        >
-          {inline ? (
-            <div className={`sale-board${purchase ? " purchase-board" : ""}`}>
-              <section className="sale-board-left">
-                <div className="sale-customer-panel">
-                  {purchase ? (
-                    <div className="sale-customer-fields purchase-party-fields">
-                      <label className="sale-customer-name">
-                        <span>{t("sales.supplier")}</span>
-                        <div className="inline-actions party-picker">
-                          <select
-                            value={party}
-                            onChange={(e) => setParty(e.target.value)}
-                            required
-                          >
-                            <option value="">{t("sales.chooseSupplier")}</option>
-                            {parties.map((p) => (
-                              <option value={p.id} key={p.id}>
-                                {p.name}
-                              </option>
-                            ))}
-                          </select>
-                          <button
-                            type="button"
-                            className="button"
-                            onClick={() => setAddingParty(true)}
-                          >
-                            <PlusIcon size={15} />
-                            {t("common.add")}
-                          </button>
-                        </div>
-                      </label>
-                      <label className="sale-customer-date">
-                        <span>{t("common.date")}</span>
-                        <input
-                          type="date"
-                          name="date"
-                          defaultValue={initial?.date || businessDate()}
-                          max={businessDate()}
-                          required
-                        />
-                      </label>
-                      <label className="sale-customer-name purchase-rate-field">
-                        <span>{t("sales.aedRate")}</span>
-                        <NumericInput
-                          min="0"
-                          step="0.0001"
-                          value={fxRate}
-                          onChange={(e) => applyFxRate(e.target.value)}
-                          placeholder={t("sales.aedRatePh")}
-                          required
-                        />
-                        <small>
-                          {fxRate.trim()
-                            ? t("sales.aedRateInline", { rate: fxRate })
-                            : t("sales.aedRateHint")}
-                        </small>
-                      </label>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="sale-customer-row">
-                        <div
-                          className="sale-customer-modes"
-                          role="tablist"
-                          aria-label={t("sales.customerEntry")}
-                        >
-                          <button
-                            type="button"
-                            role="tab"
-                            aria-selected={customerMode === "new"}
-                            className={customerMode === "new" ? "active" : ""}
-                            onClick={() => setCustomerMode("new")}
-                          >
-                            {t("sales.typeName")}
-                          </button>
-                          <button
-                            type="button"
-                            role="tab"
-                            aria-selected={customerMode === "existing"}
-                            className={
-                              customerMode === "existing" ? "active" : ""
-                            }
-                            onClick={() => setCustomerMode("existing")}
-                          >
-                            {t("sales.existing")}
-                          </button>
-                        </div>
-                        {customerMode === "new" ? (
-                          <label className="sale-customer-name">
-                            <span>{t("sales.customer")}</span>
-                            <input
-                              value={customerName}
-                              onChange={(e) => setCustomerName(e.target.value)}
-                              placeholder={t("sales.customerPh")}
-                              minLength={2}
+      <Frame
+        title={
+          purchase
+            ? initial
+              ? t("sales.editDoc", { number: initial.number })
+              : t("sales.receivePurchase")
+            : initial
+              ? t("sales.editDoc", { number: initial.number })
+              : t("sales.newBill")
+        }
+        subtitle={
+          purchase ? t("sales.subtitlePurchase") : t("sales.subtitleSale")
+        }
+        onClose={close}
+        wide
+      >
+        {loading ? (
+          <div className="form-body">{t("sales.loadingInvoice")}</div>
+        ) : (
+          <form
+            onSubmit={submit}
+            className={inline ? "sale-fit-form" : undefined}
+          >
+            {inline ? (
+              <div className={`sale-board${purchase ? " purchase-board" : ""}`}>
+                <section className="sale-board-left">
+                  <div className="sale-customer-panel">
+                    {purchase ? (
+                      <div className="sale-customer-fields purchase-party-fields">
+                        <label className="sale-customer-name">
+                          <span>{t("sales.supplier")}</span>
+                          <div className="inline-actions party-picker">
+                            <select
+                              value={party}
+                              onChange={(e) => setParty(e.target.value)}
                               required
-                              autoComplete="off"
-                            />
-                          </label>
-                        ) : (
-                          <label className="sale-customer-name">
-                            <span>{t("sales.customer")}</span>
-                            <div className="inline-actions party-picker">
-                              <select
-                                value={party}
-                                onChange={(e) => setParty(e.target.value)}
-                                required
-                              >
-                                <option value="">{t("sales.chooseCustomer")}</option>
-                                {parties.map((p) => (
-                                  <option value={p.id} key={p.id}>
-                                    {p.name}
-                                    {p.walk_in ? t("sales.walkInCashOnly") : ""}
-                                  </option>
-                                ))}
-                              </select>
-                              <button
-                                type="button"
-                                className="button"
-                                onClick={() => setAddingParty(true)}
-                              >
-                                <PlusIcon size={15} />
-                                {t("common.add")}
-                              </button>
-                            </div>
-                          </label>
-                        )}
+                            >
+                              <option value="">
+                                {t("sales.chooseSupplier")}
+                              </option>
+                              {parties.map((p) => (
+                                <option value={p.id} key={p.id}>
+                                  {p.name}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              type="button"
+                              className="button"
+                              onClick={() => setAddingParty(true)}
+                            >
+                              <PlusIcon size={15} />
+                              {t("common.add")}
+                            </button>
+                          </div>
+                        </label>
                         <label className="sale-customer-date">
                           <span>{t("common.date")}</span>
                           <input
@@ -1150,465 +1093,150 @@ export function TradeForm({
                             required
                           />
                         </label>
+                        <div className="sale-customer-name purchase-currency-field">
+                          <span>{t("currencies.choose")}</span>
+                          <CurrencyPicker
+                            value={currency}
+                            onChange={changeCurrency}
+                            compact
+                          />
+                        </div>
+                        <label className="sale-customer-name purchase-rate-field">
+                          <span>
+                            {t("currencies.rateShort", { code: currency })}
+                          </span>
+                          <NumericInput
+                            aria-label={t("currencies.rate", {
+                              code: currency,
+                            })}
+                            title={t("currencies.rateHint")}
+                            min="0"
+                            step="0.0001"
+                            value={fxRate}
+                            readOnly={currency === "AFN"}
+                            onChange={(e) => applyFxRate(e.target.value)}
+                            placeholder="0.00"
+                            required
+                          />
+                        </label>
                       </div>
-                      {customerMode === "new" && (
-                        <small className="sale-customer-hint">
-                          {t("sales.customerHint")}
-                        </small>
-                      )}
-                      {customerMode === "existing" &&
-                        selectedParty?.walk_in &&
-                        total - payment > 0 && (
-                          <p className="credit-hint">{t("sales.walkInMustPay")}</p>
-                        )}
-                    </>
-                  )}
-                </div>
-                <div className="sale-catalog-panel">
-                  <div className="trade-panel-head">
-                    <div>
-                      <h3>{t("sales.productCatalog")}</h3>
-                    </div>
-                    <div className="trade-catalog-actions">
-                      {purchase && (
-                        <button
-                          type="button"
-                          className="button"
-                          onClick={() => setAddingProduct(true)}
-                        >
-                          <PlusIcon size={15} />
-                          {t("sales.newProduct")}
-                        </button>
-                      )}
-                      <span className="subtle">
-                        {next
-                          ? t("sales.shownMore", { n: products.length })
-                          : t("sales.shown", { n: products.length })}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="trade-barcode-scan">
-                    <BarcodeIcon size={18} />
-                    <input
-                      ref={barcodeRef}
-                      aria-label={t("sales.scanBarcode")}
-                      placeholder={t("sales.scanPh")}
-                      value={scanCode}
-                      onChange={(e) => setScanCode(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          scanBarcode();
-                        }
-                      }}
-                      inputMode="numeric"
-                      autoComplete="off"
-                    />
-                    <button
-                      type="button"
-                      className="button"
-                      disabled={scanBusy || !scanCode.trim()}
-                      onClick={scanBarcode}
-                    >
-                      {scanBusy ? t("sales.looking") : t("common.add")}
-                    </button>
-                  </div>
-                  <Search
-                    value={q}
-                    onChange={setQ}
-                    placeholder={t("sales.searchCatalog")}
-                  />
-                  <div
-                    className="product-browser-list sale-product-list"
-                    role="listbox"
-                    aria-label={t("sales.availableProducts")}
-                  >
-                    {searching ? (
-                      <div className="product-browser-empty">
-                        <span className="muted">{t("sales.loadingProducts")}</span>
-                      </div>
-                    ) : products.length ? (
-                      <>
-                        {products.map((p) => {
-                          const detail = [
-                            p.brand,
-                            p.model,
-                            p.sku,
-                            p.barcode ? `⌗ ${p.barcode}` : "",
-                          ]
-                            .filter(Boolean)
-                            .join(" · ");
-                          const added = lines.some(
-                            (l) => l.product.id === p.id,
-                          );
-                          const out = !purchase && p.stock === 0;
-                          return (
-                            <button
-                              key={p.id}
-                              type="button"
-                              role="option"
-                              className="product-pick-card"
-                              disabled={added || out}
-                              onClick={() => add(p)}
-                            >
-                              <span className="product-pick-image">
-                                {p.image ? (
-                                  <img src={p.image} alt="" />
-                                ) : (
-                                  <PackageIcon size={24} weight="light" />
-                                )}
-                              </span>
-                              <span className="product-pick-body">
-                                <strong>{p.name}</strong>
-                                {detail ? <small>{detail}</small> : null}
-                                <span className="product-pick-meta">
-                                  <em>
-                                    {purchase
-                                      ? p.category ||
-                                        t("sales.catalogLabel")
-                                      : af(p.price)}
-                                  </em>
-                                  <em>
-                                    {purchase
-                                      ? t("sales.inCatalog")
-                                      : out
-                                        ? t("sales.outOfStock")
-                                        : t("productDetail.inStock", {
-                                            n: p.stock,
-                                          })}
-                                  </em>
-                                </span>
-                              </span>
-                              <PlusIcon size={18} />
-                            </button>
-                          );
-                        })}
-                        {next && (
-                          <button
-                            type="button"
-                            className="button product-load-more"
-                            disabled={loadingMore}
-                            onClick={loadMore}
-                          >
-                            {loadingMore
-                              ? t("common.loading")
-                              : t("sales.loadMoreProducts")}
-                          </button>
-                        )}
-                      </>
                     ) : (
-                      <div className="product-browser-empty">
-                        <PackageIcon size={28} weight="light" />
-                        <p>
-                          {q.trim()
-                            ? t("sales.noMatchSearch")
-                            : purchase
-                              ? t("sales.noProductsPurchase")
-                              : t("sales.noProductsSale")}
-                        </p>
+                      <>
+                        <div className="sale-customer-row">
+                          <div
+                            className="sale-customer-modes"
+                            role="tablist"
+                            aria-label={t("sales.customerEntry")}
+                          >
+                            <button
+                              type="button"
+                              role="tab"
+                              aria-selected={customerMode === "new"}
+                              className={customerMode === "new" ? "active" : ""}
+                              onClick={() => setCustomerMode("new")}
+                            >
+                              {t("sales.typeName")}
+                            </button>
+                            <button
+                              type="button"
+                              role="tab"
+                              aria-selected={customerMode === "existing"}
+                              className={
+                                customerMode === "existing" ? "active" : ""
+                              }
+                              onClick={() => setCustomerMode("existing")}
+                            >
+                              {t("sales.existing")}
+                            </button>
+                          </div>
+                          {customerMode === "new" ? (
+                            <label className="sale-customer-name">
+                              <span>{t("sales.customer")}</span>
+                              <input
+                                value={customerName}
+                                onChange={(e) =>
+                                  setCustomerName(e.target.value)
+                                }
+                                placeholder={t("sales.customerPh")}
+                                minLength={2}
+                                required
+                                autoComplete="off"
+                              />
+                            </label>
+                          ) : (
+                            <label className="sale-customer-name">
+                              <span>{t("sales.customer")}</span>
+                              <div className="inline-actions party-picker">
+                                <select
+                                  value={party}
+                                  onChange={(e) => setParty(e.target.value)}
+                                  required
+                                >
+                                  <option value="">
+                                    {t("sales.chooseCustomer")}
+                                  </option>
+                                  {parties.map((p) => (
+                                    <option value={p.id} key={p.id}>
+                                      {p.name}
+                                      {p.walk_in
+                                        ? t("sales.walkInCashOnly")
+                                        : ""}
+                                    </option>
+                                  ))}
+                                </select>
+                                <button
+                                  type="button"
+                                  className="button"
+                                  onClick={() => setAddingParty(true)}
+                                >
+                                  <PlusIcon size={15} />
+                                  {t("common.add")}
+                                </button>
+                              </div>
+                            </label>
+                          )}
+                          <label className="sale-customer-date">
+                            <span>{t("common.date")}</span>
+                            <input
+                              type="date"
+                              name="date"
+                              defaultValue={initial?.date || businessDate()}
+                              max={businessDate()}
+                              required
+                            />
+                          </label>
+                        </div>
+                        {customerMode === "new" && (
+                          <small className="sale-customer-hint">
+                            {t("sales.customerHint")}
+                          </small>
+                        )}
+                        {customerMode === "existing" &&
+                          selectedParty?.walk_in &&
+                          total - payment > 0 && (
+                            <p className="credit-hint">
+                              {t("sales.walkInMustPay")}
+                            </p>
+                          )}
+                      </>
+                    )}
+                  </div>
+                  <div className="sale-catalog-panel">
+                    <div className="trade-panel-head">
+                      <div>
+                        <h3>{t("sales.productCatalog")}</h3>
+                      </div>
+                      <div className="trade-catalog-actions">
                         {purchase && (
                           <button
                             type="button"
-                            className="button button-dark"
+                            className="button"
                             onClick={() => setAddingProduct(true)}
                           >
                             <PlusIcon size={15} />
                             {t("sales.newProduct")}
                           </button>
                         )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </section>
-              <section className="sale-board-right">
-                <div className="sale-bill-panel">
-                  <div className="trade-panel-head">
-                    <div>
-                      <h3>{t("sales.billLines")}</h3>
-                      <p>
-                        {lines.length
-                          ? t("sales.productsCount", { n: lines.length })
-                          : t("sales.addFromCatalog")}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="cart-lines">
-                    {lines.map((l, i) => (
-                      <div className="cart-line" key={l.product.id}>
-                        <div className="cart-line-title">
-                          <ProductName product={l.product} />
-                          <button
-                            type="button"
-                            className="icon-button"
-                            aria-label={t("sales.removeProduct", {
-                              name: l.product.name,
-                            })}
-                            onClick={() =>
-                              setLines((ls) => ls.filter((_, j) => j !== i))
-                            }
-                          >
-                            <TrashIcon size={17} />
-                          </button>
-                        </div>
-                        <div className="form-grid three">
-                          <Field label={t("common.quantity")}>
-                            <NumericInput
-                              kind="integer"
-                              aria-label={t("sales.productQty", {
-                                name: l.product.name,
-                              })}
-                              min="1"
-                              max={purchase ? 100000 : l.product.stock}
-                              value={l.quantity}
-                              onChange={(e) =>
-                                update(
-                                  i,
-                                  "quantity",
-                                  Number(e.target.value) || 0,
-                                )
-                              }
-                              required
-                            />
-                          </Field>
-                          {purchase ? (
-                            <>
-                              <Field label={t("sales.costAed")}>
-                                <NumericInput
-                                  min="0"
-                                  step="0.01"
-                                  value={l.costAed ?? ""}
-                                  onChange={(e) =>
-                                    update(i, "costAed", e.target.value)
-                                  }
-                                  placeholder="0.00"
-                                  required
-                                />
-                              </Field>
-                              <Field label={t("sales.costAf")}>
-                                <NumericInput
-                                  min="0"
-                                  step="0.01"
-                                  value={l.price}
-                                  readOnly
-                                  tabIndex={-1}
-                                  placeholder={
-                                    fxRate.trim()
-                                      ? t("sales.autoFromRate")
-                                      : t("sales.setAedRate")
-                                  }
-                                  required
-                                />
-                              </Field>
-                            </>
-                          ) : (
-                            <>
-                              <Field label={t("sales.unitPrice")}>
-                                <NumericInput
-                                  min="0"
-                                  step="0.01"
-                                  value={l.price}
-                                  onChange={(e) =>
-                                    update(i, "price", e.target.value)
-                                  }
-                                  required
-                                />
-                              </Field>
-                              <Field label={t("sales.lineDiscount")}>
-                                <NumericInput
-                                  min="0"
-                                  step="0.01"
-                                  value={l.discount}
-                                  onChange={(e) =>
-                                    update(i, "discount", e.target.value)
-                                  }
-                                  required
-                                />
-                              </Field>
-                            </>
-                          )}
-                        </div>
-                        {purchase && (
-                          <div className="form-grid" style={{ marginTop: 4 }}>
-                            <Field label={t("sales.lineDiscountAf")}>
-                              <NumericInput
-                                min="0"
-                                step="0.01"
-                                value={l.discount}
-                                onChange={(e) =>
-                                  update(i, "discount", e.target.value)
-                                }
-                                required
-                              />
-                            </Field>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                  {!lines.length && (
-                    <div className="cart-empty">
-                      <ShoppingIllustration />
-                      <p>
-                        {purchase
-                          ? t("sales.emptyPurchase")
-                          : t("sales.emptyBill")}
-                      </p>
-                    </div>
-                  )}
-                </div>
-                <div className="sale-pay-panel">
-                  <div className="trade-totals">
-                    <div>
-                      <span>{t("sales.invoiceTotal")}</span>
-                      <strong>{af(total, 2)}</strong>
-                    </div>
-                    <div>
-                      <span>{t("sales.balanceRemaining")}</span>
-                      <strong>{af(Math.max(0, total - payment), 2)}</strong>
-                    </div>
-                    <Field
-                      label={t("sales.amountPaid")}
-                      hint={t("sales.amountPaidHint")}
-                    >
-                      <NumericInput
-                        name="paid"
-                        min="0"
-                        max={total / 100}
-                        step="0.01"
-                        value={paid}
-                        placeholder="0.00"
-                        onChange={(e) => setPaid(e.target.value)}
-                      />
-                    </Field>
-                  </div>
-                  <ErrorMessage error={error} />
-                  <div className="sale-actions">
-                    <label className="sale-print-check">
-                      <input
-                        type="checkbox"
-                        checked={printAfter}
-                        onChange={(e) => setPrintAfter(e.target.checked)}
-                      />
-                      <PrinterIcon size={15} />
-                      {t("sales.printAfter")}
-                    </label>
-                    <button
-                      type="button"
-                      className="button"
-                      onClick={close}
-                    >
-                      {t("common.cancel")}
-                    </button>
-                    <button
-                      className="button button-dark"
-                      disabled={
-                        busy ||
-                        !lines.length ||
-                        !saleCustomerReady ||
-                        (!!documentId && !initial)
-                      }
-                    >
-                      {busy
-                        ? t("common.posting")
-                        : purchase
-                          ? documentId
-                            ? t("sales.savePurchase")
-                            : t("sales.receivePurchase")
-                          : documentId
-                            ? t("sales.saveInvoice")
-                            : t("sales.createSale")}
-                      <ArrowRightIcon size={16} />
-                    </button>
-                  </div>
-                </div>
-              </section>
-            </div>
-          ) : (
-            <>
-              <div className="form-body trade-body">
-                <div className="trade-meta">
-                  {purchase && (
-                    <div className="purchase-rate-bar">
-                      <Field
-                        label={t("sales.aedRateBar")}
-                        hint={t("sales.aedRateBarHint")}
-                      >
-                        <NumericInput
-                          min="0"
-                          step="0.0001"
-                          value={fxRate}
-                          onChange={(e) => applyFxRate(e.target.value)}
-                          placeholder={t("sales.aedRatePh")}
-                          required
-                        />
-                      </Field>
-                      <p className="purchase-rate-note">
-                        {fxRate.trim()
-                          ? t("sales.aedRateLive", { rate: fxRate })
-                          : t("sales.aedRateSetFirst")}
-                      </p>
-                    </div>
-                  )}
-                  <div className="form-grid three">
-                    <Field label={t("sales.supplier")}>
-                      <div className="inline-actions party-picker">
-                        <select
-                          value={party}
-                          onChange={(e) => setParty(e.target.value)}
-                          required
-                        >
-                          <option value="">{t("sales.chooseSupplier")}</option>
-                          {parties.map((p) => (
-                            <option value={p.id} key={p.id}>
-                              {p.name}
-                            </option>
-                          ))}
-                        </select>
-                        <button
-                          type="button"
-                          className="button"
-                          onClick={() => setAddingParty(true)}
-                        >
-                          <PlusIcon size={15} />
-                          {t("common.add")}
-                        </button>
-                      </div>
-                    </Field>
-                    <Field label={t("sales.invoiceDate")}>
-                      <input
-                        type="date"
-                        name="date"
-                        defaultValue={initial?.date || businessDate()}
-                        max={businessDate()}
-                        required
-                      />
-                    </Field>
-                    <Field label={t("sales.paymentDueOptional")}>
-                      <input
-                        type="date"
-                        name="due_date"
-                        defaultValue={initial?.due_date || ""}
-                      />
-                    </Field>
-                  </div>
-                </div>
-                <div className="trade-workspace">
-                  <section className="trade-catalog">
-                    <div className="trade-panel-head">
-                      <div>
-                        <h3>{t("sales.productCatalog")}</h3>
-                        <p>{t("sales.purchaseCatalogHint")}</p>
-                      </div>
-                      <div className="trade-catalog-actions">
-                        <button
-                          type="button"
-                          className="button"
-                          onClick={() => setAddingProduct(true)}
-                        >
-                          <PlusIcon size={15} />
-                          {t("sales.newProduct")}
-                        </button>
                         <span className="subtle">
                           {next
                             ? t("sales.shownMore", { n: products.length })
@@ -1616,85 +1244,95 @@ export function TradeForm({
                         </span>
                       </div>
                     </div>
-                    <div className="trade-barcode-scan">
-                      <BarcodeIcon size={18} />
-                      <input
-                        ref={barcodeRef}
-                        aria-label={t("sales.scanBarcode")}
-                        placeholder={t("sales.scanPh")}
-                        value={scanCode}
-                        onChange={(e) => setScanCode(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            scanBarcode();
-                          }
-                        }}
-                        inputMode="numeric"
-                        autoComplete="off"
+                    <div className="trade-catalog-tools">
+                      <div className="trade-barcode-scan">
+                        <BarcodeIcon size={18} />
+                        <input
+                          ref={barcodeRef}
+                          aria-label={t("sales.scanBarcode")}
+                          placeholder={t("sales.scanPh")}
+                          value={scanCode}
+                          onChange={(e) => setScanCode(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              scanBarcode();
+                            }
+                          }}
+                          inputMode="numeric"
+                          autoComplete="off"
+                        />
+                        <button
+                          type="button"
+                          className="button"
+                          disabled={scanBusy || !scanCode.trim()}
+                          onClick={scanBarcode}
+                        >
+                          {scanBusy ? t("sales.looking") : t("common.add")}
+                        </button>
+                      </div>
+                      <Search
+                        value={q}
+                        onChange={setQ}
+                        placeholder={t("sales.searchCatalog")}
                       />
-                      <button
-                        type="button"
-                        className="button"
-                        disabled={scanBusy || !scanCode.trim()}
-                        onClick={scanBarcode}
-                      >
-                        {scanBusy ? t("sales.looking") : t("common.add")}
-                      </button>
                     </div>
-                    <Search
-                      value={q}
-                      onChange={setQ}
-                      placeholder={t("sales.searchCatalog")}
-                    />
                     <div
-                      className="product-browser-list"
+                      className="product-browser-list sale-product-list"
                       role="listbox"
                       aria-label={t("sales.availableProducts")}
                     >
                       {searching ? (
                         <div className="product-browser-empty">
-                          <span className="muted">{t("sales.loadingProducts")}</span>
+                          <span className="muted">
+                            {t("sales.loadingProducts")}
+                          </span>
                         </div>
                       ) : products.length ? (
                         <>
                           {products.map((p) => {
-                            const specs = Object.entries(p.attributes || {})
-                              .filter(([, v]) => v)
-                              .slice(0, 3)
-                              .map(([k, v]) => `${k}: ${v}`)
+                            const detail = [
+                              p.brand,
+                              p.model,
+                              p.sku,
+                              p.barcode ? `⌗ ${p.barcode}` : "",
+                            ]
+                              .filter(Boolean)
                               .join(" · ");
                             const added = lines.some(
                               (l) => l.product.id === p.id,
                             );
+                            const out = !purchase && p.stock === 0;
                             return (
                               <button
                                 key={p.id}
                                 type="button"
                                 role="option"
                                 className="product-pick-card"
-                                disabled={added}
+                                disabled={added || out}
                                 onClick={() => add(p)}
                               >
                                 <span className="product-pick-image">
-                                  {p.image ? (
-                                    <img src={p.image} alt="" />
-                                  ) : (
-                                    <PackageIcon size={28} weight="light" />
-                                  )}
+                                  <ProductPhoto product={p} />
                                 </span>
                                 <span className="product-pick-body">
                                   <strong>{p.name}</strong>
-                                  <small>
-                                    {[p.brand, p.model, p.sku]
-                                      .filter(Boolean)
-                                      .join(" · ")}
-                                    {p.barcode ? ` · ⌗ ${p.barcode}` : ""}
-                                  </small>
-                                  {specs ? <small>{specs}</small> : null}
+                                  {detail ? <small>{detail}</small> : null}
                                   <span className="product-pick-meta">
-                                    <em>{af(p.price)}</em>
-                                    <em>{t("sales.inCatalog")}</em>
+                                    <em>
+                                      {purchase
+                                        ? p.category || t("sales.catalogLabel")
+                                        : af(p.price)}
+                                    </em>
+                                    <em>
+                                      {purchase
+                                        ? t("sales.inCatalog")
+                                        : out
+                                          ? t("sales.outOfStock")
+                                          : t("productDetail.inStock", {
+                                              n: p.stock,
+                                            })}
+                                    </em>
                                   </span>
                                 </span>
                                 <PlusIcon size={18} />
@@ -1720,28 +1358,34 @@ export function TradeForm({
                           <p>
                             {q.trim()
                               ? t("sales.noMatchSearch")
-                              : t("sales.noProductsPurchaseFirst")}
+                              : purchase
+                                ? t("sales.noProductsPurchase")
+                                : t("sales.noProductsSale")}
                           </p>
-                          <button
-                            type="button"
-                            className="button button-dark"
-                            onClick={() => setAddingProduct(true)}
-                          >
-                            <PlusIcon size={15} />
-                            {t("sales.newProduct")}
-                          </button>
+                          {purchase && (
+                            <button
+                              type="button"
+                              className="button button-dark"
+                              onClick={() => setAddingProduct(true)}
+                            >
+                              <PlusIcon size={15} />
+                              {t("sales.newProduct")}
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>
-                  </section>
-                  <section className="trade-cart">
+                  </div>
+                </section>
+                <section className="sale-board-right">
+                  <div className="sale-bill-panel">
                     <div className="trade-panel-head">
                       <div>
                         <h3>{t("sales.billLines")}</h3>
                         <p>
                           {lines.length
-                            ? t("sales.linesOnInvoice", { n: lines.length })
-                            : t("sales.addedProductsHere")}
+                            ? t("sales.productsCount", { n: lines.length })
+                            : t("sales.addFromCatalog")}
                         </p>
                       </div>
                     </div>
@@ -1754,12 +1398,10 @@ export function TradeForm({
                               type="button"
                               className="icon-button"
                               aria-label={t("sales.removeProduct", {
-                              name: l.product.name,
-                            })}
+                                name: l.product.name,
+                              })}
                               onClick={() =>
-                                setLines((ls) =>
-                                  ls.filter((_, j) => j !== i),
-                                )
+                                setLines((ls) => ls.filter((_, j) => j !== i))
                               }
                             >
                               <TrashIcon size={17} />
@@ -1773,7 +1415,7 @@ export function TradeForm({
                                   name: l.product.name,
                                 })}
                                 min="1"
-                                max={100000}
+                                max={purchase ? 100000 : l.product.stock}
                                 value={l.quantity}
                                 onChange={(e) =>
                                   update(
@@ -1785,46 +1427,73 @@ export function TradeForm({
                                 required
                               />
                             </Field>
-                            <Field label={t("sales.costAed")}>
-                              <NumericInput
-                                min="0"
-                                step="0.01"
-                                value={l.costAed ?? ""}
-                                onChange={(e) =>
-                                  update(i, "costAed", e.target.value)
-                                }
-                                placeholder="0.00"
-                                required
-                              />
-                            </Field>
-                            <Field label={t("sales.costAf")}>
-                              <NumericInput
-                                min="0"
-                                step="0.01"
-                                value={l.price}
-                                readOnly
-                                tabIndex={-1}
-                                placeholder={
-                                  fxRate.trim()
-                                    ? t("sales.autoFromRate")
-                                    : t("sales.setAedRateAbove")
-                                }
-                                required
-                              />
-                            </Field>
-                          </div>
-                          <div className="form-grid" style={{ marginTop: 4 }}>
-                            <Field label={t("sales.lineDiscountAf")}>
-                              <NumericInput
-                                min="0"
-                                step="0.01"
-                                value={l.discount}
-                                onChange={(e) =>
-                                  update(i, "discount", e.target.value)
-                                }
-                                required
-                              />
-                            </Field>
+                            {purchase ? (
+                              <>
+                                <Field
+                                  label={t("currencies.costShort", {
+                                    code: currency,
+                                  })}
+                                >
+                                  <NumericInput
+                                    min="0"
+                                    step="0.01"
+                                    value={l.costAed ?? ""}
+                                    onChange={(e) =>
+                                      update(i, "costAed", e.target.value)
+                                    }
+                                    placeholder="0.00"
+                                    required
+                                  />
+                                </Field>
+                                <Field label={t("sales.costAf")}>
+                                  <NumericInput
+                                    min="0"
+                                    step="0.01"
+                                    value={l.price}
+                                    readOnly
+                                    tabIndex={-1}
+                                    placeholder={fxRate.trim() ? "0.00" : "—"}
+                                    required
+                                  />
+                                </Field>
+                                <Field label={t("currencies.discountShort")}>
+                                  <NumericInput
+                                    min="0"
+                                    step="0.01"
+                                    value={l.discount}
+                                    onChange={(e) =>
+                                      update(i, "discount", e.target.value)
+                                    }
+                                    required
+                                  />
+                                </Field>
+                              </>
+                            ) : (
+                              <>
+                                <Field label={t("sales.unitPrice")}>
+                                  <NumericInput
+                                    min="0"
+                                    step="0.01"
+                                    value={l.price}
+                                    onChange={(e) =>
+                                      update(i, "price", e.target.value)
+                                    }
+                                    required
+                                  />
+                                </Field>
+                                <Field label={t("sales.lineDiscount")}>
+                                  <NumericInput
+                                    min="0"
+                                    step="0.01"
+                                    value={l.discount}
+                                    onChange={(e) =>
+                                      update(i, "discount", e.target.value)
+                                    }
+                                    required
+                                  />
+                                </Field>
+                              </>
+                            )}
                           </div>
                         </div>
                       ))}
@@ -1832,117 +1501,593 @@ export function TradeForm({
                     {!lines.length && (
                       <div className="cart-empty">
                         <ShoppingIllustration />
-                        <p>{t("sales.emptyPurchaseBrowse")}</p>
+                        <p>
+                          {purchase
+                            ? t("sales.emptyPurchase")
+                            : t("sales.emptyBill")}
+                        </p>
                       </div>
                     )}
-                  </section>
-                </div>
-                <div className="trade-footer">
-                  <div className="trade-totals">
-                    <div>
-                      <span>{t("sales.invoiceTotal")}</span>
-                      <strong>{af(total, 2)}</strong>
+                  </div>
+                  <div className="sale-pay-panel">
+                    {!purchase && (
+                      <div className="sale-payment-currency">
+                        <Field label={t("currencies.paymentCurrency")}>
+                          <CurrencyPicker
+                            compact
+                            value={currency}
+                            onChange={(code) => {
+                              setCurrency(code);
+                              setFxRate(code === "AFN" ? "1" : "");
+                              setPaid("");
+                              setPaymentInForeign(true);
+                            }}
+                          />
+                        </Field>
+                        <Field
+                          label={t("currencies.rateShort", { code: currency })}
+                        >
+                          <NumericInput
+                            name="payment_rate"
+                            value={fxRate}
+                            readOnly={currency === "AFN"}
+                            onChange={(e) => applyFxRate(e.target.value)}
+                            placeholder="0.00"
+                            required
+                          />
+                        </Field>
+                      </div>
+                    )}
+                    <div className="trade-totals">
+                      {purchase && (
+                        <div>
+                          <span className="currency-rate-label">
+                            {t("currencies.supplierSubtotal")}
+                          </span>
+                          <strong>
+                            <bdi dir="ltr">
+                              {foreignMoney(
+                                lines.reduce(
+                                  (sum, l) =>
+                                    sum +
+                                    Math.round(Number(l.costAed || 0) * 100) *
+                                      l.quantity,
+                                  0,
+                                ),
+                                currency,
+                              )}
+                            </bdi>
+                          </strong>
+                        </div>
+                      )}
+                      <div>
+                        <span>{t("sales.invoiceTotal")}</span>
+                        <strong>{af(total, 2)}</strong>
+                      </div>
+                      <div>
+                        <span>{t("sales.balanceRemaining")}</span>
+                        <strong>{af(Math.max(0, total - payment), 2)}</strong>
+                      </div>
+                      <Field
+                        label={
+                          paymentInForeign
+                            ? t("currencies.amountPaid", { code: currency })
+                            : t("sales.amountPaid")
+                        }
+                        hint={paymentHint}
+                      >
+                        <NumericInput
+                          name="paid"
+                          min="0"
+                          max={paymentInForeign ? undefined : total / 100}
+                          step="0.01"
+                          value={paid}
+                          placeholder="0.00"
+                          onChange={(e) => setPaid(e.target.value)}
+                        />
+                      </Field>
                     </div>
-                    <div>
-                      <span>{t("sales.supplierBalance")}</span>
-                      <strong>{af(Math.max(0, total - payment), 2)}</strong>
+                    {purchase && !paymentInForeign && (
+                      <button
+                        type="button"
+                        className="text-button legacy-payment-switch"
+                        onClick={() => {
+                          setPaymentInForeign(true);
+                          setPaid("");
+                        }}
+                      >
+                        {t("currencies.usePaymentCurrency", { code: currency })}
+                      </button>
+                    )}
+                    <ErrorMessage error={error} />
+                    <div className="sale-actions">
+                      <label className="sale-print-check">
+                        <input
+                          type="checkbox"
+                          checked={printAfter}
+                          onChange={(e) => setPrintAfter(e.target.checked)}
+                        />
+                        <PrinterIcon size={15} />
+                        {t("sales.printAfter")}
+                      </label>
+                      <button type="button" className="button" onClick={close}>
+                        {t("common.cancel")}
+                      </button>
+                      <button
+                        className="button button-dark"
+                        disabled={
+                          busy ||
+                          !lines.length ||
+                          !saleCustomerReady ||
+                          (!!documentId && !initial)
+                        }
+                      >
+                        {busy
+                          ? t("common.posting")
+                          : purchase
+                            ? documentId
+                              ? t("sales.savePurchase")
+                              : t("sales.receivePurchase")
+                            : documentId
+                              ? t("sales.saveInvoice")
+                              : t("sales.createSale")}
+                        <ArrowRightIcon size={16} />
+                      </button>
                     </div>
-                    <Field
-                      label={t("sales.amountPaid")}
-                      hint={t("sales.paidHintPurchase")}
-                    >
-                      <NumericInput
-                        name="paid"
-                        min="0"
-                        max={total / 100}
-                        step="0.01"
-                        value={paid}
-                        placeholder={(total / 100).toFixed(2)}
-                        onChange={(e) => setPaid(e.target.value)}
+                  </div>
+                </section>
+              </div>
+            ) : (
+              <>
+                <div className="form-body trade-body">
+                  <div className="trade-meta">
+                    {purchase && (
+                      <div className="purchase-rate-bar">
+                        <Field label={t("currencies.choose")}>
+                          <CurrencyPicker
+                            value={currency}
+                            onChange={changeCurrency}
+                          />
+                        </Field>
+                        <Field
+                          label={t("currencies.rate", { code: currency })}
+                          hint={t("currencies.rateHint")}
+                        >
+                          <NumericInput
+                            min="0"
+                            step="0.0001"
+                            value={fxRate}
+                            readOnly={currency === "AFN"}
+                            onChange={(e) => applyFxRate(e.target.value)}
+                            placeholder={t("currencies.ratePlaceholder")}
+                            required
+                          />
+                        </Field>
+                        <p className="purchase-rate-note">
+                          {fxRate.trim()
+                            ? t("currencies.rateValue", {
+                                code: currency,
+                                rate: fxRate,
+                              })
+                            : t("currencies.rateHint")}
+                        </p>
+                      </div>
+                    )}
+                    <div className="form-grid three">
+                      <Field label={t("sales.supplier")}>
+                        <div className="inline-actions party-picker">
+                          <select
+                            value={party}
+                            onChange={(e) => setParty(e.target.value)}
+                            required
+                          >
+                            <option value="">
+                              {t("sales.chooseSupplier")}
+                            </option>
+                            {parties.map((p) => (
+                              <option value={p.id} key={p.id}>
+                                {p.name}
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            type="button"
+                            className="button"
+                            onClick={() => setAddingParty(true)}
+                          >
+                            <PlusIcon size={15} />
+                            {t("common.add")}
+                          </button>
+                        </div>
+                      </Field>
+                      <Field label={t("sales.invoiceDate")}>
+                        <input
+                          type="date"
+                          name="date"
+                          defaultValue={initial?.date || businessDate()}
+                          max={businessDate()}
+                          required
+                        />
+                      </Field>
+                      <Field label={t("sales.paymentDueOptional")}>
+                        <input
+                          type="date"
+                          name="due_date"
+                          defaultValue={initial?.due_date || ""}
+                        />
+                      </Field>
+                    </div>
+                  </div>
+                  <div className="trade-workspace">
+                    <section className="trade-catalog">
+                      <div className="trade-panel-head">
+                        <div>
+                          <h3>{t("sales.productCatalog")}</h3>
+                          <p>{t("sales.purchaseCatalogHint")}</p>
+                        </div>
+                        <div className="trade-catalog-actions">
+                          <button
+                            type="button"
+                            className="button"
+                            onClick={() => setAddingProduct(true)}
+                          >
+                            <PlusIcon size={15} />
+                            {t("sales.newProduct")}
+                          </button>
+                          <span className="subtle">
+                            {next
+                              ? t("sales.shownMore", { n: products.length })
+                              : t("sales.shown", { n: products.length })}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="trade-catalog-tools">
+                        <div className="trade-barcode-scan">
+                          <BarcodeIcon size={18} />
+                          <input
+                            ref={barcodeRef}
+                            aria-label={t("sales.scanBarcode")}
+                            placeholder={t("sales.scanPh")}
+                            value={scanCode}
+                            onChange={(e) => setScanCode(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                scanBarcode();
+                              }
+                            }}
+                            inputMode="numeric"
+                            autoComplete="off"
+                          />
+                          <button
+                            type="button"
+                            className="button"
+                            disabled={scanBusy || !scanCode.trim()}
+                            onClick={scanBarcode}
+                          >
+                            {scanBusy ? t("sales.looking") : t("common.add")}
+                          </button>
+                        </div>
+                        <Search
+                          value={q}
+                          onChange={setQ}
+                          placeholder={t("sales.searchCatalog")}
+                        />
+                      </div>
+                      <div
+                        className="product-browser-list"
+                        role="listbox"
+                        aria-label={t("sales.availableProducts")}
+                      >
+                        {searching ? (
+                          <div className="product-browser-empty">
+                            <span className="muted">
+                              {t("sales.loadingProducts")}
+                            </span>
+                          </div>
+                        ) : products.length ? (
+                          <>
+                            {products.map((p) => {
+                              const specs = Object.entries(p.attributes || {})
+                                .filter(([, v]) => v)
+                                .slice(0, 3)
+                                .map(([k, v]) => `${k}: ${v}`)
+                                .join(" · ");
+                              const added = lines.some(
+                                (l) => l.product.id === p.id,
+                              );
+                              return (
+                                <button
+                                  key={p.id}
+                                  type="button"
+                                  role="option"
+                                  className="product-pick-card"
+                                  disabled={added}
+                                  onClick={() => add(p)}
+                                >
+                                  <span className="product-pick-image">
+                                    <ProductPhoto product={p} />
+                                  </span>
+                                  <span className="product-pick-body">
+                                    <strong>{p.name}</strong>
+                                    <small>
+                                      {[p.brand, p.model, p.sku]
+                                        .filter(Boolean)
+                                        .join(" · ")}
+                                      {p.barcode ? ` · ⌗ ${p.barcode}` : ""}
+                                    </small>
+                                    {specs ? <small>{specs}</small> : null}
+                                    <span className="product-pick-meta">
+                                      <em>{af(p.price)}</em>
+                                      <em>{t("sales.inCatalog")}</em>
+                                    </span>
+                                  </span>
+                                  <PlusIcon size={18} />
+                                </button>
+                              );
+                            })}
+                            {next && (
+                              <button
+                                type="button"
+                                className="button product-load-more"
+                                disabled={loadingMore}
+                                onClick={loadMore}
+                              >
+                                {loadingMore
+                                  ? t("common.loading")
+                                  : t("sales.loadMoreProducts")}
+                              </button>
+                            )}
+                          </>
+                        ) : (
+                          <div className="product-browser-empty">
+                            <PackageIcon size={28} weight="light" />
+                            <p>
+                              {q.trim()
+                                ? t("sales.noMatchSearch")
+                                : t("sales.noProductsPurchaseFirst")}
+                            </p>
+                            <button
+                              type="button"
+                              className="button button-dark"
+                              onClick={() => setAddingProduct(true)}
+                            >
+                              <PlusIcon size={15} />
+                              {t("sales.newProduct")}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </section>
+                    <section className="trade-cart">
+                      <div className="trade-panel-head">
+                        <div>
+                          <h3>{t("sales.billLines")}</h3>
+                          <p>
+                            {lines.length
+                              ? t("sales.linesOnInvoice", { n: lines.length })
+                              : t("sales.addedProductsHere")}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="cart-lines">
+                        {lines.map((l, i) => (
+                          <div className="cart-line" key={l.product.id}>
+                            <div className="cart-line-title">
+                              <ProductName product={l.product} />
+                              <button
+                                type="button"
+                                className="icon-button"
+                                aria-label={t("sales.removeProduct", {
+                                  name: l.product.name,
+                                })}
+                                onClick={() =>
+                                  setLines((ls) => ls.filter((_, j) => j !== i))
+                                }
+                              >
+                                <TrashIcon size={17} />
+                              </button>
+                            </div>
+                            <div className="form-grid three">
+                              <Field label={t("common.quantity")}>
+                                <NumericInput
+                                  kind="integer"
+                                  aria-label={t("sales.productQty", {
+                                    name: l.product.name,
+                                  })}
+                                  min="1"
+                                  max={100000}
+                                  value={l.quantity}
+                                  onChange={(e) =>
+                                    update(
+                                      i,
+                                      "quantity",
+                                      Number(e.target.value) || 0,
+                                    )
+                                  }
+                                  required
+                                />
+                              </Field>
+                              <Field
+                                label={
+                                  <span className="currency-rate-label">
+                                    <CurrencyFlag code={currency} />
+                                    {t("currencies.unitCost", {
+                                      code: currency,
+                                    })}
+                                  </span>
+                                }
+                              >
+                                <NumericInput
+                                  min="0"
+                                  step="0.01"
+                                  value={l.costAed ?? ""}
+                                  onChange={(e) =>
+                                    update(i, "costAed", e.target.value)
+                                  }
+                                  placeholder="0.00"
+                                  required
+                                />
+                              </Field>
+                              <Field label={t("sales.costAf")}>
+                                <NumericInput
+                                  min="0"
+                                  step="0.01"
+                                  value={l.price}
+                                  readOnly
+                                  tabIndex={-1}
+                                  placeholder={
+                                    fxRate.trim()
+                                      ? t("sales.autoFromRate")
+                                      : t("currencies.ratePlaceholder")
+                                  }
+                                  required
+                                />
+                              </Field>
+                            </div>
+                            <div className="form-grid" style={{ marginTop: 4 }}>
+                              <Field label={t("sales.lineDiscountAf")}>
+                                <NumericInput
+                                  min="0"
+                                  step="0.01"
+                                  value={l.discount}
+                                  onChange={(e) =>
+                                    update(i, "discount", e.target.value)
+                                  }
+                                  required
+                                />
+                              </Field>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      {!lines.length && (
+                        <div className="cart-empty">
+                          <ShoppingIllustration />
+                          <p>{t("sales.emptyPurchaseBrowse")}</p>
+                        </div>
+                      )}
+                    </section>
+                  </div>
+                  <div className="trade-footer">
+                    <div className="trade-totals">
+                      <div>
+                        <span>{t("sales.invoiceTotal")}</span>
+                        <strong>{af(total, 2)}</strong>
+                      </div>
+                      <div>
+                        <span>{t("sales.supplierBalance")}</span>
+                        <strong>{af(Math.max(0, total - payment), 2)}</strong>
+                      </div>
+                      <Field
+                        label={
+                          paymentInForeign
+                            ? t("currencies.amountPaid", { code: currency })
+                            : t("sales.amountPaid")
+                        }
+                        hint={paymentHint}
+                      >
+                        <NumericInput
+                          name="paid"
+                          min="0"
+                          max={paymentInForeign ? undefined : total / 100}
+                          step="0.01"
+                          value={paid}
+                          placeholder={(total / 100).toFixed(2)}
+                          onChange={(e) => setPaid(e.target.value)}
+                        />
+                      </Field>
+                    </div>
+                    <Field label={t("sales.noteOptional")}>
+                      <textarea
+                        name="note"
+                        defaultValue={initial?.note || ""}
+                        rows={2}
+                        placeholder={t("sales.notePh")}
                       />
                     </Field>
+                    <ErrorMessage error={error} />
                   </div>
-                  <Field label={t("sales.noteOptional")}>
-                    <textarea
-                      name="note"
-                      defaultValue={initial?.note || ""}
-                      rows={2}
-                      placeholder={t("sales.notePh")}
-                    />
-                  </Field>
-                  <ErrorMessage error={error} />
                 </div>
-              </div>
-              <div className="modal-actions">
-                <button type="button" className="button" onClick={close}>
-                  {t("common.cancel")}
-                </button>
-                <button
-                  className="button button-dark"
-                  disabled={
-                    busy ||
-                    !lines.length ||
-                    !party ||
-                    (!!documentId && !initial)
-                  }
-                >
-                  {busy
-                    ? t("common.posting")
-                    : documentId
-                      ? t("sales.savePurchaseChanges")
-                      : t("sales.receivePurchase")}
-                  <ArrowRightIcon size={16} />
-                </button>
-              </div>
-            </>
-          )}
-        </form>
-      )}
-    </Frame>
-    {addingParty && (
-      <PartyForm
-        kind={purchase ? "supplier" : "customer"}
-        close={() => setAddingParty(false)}
-        done={(_message, result) => {
-          setAddingParty(false);
-          const created = result as { id?: string } | undefined;
-          api<{ rows: Party[] }>("parties", {
-            kind: purchase ? "supplier" : "customer",
-          })
-            .then((d) => {
-              setParties(d.rows);
-              if (created?.id) setParty(created.id);
+                <div className="modal-actions">
+                  <label className="sale-print-check">
+                    <input
+                      type="checkbox"
+                      checked={printAfter}
+                      onChange={(e) => setPrintAfter(e.target.checked)}
+                    />
+                    <PrinterIcon size={15} />
+                    {t("sales.printAfter")}
+                  </label>
+                  <button type="button" className="button" onClick={close}>
+                    {t("common.cancel")}
+                  </button>
+                  <button
+                    className="button button-dark"
+                    disabled={
+                      busy ||
+                      !lines.length ||
+                      !party ||
+                      (!!documentId && !initial)
+                    }
+                  >
+                    {busy
+                      ? t("common.posting")
+                      : documentId
+                        ? t("sales.savePurchaseChanges")
+                        : t("sales.receivePurchase")}
+                    <ArrowRightIcon size={16} />
+                  </button>
+                </div>
+              </>
+            )}
+          </form>
+        )}
+      </Frame>
+      {addingParty && (
+        <PartyForm
+          kind={purchase ? "supplier" : "customer"}
+          close={() => setAddingParty(false)}
+          done={(_message, result) => {
+            setAddingParty(false);
+            const created = result as { id?: string } | undefined;
+            api<{ rows: Party[] }>("parties", {
+              kind: purchase ? "supplier" : "customer",
             })
-            .catch((e) => setError(e.message));
-        }}
-      />
-    )}
-    {addingProduct && purchase && (
-      <ProductForm
-        intent="purchase"
-        close={() => setAddingProduct(false)}
-        done={async (_message, result) => {
-          setAddingProduct(false);
-          const created = result as { id?: string } | undefined;
-          if (!created?.id) return;
-          try {
-            const d = await api<{ rows: Product[] }>("catalog", {
-              id: created.id,
-              limit: 1,
-            });
-            const p = d.rows[0];
-            if (!p) throw new Error(t("sales.errProductLoad"));
-            setProducts((rows) =>
-              rows.some((r) => r.id === p.id) ? rows : [p, ...rows],
-            );
-            setQ("");
-            add(p);
-          } catch (e: any) {
-            setError(e.message);
-          }
-        }}
-      />
-    )}
+              .then((d) => {
+                setParties(d.rows);
+                if (created?.id) setParty(created.id);
+              })
+              .catch((e) => setError(e.message));
+          }}
+        />
+      )}
+      {addingProduct && purchase && (
+        <ProductForm
+          intent="purchase"
+          close={() => setAddingProduct(false)}
+          done={async (_message, result) => {
+            setAddingProduct(false);
+            const created = result as { id?: string } | undefined;
+            if (!created?.id) return;
+            try {
+              const d = await api<{ rows: Product[] }>("catalog", {
+                id: created.id,
+                limit: 1,
+              });
+              const p = d.rows[0];
+              if (!p) throw new Error(t("sales.errProductLoad"));
+              setProducts((rows) =>
+                rows.some((r) => r.id === p.id) ? rows : [p, ...rows],
+              );
+              setQ("");
+              add(p);
+            } catch (e: any) {
+              setError(e.message);
+            }
+          }}
+        />
+      )}
     </>
   );
 }
@@ -2066,6 +2211,47 @@ export function ExpenseForm({ close, done }: DialogProps) {
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
   const key = useRef(requestKey());
+  const [accounts, setAccounts] = useState<any[]>([]),
+    [accountId, setAccountId] = useState(""),
+    [adding, setAdding] = useState(false),
+    [accountName, setAccountName] = useState(""),
+    [accountBusy, setAccountBusy] = useState(false);
+  useEffect(() => {
+    let active = true;
+    api("expenseAccounts")
+      .then((data) => {
+        if (active) {
+          setAccounts(data.rows);
+          setAccountId(
+            data.rows.find((a: any) => a.name === "Rent")?.id ||
+              data.rows[0]?.id ||
+              "",
+          );
+        }
+      })
+      .catch((e) => {
+        if (active) setError(e.message);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+  async function addAccount() {
+    setAccountBusy(true);
+    setError("");
+    try {
+      const created = await api("expenseAccountCreate", { name: accountName });
+      setAccounts((rows) => [...rows, created]);
+      setAccountId(created.id);
+      setAdding(false);
+      setAccountName("");
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setAccountBusy(false);
+    }
+  }
+
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setBusy(true);
@@ -2073,7 +2259,7 @@ export function ExpenseForm({ close, done }: DialogProps) {
     try {
       await api("expense", {
         amount: toMoney(f.get("amount")),
-        category: f.get("category"),
+        account_id: accountId,
         date: f.get("date"),
         note: f.get("note"),
         request_key: key.current,
@@ -2113,24 +2299,59 @@ export function ExpenseForm({ close, done }: DialogProps) {
               />
             </Field>
           </div>
-          <Field label={t("expense.category")}>
-            <select name="category">
-              {(
-                [
-                  ["Rent", "expense.rent"],
-                  ["Salaries", "expense.salaries"],
-                  ["Utilities", "expense.utilities"],
-                  ["Transport", "expense.transport"],
-                  ["Repairs", "expense.repairs"],
-                  ["Other", "expense.other"],
-                ] as const
-              ).map(([value, key]) => (
-                <option key={value} value={value}>
-                  {t(key)}
+          <Field label={t("expenseAccounts.account")}>
+            <select
+              value={accountId}
+              onChange={(e) => setAccountId(e.target.value)}
+              required
+              disabled={!accounts.length}
+            >
+              <option value="" disabled>
+                {t("expenseAccounts.choose")}
+              </option>
+              {accounts.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {expenseAccountName(account.name, t)}
                 </option>
               ))}
             </select>
           </Field>
+          {adding ? (
+            <div className="expense-account-create">
+              <Field label={t("expenseAccounts.newAccount")}>
+                <input
+                  value={accountName}
+                  onChange={(e) => setAccountName(e.target.value)}
+                  minLength={2}
+                  maxLength={80}
+                />
+              </Field>
+              <button
+                type="button"
+                className="button"
+                disabled={accountBusy || accountName.trim().length < 2}
+                onClick={addAccount}
+              >
+                {t("common.add")}
+              </button>
+              <button
+                type="button"
+                className="text-button"
+                onClick={() => setAdding(false)}
+              >
+                {t("common.cancel")}
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="text-button"
+              onClick={() => setAdding(true)}
+            >
+              <PlusIcon size={14} />
+              {t("expenseAccounts.newAccount")}
+            </button>
+          )}
           <Field label={t("expense.description")}>
             <textarea
               name="note"
@@ -2146,7 +2367,10 @@ export function ExpenseForm({ close, done }: DialogProps) {
           <button type="button" className="button" onClick={close}>
             {t("common.cancel")}
           </button>
-          <button className="button button-dark" disabled={busy}>
+          <button
+            className="button button-dark"
+            disabled={busy || accountBusy || !accountId || adding}
+          >
             {busy ? t("common.saving") : t("expense.record")}
           </button>
         </div>
@@ -2162,6 +2386,17 @@ export function PaymentForm({
   const t = useT();
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
+  const supplier = party.kind === "supplier";
+  const [currency, setCurrency] = useState("AFN");
+  const [rate, setRate] = useState("1");
+  const [amount, setAmount] = useState(moneyInput(party.balance));
+  const converted = (() => {
+    try {
+      return afnFromAed(toMoney(amount || "0"), toFxRate(rate || "0"));
+    } catch {
+      return 0;
+    }
+  })();
   const key = useRef(requestKey());
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -2170,7 +2405,10 @@ export function PaymentForm({
     try {
       await api("payment", {
         party_id: party.id,
-        amount: toMoney(f.get("amount")),
+        amount: afnFromAed(toMoney(amount), toFxRate(rate)),
+        currency,
+        fx_rate: toFxRate(rate),
+        amount_foreign: toMoney(amount),
         date: f.get("date"),
         note: f.get("note"),
         request_key: key.current,
@@ -2201,13 +2439,44 @@ export function PaymentForm({
     >
       <form onSubmit={submit}>
         <div className="form-body">
-          <Field label={t("payment.amount")}>
+          <div className="supplier-payment-currency party-payment-currency">
+            <Field label={t("currencies.choose")}>
+              <CurrencyPicker
+                compact
+                value={currency}
+                onChange={(code) => {
+                  setCurrency(code);
+                  setRate(code === "AFN" ? "1" : "");
+                  setAmount("");
+                }}
+              />
+            </Field>
+            <Field label={t("currencies.rateShort", { code: currency })}>
+              <NumericInput
+                name="fx_rate"
+                value={rate}
+                readOnly={currency === "AFN"}
+                onChange={(e) => setRate(e.target.value)}
+                placeholder="0.00"
+                required
+              />
+            </Field>
+          </div>
+          <Field
+            label={
+              supplier
+                ? t("currencies.amountPaid", { code: currency })
+                : t("currencies.amountReceived", { code: currency })
+            }
+            hint={t("currencies.paymentPreview", { amount: af(converted, 2) })}
+          >
             <NumericInput
               name="amount"
               min="0.01"
-              max={party.balance / 100}
+              max={currency !== "AFN" ? undefined : party.balance / 100}
               step="0.01"
-              defaultValue={party.balance / 100}
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
               required
             />
           </Field>
@@ -2224,13 +2493,21 @@ export function PaymentForm({
             <input name="note" placeholder={t("payment.notePhLong")} />
           </Field>
           <p className="help-note">{t("payment.help")}</p>
+          {converted > party.balance && (
+            <p className="text-red" role="alert">
+              {t("currencies.overBalance")}
+            </p>
+          )}
           <ErrorMessage error={error} />
         </div>
         <div className="modal-actions">
           <button type="button" className="button" onClick={close}>
             {t("common.cancel")}
           </button>
-          <button className="button button-dark" disabled={busy}>
+          <button
+            className="button button-dark"
+            disabled={busy || converted <= 0 || converted > party.balance}
+          >
             {busy ? t("payment.recording") : t("payment.record")}
           </button>
         </div>
@@ -2253,13 +2530,29 @@ export function InvoiceDialog({
   remove?: () => void;
   autoPrint?: boolean;
 } & DialogProps) {
-  const t = useT();
+  const { t, locale } = useI18n();
   const [doc, setDoc] = useState<any>(null),
     [store, setStore] = useState<any>(null),
     [error, setError] = useState(""),
     [returning, setReturning] = useState(false),
+    [refundCurrency, setRefundCurrency] = useState("AFN"),
+    [refundRate, setRefundRate] = useState("1"),
+    [refundAmount, setRefundAmount] = useState(""),
+    [printReturn, setPrintReturn] = useState(false),
+    [printOpen, setPrintOpen] = useState(false),
     [busy, setBusy] = useState(false),
     [quantities, setQuantities] = useState<Record<string, number>>({});
+  const ownerKindKeys: Record<string, string> = {
+    consignment_receipt: "resale.receive",
+    consignment_return: "resale.returnOwner",
+    consignment_payment: "resale.payOwner",
+    consignment_recovery: "resale.recover",
+  };
+  const kindTitle = doc
+    ? ownerKindKeys[doc.kind]
+      ? t(ownerKindKeys[doc.kind])
+      : doc.kind.replaceAll("_", " ")
+    : "";
   const key = useRef(requestKey());
   const printed = useRef(false);
   useEffect(() => {
@@ -2272,16 +2565,73 @@ export function InvoiceDialog({
       .catch((e) => setError(e.message));
   }, [documentId]);
   useEffect(() => {
-    if (!autoPrint || !doc || printed.current) return;
+    if (autoPrint !== true || !doc || !store || printed.current) return;
     printed.current = true;
-    const timer = window.setTimeout(() => window.print(), 250);
-    return () => window.clearTimeout(timer);
-  }, [autoPrint, doc]);
+    setPrintOpen(true);
+  }, [autoPrint, doc, store]);
+  const returnTotal = (doc?.lines || []).reduce((sum: number, l: any) => {
+    const quantity = quantities[l.id] || 0;
+    if (!quantity) return sum;
+    if (doc.kind === "purchase" && Array.isArray(l.return_batches)) {
+      let remaining = quantity,
+        amount = 0;
+      for (const batch of l.return_batches) {
+        const take = Math.min(remaining, batch.remaining);
+        amount += take * batch.unit_cost;
+        remaining -= take;
+        if (!remaining) break;
+      }
+      return sum + amount;
+    }
+    const value = l.price * l.quantity - l.discount;
+    return (
+      sum +
+      Math.floor((value * (l.returned_quantity + quantity)) / l.quantity) -
+      Math.floor((value * l.returned_quantity) / l.quantity)
+    );
+  }, 0);
+  const debtReduction = Math.min(
+    returnTotal,
+    Math.max(0, (doc?.total || 0) - (doc?.returned || 0) - (doc?.paid || 0)),
+  );
+  const refundDue = returnTotal - debtReduction;
+  useEffect(() => {
+    try {
+      const rate = toFxRate(refundRate || "0");
+      setRefundAmount(rate ? ((refundDue * 100) / rate).toFixed(2) : "");
+    } catch {
+      setRefundAmount("");
+    }
+  }, [refundDue, refundRate, refundCurrency]);
+  const convertedRefund = (() => {
+    try {
+      return afnFromAed(
+        toMoney(refundAmount || "0"),
+        toFxRate(refundRate || "0"),
+      );
+    } catch {
+      return -1;
+    }
+  })();
   async function postReturn(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    e.stopPropagation();
+    if (busy) return;
     setBusy(true);
+    setError("");
+    const form = new FormData(e.currentTarget);
     try {
-      await api("return", {
+      const selected = doc.lines.filter((l: any) => quantities[l.id] > 0);
+      if (
+        !selected.length ||
+        selected.some(
+          (l: any) =>
+            !Number.isInteger(quantities[l.id]) ||
+            quantities[l.id] > l.quantity - l.returned_quantity,
+        )
+      )
+        throw new Error(t("currencies.returnQuantity"));
+      const returned = await api<any>("return", {
         original_id: doc.id,
         lines: doc.lines
           .filter((l: any) => quantities[l.id] > 0)
@@ -2289,10 +2639,22 @@ export function InvoiceDialog({
             line_id: l.id,
             quantity: quantities[l.id],
           })),
-        note: new FormData(e.currentTarget).get("reason"),
+        ...(["sale", "purchase"].includes(doc.kind)
+          ? {
+              refund_currency: refundDue ? refundCurrency : "AFN",
+              refund_rate: refundDue ? toFxRate(refundRate) : 10000,
+              refund_foreign: refundDue ? toMoney(refundAmount) : 0,
+            }
+          : {}),
+        note: form.get("reason"),
+        date: form.get("date"),
         request_key: key.current,
       });
-      done(t("toast.returnPosted"));
+      done(t("toast.returnPosted"), {
+        id: returned.id,
+        kind: returned.kind,
+        print: printReturn === true,
+      });
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -2302,25 +2664,25 @@ export function InvoiceDialog({
   return (
     <Modal
       title={doc?.number || t("invoice.title")}
-      subtitle={
-        doc
-          ? `${doc.kind.replaceAll("_", " ")} · ${doc.date}`
-          : t("invoice.loading")
-      }
+      subtitle={doc ? `${kindTitle} · ${doc.date}` : t("invoice.loading")}
       onClose={close}
       wide
+      className={returning ? "invoice-return-dialog" : ""}
     >
       {doc && (
         <>
-          <div className="form-body invoice-print" id="invoice-print">
+          <div
+            hidden={returning}
+            className="form-body invoice-print"
+            id="invoice-print"
+          >
+            {["consignment_receipt", "consignment_return"].includes(
+              doc.kind,
+            ) && <p className="help-note">{t("resale.custodyNote")}</p>}
             <div className="invoice-top">
               <div>
                 {store?.logo ? (
-                  <img
-                    className="invoice-logo"
-                    src={store.logo}
-                    alt=""
-                  />
+                  <img className="invoice-logo" src={store.logo} alt="" />
                 ) : null}
                 <h2>{store?.name}</h2>
                 {store?.address ? <p>{store.address}</p> : null}
@@ -2329,9 +2691,7 @@ export function InvoiceDialog({
                 </p>
               </div>
               <div>
-                <Badge tone="gray">
-                  {doc.kind.toUpperCase().replaceAll("_", " ")}
-                </Badge>
+                <Badge tone="gray">{kindTitle.toUpperCase()}</Badge>
                 <h3>{doc.number}</h3>
                 <p>{doc.date}</p>
               </div>
@@ -2339,7 +2699,7 @@ export function InvoiceDialog({
             <div className="invoice-meta">
               <div>
                 <span>
-                  {doc.kind === "purchase"
+                  {["purchase", "purchase_return", "payment"].includes(doc.kind)
                     ? t("invoice.supplier")
                     : t("invoice.customer")}
                 </span>
@@ -2353,12 +2713,20 @@ export function InvoiceDialog({
                 <span>{t("invoice.dueDate")}</span>
                 <strong>{doc.due_date || "—"}</strong>
               </div>
-              {doc.kind === "purchase" && !!doc.fx_rate && (
-                <div>
-                  <span>{t("product.fxRate")}</span>
-                  <strong>{fxRateLabel(doc.fx_rate)}</strong>
-                </div>
-              )}
+              {["purchase", "purchase_return"].includes(doc.kind) &&
+                !!doc.fx_rate && (
+                  <div>
+                    <span>{t("currencies.exchangeRate")}</span>
+                    <strong>
+                      <CurrencyFlag
+                        code={doc.currency}
+                        country={doc.currency_country}
+                      />{" "}
+                      {fxRateLabel(doc.fx_rate, doc.currency || "AED")}{" "}
+                      <CurrencyFlag code="AFN" />
+                    </strong>
+                  </div>
+                )}
             </div>
             {doc.lines.length > 0 && (
               <table className="data-table">
@@ -2366,11 +2734,18 @@ export function InvoiceDialog({
                   <tr>
                     <th>{t("invoice.product")}</th>
                     <th>{t("invoice.quantity")}</th>
-                    {doc.kind === "purchase" && (
-                      <th>{t("invoice.unitCostAed")}</th>
+                    {["purchase", "purchase_return"].includes(doc.kind) && (
+                      <th>
+                        {t("currencies.unitCost", {
+                          code:
+                            (doc.kind === "purchase_return"
+                              ? doc.lines[0]?.currency
+                              : doc.currency) || "AED",
+                        })}
+                      </th>
                     )}
                     <th>
-                      {doc.kind === "purchase"
+                      {["purchase", "purchase_return"].includes(doc.kind)
                         ? t("invoice.unitCostAf")
                         : t("invoice.unitPrice")}
                     </th>
@@ -2388,6 +2763,12 @@ export function InvoiceDialog({
                       <tr key={l.id}>
                         <td>
                           <ProductName product={l} sub={identity || l.sku} />
+                          {l.owner_unit_amount !== undefined && (
+                            <small>
+                              {t("resale.ownerUnitAmount")}:{" "}
+                              <bdi dir="ltr">{af(l.owner_unit_amount, 2)}</bdi>
+                            </small>
+                          )}
                           {specs.length > 0 ? (
                             <div className="invoice-line-specs">
                               {specs.map((s) => (
@@ -2408,8 +2789,15 @@ export function InvoiceDialog({
                             </small>
                           )}
                         </td>
-                        {doc.kind === "purchase" && (
-                          <td>{l.cost_aed ? aed(l.cost_aed) : "—"}</td>
+                        {["purchase", "purchase_return"].includes(doc.kind) && (
+                          <td>
+                            {(l.cost_foreign ?? l.cost_aed)
+                              ? foreignMoney(
+                                  l.cost_foreign ?? l.cost_aed,
+                                  l.currency || doc.currency || "AED",
+                                )
+                              : "—"}
+                          </td>
                         )}
                         <td>{af(l.price, 2)}</td>
                         <td>{af(l.discount, 2)}</td>
@@ -2420,28 +2808,85 @@ export function InvoiceDialog({
                 </tbody>
               </table>
             )}
+            {[
+              "purchase",
+              "sale",
+              "payment",
+              "receipt",
+              "sale_return",
+              "purchase_return",
+            ].includes(doc.kind) &&
+              doc.paid_foreign != null && (
+                <div className="invoice-payment-conversion">
+                  <span>
+                    {t(
+                      doc.kind === "purchase_return"
+                        ? "currencies.refundReceived"
+                        : doc.kind === "sale_return"
+                          ? "currencies.refundPaid"
+                          : ["payment", "receipt"].includes(doc.kind)
+                            ? "payment.amount"
+                            : doc.kind === "sale"
+                              ? "currencies.paidAtSale"
+                              : "currencies.paidAtPurchase",
+                    )}
+                  </span>
+                  <strong>
+                    <bdi dir="ltr">
+                      {foreignMoney(doc.paid_foreign, doc.currency || "AED")}
+                    </bdi>
+                    <span aria-hidden="true"> → </span>
+                    <bdi dir="ltr">
+                      {af(afnFromAed(doc.paid_foreign, doc.fx_rate), 2)}
+                    </bdi>
+                  </strong>
+                </div>
+              )}
             <div className="invoice-summary">
               <div>
                 <span>{t("invoice.total")}</span>
                 <strong className="money">{af(doc.total, 2)}</strong>
               </div>
               <div>
-                <span>{t("invoice.returned")}</span>
-                <strong className="money">{af(doc.returned || 0, 2)}</strong>
-              </div>
-              <div>
-                <span>{t("invoice.paid")}</span>
-                <strong className="money">{af(doc.paid, 2)}</strong>
-              </div>
-              <div className="invoice-due">
-                <span>{t("invoice.outstanding")}</span>
+                <span>
+                  {t(
+                    ["sale_return", "purchase_return"].includes(doc.kind)
+                      ? "currencies.returnCredit"
+                      : "invoice.returned",
+                  )}
+                </span>
                 <strong className="money">
                   {af(
-                    Math.max(0, doc.total - (doc.returned || 0) - doc.paid),
+                    ["sale_return", "purchase_return"].includes(doc.kind)
+                      ? doc.total - doc.paid
+                      : doc.returned || 0,
                     2,
                   )}
                 </strong>
               </div>
+              <div>
+                <span>
+                  {t(
+                    doc.kind === "purchase_return"
+                      ? "currencies.refundReceived"
+                      : doc.kind === "sale_return"
+                        ? "currencies.refundPaid"
+                        : "invoice.paid",
+                  )}
+                </span>
+                <strong className="money">{af(doc.paid, 2)}</strong>
+              </div>
+              {!["sale_return", "purchase_return"].includes(doc.kind) && (
+                <div className="invoice-due">
+                  <span>{t("invoice.outstanding")}</span>
+                  <strong className="money">
+                    {af(
+                      Math.max(0, doc.total - (doc.returned || 0) - doc.paid),
+                      2,
+                    )}
+                  </strong>
+                </div>
+              )}
             </div>
             {doc.note && <p className="invoice-note">{doc.note}</p>}
             {store?.bill_footer ? (
@@ -2479,14 +2924,114 @@ export function InvoiceDialog({
                     />
                   </Field>
                 ))}
+              {["sale", "purchase"].includes(doc.kind) && (
+                <section className="return-refund-controls">
+                  <div className="return-refund-summary">
+                    <span>
+                      {t("currencies.returnCredit")}{" "}
+                      <bdi dir="ltr">{af(debtReduction, 2)}</bdi>
+                    </span>
+                    <strong>
+                      {t(
+                        doc.kind === "purchase"
+                          ? "currencies.supplierRefundDue"
+                          : "currencies.refundDue",
+                      )}{" "}
+                      <bdi dir="ltr">{af(refundDue, 2)}</bdi>
+                    </strong>
+                  </div>
+                  {refundDue > 0 ? (
+                    <>
+                      <div className="supplier-payment-currency">
+                        <Field label={t("currencies.refundCurrency")}>
+                          <CurrencyPicker
+                            compact
+                            value={refundCurrency}
+                            onChange={(code) => {
+                              setRefundCurrency(code);
+                              setRefundRate(code === "AFN" ? "1" : "");
+                            }}
+                          />
+                        </Field>
+                        <Field
+                          label={t("currencies.rateShort", {
+                            code: refundCurrency,
+                          })}
+                        >
+                          <NumericInput
+                            name="refund_rate"
+                            value={refundRate}
+                            readOnly={refundCurrency === "AFN"}
+                            onChange={(e) => setRefundRate(e.target.value)}
+                            required
+                          />
+                        </Field>
+                      </div>
+                      <Field
+                        label={t("currencies.refundAmount", {
+                          code: refundCurrency,
+                        })}
+                        hint={t("currencies.refundPreview", {
+                          amount: af(Math.max(0, convertedRefund), 2),
+                        })}
+                      >
+                        <NumericInput
+                          name="refund_amount"
+                          value={refundAmount}
+                          onChange={(e) => setRefundAmount(e.target.value)}
+                          required
+                        />
+                      </Field>
+                      {convertedRefund !== refundDue && (
+                        <p className="text-red" role="alert">
+                          {t("currencies.refundMismatch")}
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    <p className="muted">
+                      {t(
+                        doc.kind === "purchase"
+                          ? "currencies.supplierNoCashRefund"
+                          : "currencies.noCashRefund",
+                      )}
+                    </p>
+                  )}
+                </section>
+              )}
               <Field label={t("invoiceActions.reason")}>
                 <input name="reason" minLength={2} required />
               </Field>
+              <Field label={t("common.date")}>
+                <input
+                  name="date"
+                  type="date"
+                  min={doc.date}
+                  max={businessDate()}
+                  defaultValue={businessDate()}
+                  required
+                />
+              </Field>
               <p className="help-note">{t("invoiceActions.returnHelp")}</p>
+              <label className="sale-print-check">
+                <input
+                  type="checkbox"
+                  checked={printReturn}
+                  onChange={(e) => setPrintReturn(e.target.checked)}
+                />
+                <PrinterIcon size={15} />
+                {t("sales.printAfter")}
+              </label>
               <ErrorMessage error={error} />
               <button
                 className="button button-dark"
-                disabled={busy || !Object.values(quantities).some((n) => n > 0)}
+                disabled={
+                  busy ||
+                  !Object.values(quantities).some((n) => n > 0) ||
+                  (["sale", "purchase"].includes(doc.kind) &&
+                    refundDue > 0 &&
+                    convertedRefund !== refundDue)
+                }
               >
                 {busy ? t("common.posting") : t("invoiceActions.postReturn")}
               </button>
@@ -2510,7 +3055,20 @@ export function InvoiceDialog({
         {doc &&
           ["sale", "purchase"].includes(doc.kind) &&
           ["Owner", "Manager", "Accountant"].includes(user.role) && (
-            <button className="button" onClick={() => setReturning(!returning)}>
+            <button
+              className="button"
+              onClick={() => {
+                if (!returning) {
+                  setRefundCurrency("AFN");
+                  setRefundRate("1");
+                  setRefundAmount("");
+                  setQuantities({});
+                  setPrintReturn(false);
+                  setError("");
+                }
+                setReturning(!returning);
+              }}
+            >
               <ArrowCounterClockwiseIcon size={15} />
               {returning
                 ? t("invoiceActions.cancelReturn")
@@ -2524,17 +3082,7 @@ export function InvoiceDialog({
           <button
             className="button"
             disabled={busy}
-            onClick={async () => {
-              setBusy(true);
-              setError("");
-              try {
-                await downloadInvoice(doc);
-              } catch (e: any) {
-                setError(e.message);
-              } finally {
-                setBusy(false);
-              }
-            }}
+            onClick={() => setPrintOpen(true)}
           >
             <DownloadSimpleIcon size={16} />
             {window.vault
@@ -2543,12 +3091,31 @@ export function InvoiceDialog({
           </button>
         )}
         {doc && (
-          <button className="button button-dark" onClick={() => window.print()}>
+          <button
+            className="button button-dark"
+            onClick={() => setPrintOpen(true)}
+          >
             <PrinterIcon size={16} />
             {t("invoiceActions.printPdf")}
           </button>
         )}
       </div>
+      {printOpen && doc && store && (
+        <PrintDialog
+          document={
+            invoicePrintModel(doc, store, {
+              locale,
+              t,
+              money: af,
+              foreignMoney: (amount: number, code?: string) =>
+                foreignMoney(amount, code || doc.currency || "AED"),
+              specs: productSpecEntries,
+              rate: (rate: number) => fxRateLabel(rate, doc.currency || "AED"),
+            }) as PrintDocument
+          }
+          onClose={() => setPrintOpen(false)}
+        />
+      )}
     </Modal>
   );
 }
@@ -2609,7 +3176,9 @@ export function DeleteInvoiceDialog({
       >
         <div className="form-body">
           <p>
-            {purchase ? t("deleteInvoice.bodyPurchase") : t("deleteInvoice.bodySale")}{" "}
+            {purchase
+              ? t("deleteInvoice.bodyPurchase")
+              : t("deleteInvoice.bodySale")}{" "}
             {t("deleteInvoice.bodyAudit")}
           </p>
           <p>
@@ -2707,7 +3276,7 @@ export function ProductDetail({
     >
       <div className="form-body">
         <div className="product-detail-top">
-          <img src={product.image} alt={product.name} />
+          <ProductPhoto product={product} alt={product.name} eager />
           <div>
             <Badge
               tone={product.stock <= product.reorder_level ? "yellow" : "green"}
@@ -2719,14 +3288,19 @@ export function ProductDetail({
               {product.condition} ·{" "}
               {product.warranty || t("productDetail.noWarranty")}
             </p>
-            <p>
-              {t("productDetail.reorderAt", { n: product.reorder_level })}
-            </p>
-            {(product.cost_aed || product.fx_rate) && (
+            <p>{t("productDetail.reorderAt", { n: product.reorder_level })}</p>
+            {(product.cost_foreign || product.cost_aed || product.fx_rate) && (
               <p>
+                <CurrencyFlag code={product.currency || "AED"} />{" "}
                 {t("productDetail.dubaiCost", {
-                  aed: aed(product.cost_aed || 0),
-                  rate: fxRateLabel(product.fx_rate || 0),
+                  aed: foreignMoney(
+                    product.cost_foreign ?? product.cost_aed ?? 0,
+                    product.currency || "AED",
+                  ),
+                  rate: fxRateLabel(
+                    product.fx_rate || 0,
+                    product.currency || "AED",
+                  ),
                   afn: af(product.unit_cost || 0, 2),
                 })}
               </p>
@@ -2866,6 +3440,10 @@ function partyLedgerLabel(
   if (e.category === "Opening balance" || /opening balance/i.test(e.note || ""))
     return tr("ledger.opening");
   const labels: Record<string, string> = {
+    consignment_receipt: "resale.receive",
+    consignment_return: "resale.returnOwner",
+    consignment_payment: "resale.payOwner",
+    consignment_recovery: "resale.recover",
     sale: "ledger.sale",
     purchase: "ledger.purchase",
     receipt: "ledger.paymentIn",
@@ -2894,10 +3472,24 @@ export function PartyDetailDialog({
   const [detail, setDetail] = useState<any>(null);
   const [error, setError] = useState("");
   const kind = party.kind;
+  const canResale =
+    kind === "customer" &&
+    !party.walk_in &&
+    user.permissions.includes("finance") &&
+    user.permissions.includes("view_costs");
+  const [ledgerView, setLedgerView] = useState<"trade" | "resale">(
+    (party as any).ledgerView === "resale" ? "resale" : "trade",
+  );
+
   useEffect(() => {
     let active = true;
     setError("");
-    api("partyDetail", { id: party.id, after: ledgerAfter, limit: 25 })
+    api("partyDetail", {
+      id: party.id,
+      after: ledgerAfter,
+      limit: 25,
+      view: ledgerView,
+    })
       .then((d) => {
         if (active) setDetail(d);
       })
@@ -2907,9 +3499,13 @@ export function PartyDetailDialog({
     return () => {
       active = false;
     };
-  }, [party.id, ledgerAfter, refresh]);
+  }, [party.id, ledgerAfter, refresh, ledgerView]);
   const signed = (e: any) =>
-    kind === "customer" ? e.debit - e.credit : e.credit - e.debit;
+    ledgerView === "resale"
+      ? e.credit - e.debit
+      : kind === "customer"
+        ? e.debit - e.credit
+        : e.credit - e.debit;
   let running = detail?.page_start_balance ?? detail?.party?.balance ?? 0;
   const ledgerRows = (detail?.entries || []).map((e: any) => {
     const row = { ...e, running, label: partyLedgerLabel(t, e) };
@@ -2917,6 +3513,7 @@ export function PartyDetailDialog({
     return row;
   });
   const current = detail?.party || party;
+  const ownerBalance = current.consignment_balance || 0;
   return (
     <Modal
       title={current.name}
@@ -2948,9 +3545,7 @@ export function PartyDetailDialog({
           <div className="contact-balance">
             <span>{t("partyDetail.outstanding")}</span>
             <strong
-              className={
-                (current.balance || 0) > 0 ? "text-red" : "text-green"
-              }
+              className={(current.balance || 0) > 0 ? "text-red" : "text-green"}
             >
               {af(current.balance || 0)}
             </strong>
@@ -2967,10 +3562,87 @@ export function PartyDetailDialog({
                 <ArrowRightIcon size={15} />
               </button>
             )}
+          {canResale && (
+            <div className="resale-owner-balance">
+              <span>
+                {t(
+                  ownerBalance < 0
+                    ? "resale.recoverable"
+                    : "resale.owedToOwners",
+                )}
+              </span>
+              <strong className={ownerBalance > 0 ? "text-red" : "text-green"}>
+                <bdi dir="ltr">{af(Math.abs(ownerBalance), 2)}</bdi>
+              </strong>
+              {ownerBalance !== 0 && (
+                <button
+                  className="button full"
+                  onClick={() =>
+                    open("consignmentSettlement", {
+                      ...current,
+                      balance: ownerBalance,
+                    })
+                  }
+                >
+                  {t(ownerBalance < 0 ? "resale.recover" : "resale.payOwner")}
+                </button>
+              )}
+              {user.permissions.includes("inventory") && (
+                <button
+                  className="button full"
+                  onClick={() => open("consignmentReceive", current)}
+                >
+                  {t("resale.receive")}
+                </button>
+              )}
+            </div>
+          )}
         </div>
         <div className="contact-ledger">
-          <h3>{t("partyDetail.ledgerTitle")}</h3>
-          <p className="subtle ledger-hint">{t("partyDetail.ledgerHint")}</p>
+          {canResale && (
+            <div className="owner-ledger-tabs">
+              <button
+                className={
+                  "button " + (ledgerView === "trade" ? "selected" : "")
+                }
+                onClick={() => {
+                  setDetail(null);
+                  setLedgerView("trade");
+                  setLedgerAfter("");
+                  setLedgerHistory([]);
+                }}
+              >
+                {t("partyDetail.ledgerTitle")}
+              </button>
+              <button
+                className={
+                  "button " + (ledgerView === "resale" ? "selected" : "")
+                }
+                onClick={() => {
+                  setDetail(null);
+                  setLedgerView("resale");
+                  setLedgerAfter("");
+                  setLedgerHistory([]);
+                }}
+              >
+                {t("resale.ownerLedger")}
+              </button>
+            </div>
+          )}
+          <h3>
+            {t(
+              ledgerView === "resale"
+                ? "resale.ownerLedger"
+                : "partyDetail.ledgerTitle",
+            )}
+          </h3>
+          <p className="subtle ledger-hint">
+            {t(
+              ledgerView === "resale"
+                ? "resale.ledgerHint"
+                : "partyDetail.ledgerHint",
+            )}
+          </p>
           {!detail ? (
             <p className="muted">{t("partyDetail.loadingLedger")}</p>
           ) : (
@@ -2999,12 +3671,12 @@ export function PartyDetailDialog({
                           </small>
                         </td>
                         <td
-                          className={`money ${e.debit ? (kind === "customer" ? "text-red" : "text-green") : "muted"}`}
+                          className={`money ${e.debit ? (kind === "customer" && ledgerView !== "resale" ? "text-red" : "text-green") : "muted"}`}
                         >
                           {e.debit ? af(e.debit) : "—"}
                         </td>
                         <td
-                          className={`money ${e.credit ? (kind === "customer" ? "text-green" : "text-red") : "muted"}`}
+                          className={`money ${e.credit ? (kind === "customer" && ledgerView !== "resale" ? "text-green" : "text-red") : "muted"}`}
                         >
                           {e.credit ? af(e.credit) : "—"}
                         </td>
@@ -3081,9 +3753,7 @@ export function UserForm({ close, done, user }: DialogProps & { user?: User }) {
         role,
         permissions,
       });
-      done(
-        user ? t("userForm.accessUpdated") : t("userForm.created"),
-      );
+      done(user ? t("userForm.accessUpdated") : t("userForm.created"));
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -3220,12 +3890,7 @@ export function OwnerMovement({ close, done }: DialogProps) {
             </select>
           </Field>
           <Field label={t("owner.amount")}>
-            <NumericInput
-              name="amount"
-              min="0.01"
-              step="0.01"
-              required
-            />
+            <NumericInput name="amount" min="0.01" step="0.01" required />
           </Field>
           <Field label={t("owner.date")}>
             <input
@@ -3300,12 +3965,7 @@ export function OpeningBalanceForm({
                 : t("opening.amountSupplier")
             }
           >
-            <NumericInput
-              name="amount"
-              min="0.01"
-              step="0.01"
-              required
-            />
+            <NumericInput name="amount" min="0.01" step="0.01" required />
           </Field>
           <Field label={t("opening.openingDate")}>
             <input

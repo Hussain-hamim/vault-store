@@ -1,9 +1,322 @@
 import type { MessageTree } from "./types";
 
 export const en: MessageTree = {
+  photos: {
+    title: "Product photo",
+    exact: "Model photo: {model}",
+    reference: "Company reference photo: {model}",
+    custom: "Your saved product photo",
+    missing: "No matching photo available",
+    exactHint:
+      "Real catalog image, stored with the app for offline use. Color and configuration may differ; upload a photo for this exact item.",
+    referenceHint:
+      "This is a real product from the selected company, not an exact match for the entered model. Upload the exact product photo if needed.",
+    missingHint:
+      "Upload this product’s photo. A neutral icon is shown instead of another company’s product.",
+    savedHint:
+      "Saved offline in your store database and included in backups. Reused automatically for the same company and model.",
+    choose: "Choose exact photo",
+    reading: "Preparing photo…",
+    useAutomatic: "Use automatic photo",
+    invalidType: "Choose a JPG, PNG or WebP image.",
+    tooLarge: "Choose an image smaller than 12 MB.",
+    unreadable:
+      "This image could not be read. Try a different JPG, PNG or WebP photo.",
+    credits: "Product photo credits",
+    creditsHint:
+      "Bundled product images are credited below. Each image keeps its listed license; source and license links need internet, but the photos work offline.",
+  },
+  currencies: {
+    refundReceived: "Supplier refund received",
+    supplierRefundDue: "Cash refund to receive:",
+    supplierNoCashRefund:
+      "This return reduces the unpaid supplier balance first. No cash refund is due.",
+
+    returnCredit: "Balance reduced:",
+    refundDue: "Cash refund due:",
+    refundCurrency: "Refund currency",
+    refundAmount: "Refund amount ({code})",
+    refundPreview: "Converted refund: {amount}",
+    refundMismatch:
+      "Converted refund must match the cash refund due. Adjust the amount or rate, or choose AFN for an exact refund.",
+    noCashRefund:
+      "This return reduces the unpaid balance first. No cash refund is due.",
+    refundPaid: "Customer refund",
+
+    paymentCurrency: "Payment currency",
+    paidAtSale: "Payment at sale",
+    amountReceived: "Amount received ({code})",
+    overBalance: "Converted payment exceeds the outstanding balance.",
+    rateShort: "AF / {code}",
+    costShort: "Cost ({code})",
+    discountShort: "Discount (AF)",
+    amountPaid: "Amount paid ({code})",
+    paymentPreview: "{amount} · blank = unpaid",
+    paidAtPurchase: "Payment at purchase",
+    usePaymentCurrency: "Enter payment in {code}",
+
+    supplierSubtotal: "Supplier subtotal",
+    choose: "Currency",
+    add: "Add currency",
+    code: "Currency code (3 letters)",
+    name: "Currency name",
+    flag: "Country / flag",
+    save: "Save currency",
+    savedHint:
+      "This currency will be available throughout this store. Enter its AF conversion rate on each purchase.",
+    unitCost: "Unit cost ({code})",
+    costHint: "The supplier cost in your selected currency.",
+    rate: "AF per 1 {code}",
+    rateHint: "Enter the rate used for this purchase. AFN uses a rate of 1.",
+    rateValue: "1 {code} = {rate} AF",
+    ratePlaceholder: "Enter AF conversion rate",
+    manage: "Purchase currencies",
+    baseHint:
+      "Choose or add purchase currencies here. Inventory, balances and reports stay in AFN.",
+    returnQuantity:
+      "Choose at least one valid return quantity within the remaining units.",
+    costRateRequired:
+      "Enter the supplier unit cost and its AF conversion rate.",
+    rateRequired: "Enter the selected currency’s AF conversion rate.",
+    costMismatch: "{name}: AF cost must equal supplier cost × conversion rate.",
+    exchangeRate: "Exchange rate",
+    afnCostHint:
+      "Calculated from the selected currency’s unit cost × AF conversion rate.",
+  },
+  notifications: {
+    title: "Notifications",
+    subtitle:
+      "Current stock alerts and unpaid customer balances from your store records.",
+    count: "{n} active notifications",
+    unavailable: "Notifications could not refresh",
+    stock: "Stock alerts",
+    customerBalances: "Customers owe you",
+    refresh: "Refresh notifications",
+    savedCustomer: "Saved customer",
+    zeroStock: "Out of stock · reorder level {level}",
+    lowStock: "{qty} left · reorder level {level}",
+    balanceHint:
+      "Remaining balance after recorded payments, credits and returns.",
+    openLedger: "Open ledger",
+    allClear: "All clear",
+    noStockAlerts: "No active products are at or below their reorder level.",
+    noBalances: "No customers currently have an unpaid balance.",
+    liveHint:
+      "These are active conditions, not unread messages. Counts update after changes, when you return to the app, and every 30 seconds. Customer balances are outstanding, not necessarily overdue. One-off customer resale items are excluded from reorder alerts.",
+  },
+  widgets: {
+    showAll: "Show all",
+    hideAll: "Hide all",
+    visibleCount: "{n} of {total} visible",
+    selectedCount: "{n} selected",
+    arrange: "Arrange visible widgets",
+
+    customize: "Customize dashboard",
+    hint: "Choose the boxes you want to see. Use the arrows to change their order. Saved for your account on this computer.",
+    empty: "Make this dashboard yours",
+    up: "Move up",
+    down: "Move down",
+    remove: "Remove",
+    reset: "Restore defaults",
+    save: "Save dashboard",
+    saveError:
+      "Could not save your layout. Check that local storage is available and try again.",
+    net: "Net profit",
+    expenses: "Expenses",
+    cash: "Cash movement",
+    receivables: "Customers owe you",
+    payables: "You owe suppliers",
+    currentBalance: "Current balance · all dates",
+  },
+  shortcuts: {
+    palette: "Quick actions",
+    paletteHint: "Find an action or use its keyboard shortcut.",
+    findAction: "Find an action…",
+    noResults: "No matching actions",
+    quickActions: "Quick actions",
+    search: "Search products & contacts",
+    product: "Add product",
+    sale: "Open sale bill",
+    purchase: "Open purchase bill",
+    customer: "Add customer",
+    supplier: "Add supplier",
+    expense: "Record expense",
+    inventory: "Open inventory",
+    reports: "Open reports",
+    dailyBook: "Open daily book",
+    history: "Sale invoice history",
+    settings: "Open settings",
+    support: "Support",
+    help: "Help & shortcuts",
+    about: "About Radefy TechMart",
+    typingHint:
+      "Action shortcuts pause while typing or while a dialog is open. Ctrl/Cmd + K opens this menu; Ctrl/Cmd + + or − keeps normal zoom.",
+  },
+  company: {
+    supportTitle: "Support center",
+    supportIntro: "Help for your shop, from the people who built your tools.",
+    tagline: "Computers, phones and accessories. One clear view of your store.",
+    builtBy: "Built by Radefy Systems",
+    aboutBody:
+      "Radefy TechMart brings inventory, sales, purchases, customer and supplier accounts, expenses and reports into one offline workspace. Designed for the everyday work of electronics stores.",
+    devices: "Made for tech stores",
+    devicesBody:
+      "Manage computers, mobile phones, tablets, storage and accessories with their model and specifications.",
+    offline: "Works offline",
+    offlineBody:
+      "Your desktop store runs locally with SQLite. Internet is only needed when you choose to contact support.",
+    control: "Your store, your control",
+    controlBody:
+      "Staff access rights, transaction records and configurable backups help you manage your business.",
+    needHelp: "A little help, whenever you need it.",
+    helpBody:
+      "Find keyboard shortcuts, app information and support details in one place.",
+    contactTitle: "Contact Radefy Systems",
+    contactBody: "Reach the team behind Radefy TechMart.",
+    contactPending:
+      "Official website, email and WhatsApp details will appear here once provided by Radefy Systems.",
+    contactError: "Could not open this contact. Please try again.",
+    website: "Website",
+    email: "Email",
+    whatsapp: "WhatsApp",
+    quickHelp: "Get things done faster",
+    shortcutsBody:
+      "Search actions and see the keyboard shortcuts available for your account.",
+    supportDetails:
+      "When asking for help, mention app version {version}, your operating system and the steps that caused the issue. Do not share passwords or customer records.",
+    commonQuestions: "Useful answers",
+    dataQuestion: "Where is my store data?",
+    dataAnswer:
+      "The desktop app stores your SQLite database on this computer. The app rename keeps the existing data folder so your store and sessions remain available.",
+    backupQuestion: "How do I protect my records?",
+    backupAnswer:
+      "Open Backups to choose backup folders, review recent copies and configure automatic backups. Keep a copy on a separate drive.",
+    zoomQuestion: "How do I change the display size?",
+    zoomAnswer:
+      "Use Ctrl + + / − on Windows, or Cmd + + / − on Mac. Ctrl/Cmd + 0 restores the default zoom.",
+    madeBy: "Made by",
+  },
+  expenseAccounts: {
+    title: "Expense accounts",
+    description:
+      "Track spending separately for rent, utilities, food and your own accounts.",
+    account: "Expense account",
+    newAccount: "New expense account",
+    namePlaceholder: "e.g. Internet or staff meals",
+    choose: "Choose an expense account",
+    periodSpent: "Spent in selected period",
+    lifetimeSpent: "Total spent to date",
+    note: "These accounts track recorded expense payments. Stock losses are shown separately in Reports → Expense breakdown.",
+  },
+  resale: {
+    newOwner: "New customer",
+    existingOwner: "Existing customer",
+    ownerName: "Owner name",
+    unlistedProduct: "Unlisted product",
+    existingProduct: "From inventory",
+    expectedPrice: "Expected selling price (AF, optional)",
+    priceLater: "Set the actual price when selling",
+    newProductHint:
+      "Saved as a separate customer-owned product with an automatic SKU. No shop purchase cost or opening investment is recorded.",
+    ownerAgreement: "Owner agreement",
+    sellItem: "Sell this item",
+
+    customerOwnedCount: "Customer-owned: {n}",
+    custodyNote:
+      "Custody movement only: these goods belong to the customer. This record is not a sale, purchase or payment.",
+    title: "Customer resale",
+    description: "Sell customer-owned products and keep your agreed margin.",
+    explainer:
+      "Receive the product here, then sell it on the normal New Bill screen. Shop profit is the selling price minus the agreed owner amount and any expenses. Owner payouts change cash and the owner balance, not profit.",
+    receive: "Receive customer product",
+    receiveHint: "Record who owns the product and the agreed payout per unit.",
+    newProduct: "New product",
+    owner: "Product owner",
+    findOwner: "Search saved customers",
+    chooseOwner: "Choose an owner",
+    findProduct: "Search products / SKU",
+    chooseProduct: "Choose a product",
+    ownerUnitAmount: "Owner amount per unit (AF)",
+    agreementNote: "Agreement / note (optional)",
+    intakeNote:
+      "Customer-owned units do not increase shop inventory value. Nothing is owed until a unit sells. Record the owner’s agreed amount here; later the actual sale price minus that amount becomes shop gross profit. For example: sell for AF 3,000, owe the owner AF 2,000, retain AF 1,000 before expenses.",
+    stockHeld: "Customer-owned units on hand",
+    ownerBalances: "Owner balances",
+    owedToOwners: "Owed to product owners",
+    recoverable: "Recoverable from product owners",
+    ownerLedger: "Owner proceeds ledger",
+    payOwner: "Pay owner",
+    recover: "Receive recovery",
+    returnOwner: "Return unsold stock to owner",
+    payoutHint:
+      "Pay the agreed amount for sold units. This settles the owner liability and does not reduce profit again.",
+    recoveryHint:
+      "The buyer returned goods after the owner was paid. Record money recovered from the owner. This clears the owner advance without changing profit again.",
+    unsoldHint:
+      "Return unsold units to their owner. Stock on hand decreases; cash and profit do not change.",
+    ledgerHint:
+      "Credits increase the amount owed to this owner. Debits are payouts or sale-return reversals. A negative balance means money to recover from the owner.",
+    empty: "No records in this view",
+    emptyHint: "Receive a customer product or switch to owner balances.",
+    received: "Customer product received. Sell it through New Bill.",
+    settled: "Owner settlement recorded.",
+    returned: "Unsold stock returned to its owner.",
+  },
+  printing: {
+    title: "Print setup",
+    subtitle: "Choose a layout, color theme and paper size before printing.",
+    layout: "Document layout",
+    theme: "Color theme",
+    paper: "Paper size",
+    orientation: "Orientation",
+    portrait: "Portrait",
+    landscape: "Landscape",
+    margins: "Margins",
+    standard: "Standard",
+    narrow: "Narrow",
+    showLogo: "Show business logo",
+    showSpecs: "Show product specifications",
+    showFooter: "Show bill footer",
+    remember: "Remember these choices on this computer",
+    preview: "Print preview",
+    previewError: "The print preview could not load. Close it and try again.",
+    savePdf: "Save PDF",
+    downloadHtml: "Download printable file",
+    printPdf: "Print / save PDF",
+    preparing: "Preparing…",
+    printerHint:
+      "Match the paper size in your printer dialog. Enable background graphics for color themes. The preview scrolls; printed tables continue across pages.",
+    loadedRows: "{n} loaded records",
+    loadedOnly:
+      "Only loaded records are included. Use Load more before printing a longer list.",
+    ledgerPage:
+      "This printout includes the current ledger page. Outstanding balance covers the full account.",
+    layouts: {
+      modern: "Modern",
+      classic: "Classic",
+      minimal: "Minimal",
+      compact: "Compact",
+    },
+    themes: {
+      charcoal: "Charcoal",
+      lime: "Lime",
+      navy: "Navy",
+      teal: "Teal",
+      rose: "Rose",
+      mono: "Black & white",
+    },
+    papers: {
+      A4: "A4",
+      A5: "A5",
+      Letter: "US Letter",
+      A3: "A3",
+      receipt80: "80 mm receipt",
+      receipt58: "58 mm receipt",
+    },
+  },
   app: {
-    title: "Vault — Store management",
-    brand: "vault",
+    title: "Radefy TechMart — Store management",
+    brand: "Radefy TechMart",
     offline: "Offline",
     menu: "Menu",
     workspace: "Workspace",
@@ -70,6 +383,8 @@ export const en: MessageTree = {
     continue: "Continue",
   },
   nav: {
+    about: "About",
+    support: "Support",
     dashboard: "Dashboard",
     inventory: "Inventory",
     sales: "Sales",
@@ -101,7 +416,7 @@ export const en: MessageTree = {
     story: "Your products, customers and numbers.",
     story2: "Together, on your computer.",
     alwaysOffline: "Always available. Completely offline.",
-    footer: "Vault Store · Inventory & accounting",
+    footer: "Radefy TechMart · Inventory & accounting",
     welcomeBack: "Welcome back.",
     makeHome: "Make yourself at home.",
     setupHint: "Set up your store and create the owner account.",
@@ -177,7 +492,8 @@ export const en: MessageTree = {
     salePosted: "Sale posted. Invoice, stock and ledger saved.",
     saleUpdated: "Invoice updated. Stock, payment and profit recalculated.",
     purchasePosted: "Purchase received. Stock and supplier ledger updated.",
-    purchaseUpdated: "Purchase updated. Stock and supplier ledger recalculated.",
+    purchaseUpdated:
+      "Purchase updated. Stock and supplier ledger recalculated.",
     editDoc: "Edit {number}",
     subtitlePurchase:
       "Receive stock, record its cost, and update your supplier balance.",
@@ -208,10 +524,8 @@ export const en: MessageTree = {
     aedRateBar: "AED rate in Afghanis",
     aedRateBarHint:
       "How many AFN for 1 AED today. Every product line uses this rate.",
-    aedRateLive:
-      "1 AED = {rate} AFN · line AF costs update automatically",
-    aedRateSetFirst:
-      "Set the rate first, then enter each product's AED cost.",
+    aedRateLive: "1 AED = {rate} AFN · line AF costs update automatically",
+    aedRateSetFirst: "Set the rate first, then enter each product's AED cost.",
     aedRateInline: "1 AED = {rate} AFN",
     invoiceDate: "Invoice date",
     paymentDueOptional: "Payment due (optional)",
@@ -224,11 +538,10 @@ export const en: MessageTree = {
     errChooseSupplier: "Choose a supplier.",
     errChooseCustomer: "Choose a customer.",
     errCustomerName: "Enter the customer name (at least 2 characters).",
-    errFxRate:
-      "Enter the AED→AFN exchange rate used for this Dubai purchase.",
+    errFxRate: "Enter the AED→AFN exchange rate used for this Dubai purchase.",
     errAfnCost: "{name}: AFN cost must equal AED × exchange rate.",
     errProductGone: "Product {name} is no longer in the catalog.",
-    errBarcode: "No product found for barcode \"{code}\".",
+    errBarcode: 'No product found for barcode "{code}".',
     errOutOfStock: "{name} is out of stock.",
     errOnBill: "{name} is already on this bill.",
     errProductLoad: "New product could not be loaded.",
@@ -508,7 +821,7 @@ export const en: MessageTree = {
     inStock: "{n} in stock",
     noWarranty: "No warranty set",
     reorderAt: "Reorder at {n}",
-    dubaiCost: "Dubai cost {aed} · {rate} · stock cost {afn}",
+    dubaiCost: "Supplier cost {aed} · {rate} · stock cost {afn}",
     movements: "Stock movements",
     adjust: "Adjust stock",
     adjustQty: "Adjustment quantity",
@@ -539,6 +852,7 @@ export const en: MessageTree = {
     ledgerEntry: "Entry",
   },
   expense: {
+    food: "Food",
     title: "Record expense",
     subtitle: "Track what it costs to run the store.",
     subtitleDaily: "Expenses are included in net profit and your cashbook.",
@@ -558,6 +872,7 @@ export const en: MessageTree = {
     other: "Other",
   },
   accounts: {
+    consignmentPayables: "Customer-owner proceeds payable",
     cash: "Cash",
     receivables: "Receivables",
     payables: "Payables",
@@ -644,15 +959,58 @@ export const en: MessageTree = {
     amount: "Amount",
   },
   reports: {
+    zeroStock: "Zero stock",
+    hintZeroStock:
+      "Active products with no units available, ready for your order list.",
+    zeroStockNote: "Only active products with exactly zero stock are listed.",
+    reorder: "Reorder & stock alerts",
+    hintReorder:
+      "What to buy next: empty shelves first, then products running low.",
+    dailyFormula:
+      "Net profit = sales − FIFO cost − operating expenses + other income. Returns reduce sales and reverse their original cost.",
+    expenseNote:
+      "All posted expense accounts, including stock losses, grouped by category. This total matches operating expenses in profit & loss.",
+    difference: "Difference",
+    listedValue: "Listed inventory value",
+    listedUnits: "Listed units",
+    listedOutstanding: "Listed outstanding",
+    onHand: "On hand",
+    reorderPoint: "Reorder level",
+    orderQty: "Suggested order",
+    estimatedCost: "Estimated order cost",
+    outOfStock: "Out of stock",
+    lowStock: "Low stock",
+    unitsToOrder: "Units to order",
+    reorderFormula:
+      "Products at or below their reorder level are listed. Suggested order = twice the reorder level minus stock on hand, with a minimum target of 1 unit. This is a simple stock target, not a sales forecast.",
+    estimateNote:
+      "Estimated cost uses the latest recorded stock-batch cost, or the saved AFN unit cost if no batch exists. Supplier prices and AED exchange rates may change. No purchase is placed automatically.",
+    unpricedNote:
+      "{n} products have a zero reference cost. Their estimate is zero; confirm prices before ordering.",
+    csv: "Export CSV",
+    currentStockDate: "Current balances · {date}",
+    refresh: "Refresh report",
+    invalidRange:
+      "Choose valid report dates. The start must be on or before the end, and the end cannot be in the future.",
+    showingRows: "Showing {shown} of {total} rows",
+    exportScope:
+      "Print, PDF and CSV include all rows in this report, including rows hidden by Load more. Any report limits are stated above.",
+    changed:
+      "Store data changed. Refresh this report before continuing so the figures stay consistent.",
+    notReady: "Wait for the report to finish loading.",
+    browserPdfHint:
+      "For a PDF in the browser, click Save PDF, then choose Save as PDF in the system print dialog. The desktop app saves a PDF file directly.",
     title: "Reports",
-    description: "Profit, stock, capital, and balances — clear numbers for your shop.",
+    description:
+      "Profit, stock, capital, and balances — clear numbers for your shop.",
     groupPerformance: "Performance",
     groupBooks: "Books",
     groupStockDebt: "Stock & debt",
     hintProfitLoss: "How much you sold, what it cost, and what you kept.",
     hintDaily: "Day-by-day sales, cost, expenses, and profit.",
     hintProductProfit: "Which products made the most money this period.",
-    hintTrialBalance: "All ledger accounts with debit, credit, and net balance.",
+    hintTrialBalance:
+      "All ledger accounts with debit, credit, and net balance.",
     hintBalanceSheet: "What the business owns, owes, and keeps as equity.",
     hintCapitalNet: "Owner capital and net worth month by month.",
     hintExpenseBreak: "Where operating money went, by category.",
@@ -724,7 +1082,7 @@ export const en: MessageTree = {
     bsCumulativeEarnings: "Cumulative earnings",
     bsTotalLiabEquity: "Total liabilities & equity",
     capitalNetNote:
-      "Monthly change in capital invested and business net worth. Record investments on the Capital screen.",
+      "Latest 36 months of invested capital and business net worth. Record investments on the Capital screen.",
     colInvested: "Invested",
     colWithdrawn: "Withdrawn",
     otherIncome: "Other income",
@@ -750,14 +1108,14 @@ export const en: MessageTree = {
     verified: "Backup verified and copied to all destinations.",
     scheduleDesktop:
       "Open the desktop application to install the operating system backup schedule.",
-    scheduleInstalled: "Daily backup schedule installed for this desktop account.",
+    scheduleInstalled:
+      "Daily backup schedule installed for this desktop account.",
     restoreDesktop:
       "Restoration is available in the desktop application, where the database can be closed safely.",
     retentionDays: "30 days",
     lastFullCopy: "Last fully successful copy",
     destinationsVerifyHint: "All configured destinations must verify",
-    verifyDetail:
-      "Verified: {products} products and {documents} documents.",
+    verifyDetail: "Verified: {products} products and {documents} documents.",
     foldersCount: "{n} folders",
     destinationsIntro:
       "Add folders on this computer or a connected external drive. Disconnected destinations are retried.",
@@ -827,7 +1185,8 @@ export const en: MessageTree = {
     auditUser: "User",
     auditAction: "Action",
     auditDetails: "Details",
-    auditFootnote: "Latest 200 audit records. Passwords are never recorded here.",
+    auditFootnote:
+      "Latest 200 audit records. Passwords are never recorded here.",
     schedulerUser: "Scheduler",
     periodLockTitle: "Accounting period lock",
     periodLockHint:
@@ -919,7 +1278,7 @@ export const en: MessageTree = {
   },
   opening: {
     title: "Opening balance",
-    subtitle: "Set what was already owed before using Vault.",
+    subtitle: "Set what was already owed before using Radefy TechMart.",
     amountCustomer: "Amount they owe you (AF)",
     amountSupplier: "Amount you owe them (AF)",
     help: "Owner-only when the amount is greater than zero.",
@@ -955,7 +1314,8 @@ export const en: MessageTree = {
     lowStockSubtitle: "Keep the products your customers need on the shelf.",
     receivePurchase: "Receive a purchase",
     categoryInventory: "{category} inventory",
-    categoryHint: "Use the category filter on the inventory screen to view {category}.",
+    categoryHint:
+      "Use the category filter on the inventory screen to view {category}.",
     viewInventory: "View inventory",
     leftReorder: "{left} left · reorder {reorder}",
     allGood: "Stock levels look good",
@@ -993,7 +1353,7 @@ export const en: MessageTree = {
     conditionUsed: "Used",
     conditionRefurb: "Refurbished",
     subtitlePurchase:
-      "Create the catalog item now. Stock and Dubai cost are recorded when you receive this purchase.",
+      "Create the catalog item now. Stock and purchase cost are recorded when you receive this purchase.",
     subtitleCatalog:
       "Add product details, its cost and any stock already on your shelf.",
     pickAccessory: "Pick an accessory type to choose its photo",
@@ -1012,7 +1372,7 @@ export const en: MessageTree = {
       "Existing stock, not a new supplier purchase. Owner access is required for opening balances.",
     stockOnPurchase: "Stock on this purchase",
     stockOnPurchaseHint:
-      "Quantity and AED cost are entered on the purchase bill after you save.",
+      "Quantity and supplier cost are entered on the purchase bill after you save.",
     stockOnPurchaseValue: "Starts at 0 — added when you receive the purchase",
     customBrand: "Custom company / brand",
     customAccessory: "Custom accessory type",
@@ -1023,7 +1383,7 @@ export const en: MessageTree = {
       "Enter the Dubai cost in AED and the AFN exchange rate at that time.",
     detailsUpdated: "Product details updated.",
     addedForPurchase:
-      "Product added to catalog. Set its AED cost on this purchase.",
+      "Product added to catalog. Set its cost in the selected currency on this purchase.",
     savedWithStock: "Product and opening stock saved.",
     namePh: "e.g. MacBook Air M3 13-inch",
     modelPh: "e.g. MacBook Air M3",

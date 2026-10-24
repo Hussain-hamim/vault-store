@@ -1,3 +1,4 @@
+import { ProductPhoto, type PhotoProduct } from "./ProductPhoto";
 import React, { useEffect, useRef } from "react";
 import {
   XIcon,
@@ -95,12 +96,14 @@ export function Modal({
   children,
   onClose,
   wide = false,
+  className = "",
 }: {
   title: string;
   subtitle?: string;
   children: React.ReactNode;
   onClose: () => void;
   wide?: boolean;
+  className?: string;
 }) {
   const t = useT();
   const ref = useRef<HTMLDivElement>(null);
@@ -118,6 +121,9 @@ export function Modal({
         return;
       }
       if (e.key === "Tab") {
+        const backdrops = document.querySelectorAll(".modal-backdrop");
+        if (backdrops[backdrops.length - 1] !== ref.current?.parentElement)
+          return;
         const list = Array.from(
           ref.current?.querySelectorAll<HTMLElement>(
             'button:not(:disabled),input:not(:disabled),select:not(:disabled),textarea:not(:disabled),[tabindex="0"]',
@@ -137,7 +143,12 @@ export function Modal({
     document.body.style.overflow = "hidden";
     return () => {
       document.removeEventListener("keydown", key);
-      document.body.style.overflow = "";
+      const backdrop = ref.current?.parentElement;
+      document.body.style.overflow = Array.from(
+        document.querySelectorAll(".modal-backdrop"),
+      ).some((element) => element !== backdrop)
+        ? "hidden"
+        : "";
       previous?.focus();
     };
   }, [onClose]);
@@ -150,7 +161,7 @@ export function Modal({
     >
       <div
         ref={ref}
-        className={`modal ${wide ? "modal-wide" : ""}`}
+        className={`modal ${wide ? "modal-wide" : ""} ${className}`}
         role="dialog"
         aria-modal="true"
         aria-label={title}
@@ -161,6 +172,7 @@ export function Modal({
             {subtitle && <p>{subtitle}</p>}
           </div>
           <button
+            type="button"
             className="icon-button modal-close"
             aria-label={t("ui.closeDialog")}
             onClick={onClose}
@@ -178,7 +190,7 @@ export function Field({
   children,
   hint,
 }: {
-  label: string;
+  label: React.ReactNode;
   children: React.ReactNode;
   hint?: string;
 }) {
@@ -203,17 +215,13 @@ export function ProductName({
   product,
   sub,
 }: {
-  product: { name: string; image?: string; sku?: string; brand?: string };
+  product: PhotoProduct & { name: string; sku?: string };
   sub?: string;
 }) {
   return (
     <span className="product-name">
       <span className="product-image">
-        {product.image ? (
-          <img src={product.image} alt="" />
-        ) : (
-          <PackageIcon size={20} />
-        )}
+        <ProductPhoto product={product} />
       </span>
       <span>
         <strong>{product.name}</strong>
@@ -304,16 +312,11 @@ export function PageIntro({
   action?: React.ReactNode;
   compact?: boolean;
 }) {
-  return (
-    <div className={`page-intro${compact ? " page-intro-compact" : ""}`}>
-      <div className="page-intro-copy">
-        {eyebrow && <div className="eyebrow">{eyebrow}</div>}
-        <h2>{title}</h2>
-        <p>{description}</p>
-      </div>
-      {action ? <div className="page-intro-actions">{action}</div> : null}
+  return action ? (
+    <div className="page-intro page-actions-only">
+      <div className="page-intro-actions">{action}</div>
     </div>
-  );
+  ) : null;
 }
 export function Metric({
   label,

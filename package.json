@@ -1,29 +1,35 @@
 {
-  "name": "vault-store",
+  "name": "radefy-techmart",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "main": "electron/main.cjs",
   "description": "Offline electronics store inventory and accounting",
-  "author": "Vault Store",
+  "author": "Radefy Systems",
   "scripts": {
     "dev": "node scripts/dev.mjs",
     "dev:ui": "vite --host 127.0.0.1 --port 4173",
     "desktop": "electron .",
     "desktop:dev": "node scripts/desktop-dev.mjs",
     "build": "tsc --noEmit && vite build && node scripts/prepare-sites-build.mjs",
-    "test": "node --test tests/store.test.mjs tests/preload.test.mjs",
+    "test": "node --test tests/store.test.mjs tests/preload.test.mjs tests/printing.test.mjs tests/reports.test.mjs tests/brand.test.mjs tests/product-photos.test.mjs",
     "test:sites": "node --test tests/sites-worker.test.mjs",
     "package:mac": "npm run build && electron-builder --mac --dir",
     "package:win": "npm run build && electron-builder --win nsis",
     "backup": "node server/backup-cli.mjs",
     "benchmark": "node scripts/benchmark.mjs",
-    "package:mac:dmg": "npm run build && electron-builder --mac dmg"
+    "package:mac:dmg": "npm run build && electron-builder --mac dmg",
+    "test:print": "node --test tests/printing.test.mjs",
+    "test:print:desktop": "electron tests/print-electron-smoke.cjs",
+    "build:icons": "node scripts/build-brand-icons.mjs",
+    "test:brand:desktop": "electron tests/brand-ui-smoke.cjs",
+    "test:photos:desktop": "electron tests/product-photos-ui-smoke.cjs"
   },
   "dependencies": {
     "@fontsource-variable/plus-jakarta-sans": "^5.2.8",
     "@fontsource-variable/vazirmatn": "^5.3.0",
     "@phosphor-icons/react": "^2.1.10",
+    "flag-icons": "^7.6.0",
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "recharts": "^3.3.0",
@@ -42,7 +48,7 @@
   },
   "build": {
     "appId": "com.vault.store",
-    "productName": "Vault Store",
+    "productName": "Radefy TechMart",
     "directories": {
       "output": "release"
     },
@@ -51,7 +57,9 @@
       "electron/**/*",
       "server/**/*",
       "package.json",
-      "node_modules/zod/**/*"
+      "node_modules/zod/**/*",
+      "shared/**/*",
+      "build/icon.png"
     ],
     "asarUnpack": [
       "server/**/*",

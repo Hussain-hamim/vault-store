@@ -1,3 +1,18 @@
+import { saveProductPhoto, readProductPhoto } from "./product-photos.mjs";
+import {
+  DEFAULT_CURRENCIES,
+  SUPPORTED_FLAG_COUNTRIES,
+} from "../shared/currencies.mjs";
+import { notifications } from "./notifications.mjs";
+import {
+  receiveConsignment,
+  returnConsignment,
+  payConsignment,
+  consignments,
+  consignmentCredits,
+  ownerBalance,
+  consignmentSnapshot,
+} from "./customer-resale.mjs";
 import { DatabaseSync, backup } from "./sqlite.mjs";
 import {
   randomUUID,
@@ -66,7 +81,12 @@ const afnFromAed = (aedMinor, rateScaled) => {
 };
 const ensureFxColumns = (db) => {
   const add = (table, column, sqlType) => {
-    if (!db.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === column))
+    if (
+      !db
+        .prepare(`PRAGMA table_info(${table})`)
+        .all()
+        .some((c) => c.name === column)
+    )
       db.exec(
         `ALTER TABLE ${table} ADD COLUMN ${column} ${sqlType} NOT NULL DEFAULT 0`,
       );
@@ -78,6 +98,29 @@ const ensureFxColumns = (db) => {
   add("document_lines", "cost_aed", "INTEGER");
   add("document_lines", "fx_rate", "INTEGER");
   add("documents", "fx_rate", "INTEGER");
+  if (
+    !db
+      .prepare("PRAGMA table_info(documents)")
+      .all()
+      .some((c) => c.name === "paid_foreign")
+  )
+    db.exec(
+      "ALTER TABLE documents ADD COLUMN paid_foreign INTEGER CHECK(paid_foreign>=0)",
+    );
+  for (const table of ["products", "documents", "document_lines", "batches"]) {
+    const columns = db.prepare(`PRAGMA table_info(${table})`).all();
+    if (!columns.some((c) => c.name === "currency"))
+      db.exec(
+        `ALTER TABLE ${table} ADD COLUMN currency TEXT NOT NULL DEFAULT 'AED'`,
+      );
+    if (
+      table !== "documents" &&
+      !columns.some((c) => c.name === "cost_foreign")
+    ) {
+      add(table, "cost_foreign", "INTEGER");
+      db.exec(`UPDATE ${table} SET cost_foreign=cost_aed`);
+    }
+  }
 };
 const date = z
   .string()
@@ -116,46 +159,67 @@ const userSchema = z.object({
   ]),
   permissions: z.array(z.enum(PERMISSIONS)).optional(),
 });
-const productSchema = z.object({
-  name: text.min(2),
-  brand: text.min(1),
-  model: text.min(1),
-  sku: text.min(1),
-  barcode: text.default(""),
-  category: z.enum([
-    "Computers",
-    "Mobiles",
-    "Tablets",
-    "Storage",
-    "Accessories",
-  ]),
-  price: money,
-  minimum: money.default(0),
-  reorder_level: z.number().int().min(0).max(1_000_000).default(5),
-  location: text.default(""),
-  condition: z.enum(["New", "Used", "Refurbished"]).default("New"),
-  warranty: text.default(""),
-  attributes: z.record(z.string(), z.string().max(200)).default({}),
-  image: text.default(""),
-  unit_cost: money.optional(),
-  cost_aed: money.default(0),
-  fx_rate: fxRate.default(0),
-  opening_quantity: z.number().int().min(0).max(100000).default(0),
+const currencyFields = {
+  currency: z
+    .string()
+    .regex(/^[A-Z]{3}$/)
+    .default("AED"),
+  cost_foreign: money.optional(),
+};
+const normalizeForeign = (d) => ({
+  ...d,
+  cost_foreign: d.cost_foreign ?? d.cost_aed,
+  cost_aed: d.currency === "AED" ? (d.cost_foreign ?? d.cost_aed) : 0,
 });
-const lineSchema = z.object({
-  product_id: z.string(),
-  quantity: positive,
-  price: money,
-  discount: money.default(0),
-  cost_aed: money.default(0),
-  fx_rate: fxRate.default(0),
-});
+const productSchema = z
+  .object({
+    name: text.min(2),
+    brand: text.min(1),
+    model: text.min(1),
+    sku: text.min(1),
+    barcode: text.default(""),
+    category: z.enum([
+      "Computers",
+      "Mobiles",
+      "Tablets",
+      "Storage",
+      "Accessories",
+    ]),
+    price: money,
+    minimum: money.default(0),
+    reorder_level: z.number().int().min(0).max(1_000_000).default(5),
+    location: text.default(""),
+    condition: z.enum(["New", "Used", "Refurbished"]).default("New"),
+    warranty: text.default(""),
+    attributes: z.record(z.string(), z.string().max(200)).default({}),
+    image: text.default(""),
+    photo_data: z.string().max(500000).optional(),
+    unit_cost: money.optional(),
+    ...currencyFields,
+    cost_aed: money.default(0),
+    fx_rate: fxRate.default(0),
+    opening_quantity: z.number().int().min(0).max(100000).default(0),
+  })
+  .transform(normalizeForeign);
+const lineSchema = z
+  .object({
+    product_id: z.string(),
+    quantity: positive,
+    price: money,
+    discount: money.default(0),
+    ...currencyFields,
+    cost_aed: money.default(0),
+    fx_rate: fxRate.default(0),
+  })
+  .transform(normalizeForeign);
 const docSchema = z.object({
+  currency: currencyFields.currency,
   kind: z.enum(["sale", "purchase"]),
   party_id: z.string().nullable().optional(),
   date: date.optional(),
   due_date: date.nullable().optional(),
   paid: money,
+  paid_foreign: money.optional(),
   discount: money.default(0),
   note: text.default(""),
   fx_rate: fxRate.default(0),
@@ -171,8 +235,10 @@ export class Store {
       "PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA busy_timeout=5000; PRAGMA wal_autocheckpoint=1000;",
     );
     const version = this.db.prepare("PRAGMA user_version").get().user_version;
-    if (version > 1)
-      throw new Error("This database requires a newer version of Vault Store.");
+    if (version > 2)
+      throw new Error(
+        "This database requires a newer version of Radefy TechMart.",
+      );
     this.db.exec(
       readFileSync(new URL("./schema.sql", import.meta.url), "utf8"),
     );
@@ -194,12 +260,65 @@ export class Store {
         "ALTER TABLE devices ADD COLUMN serial_missing INTEGER NOT NULL DEFAULT 0",
       );
     ensureFxColumns(this.db);
+    if (
+      !this.db
+        .prepare("PRAGMA table_info(products)")
+        .all()
+        .some((c) => c.name === "consignment_only")
+    )
+      this.db.exec(
+        "ALTER TABLE products ADD COLUMN consignment_only INTEGER NOT NULL DEFAULT 0",
+      );
+    const addColumn = (table, column, definition) => {
+      if (
+        !this.all(`PRAGMA table_info(${table})`).some((c) => c.name === column)
+      )
+        this.db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+    };
+    addColumn("batches", "owner_id", "TEXT REFERENCES parties(id)");
+    addColumn(
+      "batches",
+      "owner_unit_amount",
+      "INTEGER NOT NULL DEFAULT 0 CHECK(owner_unit_amount>=0)",
+    );
+    addColumn(
+      "documents",
+      "expense_account_id",
+      "TEXT REFERENCES expense_accounts(id)",
+    );
+    this.db.exec(
+      "CREATE INDEX IF NOT EXISTS idx_batches_owner ON batches(owner_id,id) WHERE owner_id IS NOT NULL; CREATE INDEX IF NOT EXISTS idx_expense_account_totals ON documents(expense_account_id,date,total) WHERE kind='expense'; CREATE INDEX IF NOT EXISTS idx_current_reorder ON products((stock=0) DESC,sku,id) WHERE active=1 AND consignment_only=0 AND stock<=reorder_level; CREATE INDEX IF NOT EXISTS idx_current_receivables ON party_totals((debit-credit) DESC,party_id) WHERE account='receivables' AND debit>credit",
+    );
+    if (!this.setting("expenseAccountsReady"))
+      this.transaction(() => {
+        for (const name of [
+          "Rent",
+          "Utilities",
+          "Food",
+          "Other",
+          "Salaries",
+          "Transport",
+          "Repairs",
+          ...this.all(
+            "SELECT DISTINCT category FROM documents WHERE kind='expense' AND category<>''",
+          ).map((r) => r.category),
+        ])
+          this.run(
+            "INSERT OR IGNORE INTO expense_accounts VALUES (?,?,?)",
+            id(),
+            name,
+            now(),
+          );
+        this.db.exec(
+          "UPDATE documents SET expense_account_id=(SELECT id FROM expense_accounts WHERE name=documents.category COLLATE NOCASE) WHERE kind='expense' AND expense_account_id IS NULL",
+        );
+
+        this.saveSetting("expenseAccountsReady", true);
+      });
     this.db.exec(
       "CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id),expires_at INTEGER NOT NULL) STRICT",
     );
-    this.db
-      .prepare("DELETE FROM sessions WHERE expires_at<?")
-      .run(Date.now());
+    this.db.prepare("DELETE FROM sessions WHERE expires_at<?").run(Date.now());
     // Cache mirrors durable sessions so worker reloads keep desktop/browser logins.
     this.sessions = new Map(
       this.all("SELECT token,user_id,expires_at FROM sessions").map((r) => [
@@ -454,6 +573,10 @@ export class Store {
       opening: "OPN",
       adjustment: "ADJ",
       owner: "OWN",
+      consignment_receipt: "CNS",
+      consignment_return: "CNR",
+      consignment_payment: "CPO",
+      consignment_recovery: "CPR",
     };
     const number =
       data.number ||
@@ -475,6 +598,7 @@ export class Store {
       request_key: id(),
       ...data,
     };
+    d.date = d.date || today();
     if (d.date > today())
       throw new Error("Future transactions are not allowed.");
     const closed = this.setting("closedThrough");
@@ -552,6 +676,7 @@ export class Store {
         rate,
         bid,
       );
+      this.saveForeign("batches", bid, line);
     }
     this.move(doc, product, line.quantity, line.cost);
   }
@@ -575,6 +700,10 @@ export class Store {
     for (const b of batches) {
       if (!remaining) break;
       const q = Math.min(remaining, b.remaining);
+      if (b.owner_id && doc.kind !== "sale")
+        throw new Error(
+          "Return customer-owned stock through Customer resale instead of a stock adjustment.",
+        );
       this.run("UPDATE batches SET remaining=remaining-? WHERE id=?", q, b.id);
       this.run(
         "INSERT INTO allocations VALUES (?,?,?,?,?,0)",
@@ -582,13 +711,17 @@ export class Store {
         line.id,
         b.id,
         q,
-        q * b.unit_cost,
+        q * (b.owner_id ? b.owner_unit_amount : b.unit_cost),
       );
-      cost += q * b.unit_cost;
+      cost += q * (b.owner_id ? b.owner_unit_amount : b.unit_cost);
       remaining -= q;
     }
     if (remaining) throw new Error(`Insufficient stock for ${product.name}.`);
-    this.move(doc, product, -line.quantity, -cost);
+    const ownerCost = this.one(
+      "SELECT COALESCE(SUM(a.cost),0) n FROM allocations a JOIN batches b ON b.id=a.batch_id WHERE a.line_id=? AND b.owner_id IS NOT NULL",
+      line.id,
+    ).n;
+    this.move(doc, product, -line.quantity, -(cost - ownerCost));
     return cost;
   }
   existingRequest(user, key, kinds) {
@@ -601,20 +734,45 @@ export class Store {
       throw new Error("Request key is already used for another operation.");
     return doc;
   }
+  currencies() {
+    return this.setting("currencies") || DEFAULT_CURRENCIES;
+  }
+  validateCurrency(currency, rate) {
+    if (!this.currencies().some((c) => c.code === currency))
+      throw new Error("Choose a saved currency.");
+    if (currency === "AFN" && rate && rate !== 10000)
+      throw new Error("The AFN conversion rate must be 1.");
+  }
+  saveForeign(table, recordId, data) {
+    this.run(
+      `UPDATE ${table} SET currency=?${table === "documents" ? "" : ",cost_foreign=?"} WHERE id=?`,
+      ...(table === "documents"
+        ? [data.currency || "AED", recordId]
+        : [
+            data.currency || "AED",
+            data.cost_foreign ?? data.cost_aed ?? 0,
+            recordId,
+          ]),
+    );
+  }
   createProduct(user, data) {
     const d = productSchema.parse(data);
+    this.validateCurrency(d.currency, d.fx_rate);
     if (d.minimum > d.price)
       throw new Error("Minimum price cannot exceed selling price.");
-    if (d.cost_aed && !d.fx_rate)
-      throw new Error("Enter the AED→AFN exchange rate used for this cost.");
-    if (d.fx_rate && !d.cost_aed)
-      throw new Error("Enter the Dubai supplier cost in AED.");
+    if (d.cost_foreign && !d.fx_rate)
+      throw new Error(
+        "Enter the currency→AFN exchange rate used for this cost.",
+      );
+    if (d.fx_rate && !d.cost_foreign)
+      throw new Error("Enter the supplier unit cost in the selected currency.");
     const unitCost =
-      d.cost_aed && d.fx_rate
-        ? afnFromAed(d.cost_aed, d.fx_rate)
+      d.cost_foreign && d.fx_rate
+        ? afnFromAed(d.cost_foreign, d.fx_rate)
         : (d.unit_cost ?? 0);
     return this.transaction(() => {
       const pid = id();
+      const productPhoto = saveProductPhoto(this, d);
       this.run(
         "INSERT INTO products(id,sku,barcode,name,brand,model,category,price,minimum,reorder_level,location,condition,warranty,attributes,serialized,image,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         pid,
@@ -632,7 +790,7 @@ export class Store {
         d.warranty,
         JSON.stringify(d.attributes),
         0,
-        d.image,
+        productPhoto,
         now(),
       );
       this.run(
@@ -642,15 +800,20 @@ export class Store {
         d.fx_rate || 0,
         pid,
       );
+      this.saveForeign("products", pid, d);
       if (d.opening_quantity) {
         if (!unitCost && unitCost !== 0)
           throw new Error("Enter the unit cost for opening stock.");
-        if (d.cost_aed && !d.fx_rate)
-          throw new Error("Enter the AED→AFN exchange rate for opening stock.");
+        if (d.cost_foreign && !d.fx_rate)
+          throw new Error(
+            "Enter the currency→AFN exchange rate for opening stock.",
+          );
         this.adjust(user, {
           product_id: pid,
           quantity: d.opening_quantity,
           cost: unitCost,
+          currency: d.currency,
+          cost_foreign: d.cost_foreign,
           cost_aed: d.cost_aed || 0,
           fx_rate: d.fx_rate || 0,
           note: "Opening stock at product creation",
@@ -663,7 +826,15 @@ export class Store {
     });
   }
   postTrade(user, input, identity = {}) {
-    const d = docSchema.parse(input);
+    const d = docSchema.parse({
+      ...input,
+      lines: Array.isArray(input.lines)
+        ? input.lines.map((l) => ({
+            ...l,
+            currency: l.currency || input.currency || "AED",
+          }))
+        : input.lines,
+    });
     return this.transaction(() => {
       const previous = this.existingRequest(user, d.request_key, [d.kind]);
       if (previous) return this.getDocument(previous.id);
@@ -680,17 +851,35 @@ export class Store {
         throw new Error("Choose a valid customer or supplier.");
       if (d.discount)
         throw new Error("Apply discounts to individual invoice lines.");
-      if (d.kind === "purchase" && d.lines.some((l) => l.cost_aed) && !d.fx_rate)
+      if (
+        d.kind === "purchase" &&
+        d.lines.some((l) => l.cost_foreign) &&
+        !d.fx_rate
+      )
         throw new Error(
-          "Enter the AED→AFN exchange rate used for this Dubai purchase.",
+          "Enter the currency→AFN exchange rate used for this purchase.",
         );
+      if (d.kind === "purchase") this.validateCurrency(d.currency, d.fx_rate);
       let total = 0;
       for (const l of d.lines) {
-        if (d.kind === "purchase" && l.cost_aed) {
-          const expected = afnFromAed(l.cost_aed, l.fx_rate || d.fx_rate);
+        if (d.kind === "purchase") {
+          if (l.currency !== d.currency)
+            throw new Error("Line currency must match purchase currency.");
+          this.validateCurrency(l.currency, l.fx_rate || d.fx_rate);
+        }
+        if (
+          d.kind === "purchase" &&
+          l.cost_foreign !== undefined &&
+          d.fx_rate &&
+          !l.cost_foreign &&
+          l.price
+        )
+          throw new Error("Enter the unit cost in the selected currency.");
+        if (d.kind === "purchase" && l.cost_foreign) {
+          const expected = afnFromAed(l.cost_foreign, l.fx_rate || d.fx_rate);
           if (Math.abs(l.price - expected) > 1)
             throw new Error(
-              "Purchase line AFN cost must match AED cost × exchange rate.",
+              "Purchase line AFN cost must match foreign cost × exchange rate.",
             );
           l.fx_rate = l.fx_rate || d.fx_rate;
         }
@@ -700,14 +889,37 @@ export class Store {
       }
       if (!Number.isSafeInteger(total) || total > 1e12)
         throw new Error("Invoice exceeds supported amount.");
+      if (d.paid_foreign !== undefined) {
+        this.validateCurrency(d.currency, d.fx_rate);
+        if (!d.fx_rate)
+          throw new Error("Enter the currency→AFN rate for this payment.");
+        const converted = afnFromAed(d.paid_foreign, d.fx_rate);
+        money.parse(converted);
+        if (d.paid !== converted)
+          throw new Error(
+            "AFN payment must match the foreign payment × exchange rate.",
+          );
+      }
       if (d.paid > total) throw new Error("Payment exceeds invoice total.");
       if (party.walk_in && d.paid !== total)
         throw new Error("Walk-in sales must be paid in full.");
       if (d.due_date && d.due_date < (d.date || today()))
         throw new Error("Due date cannot be before the invoice date.");
       const doc = this.document(d.kind, user, { ...d, total, ...identity });
-      if (d.kind === "purchase" && d.fx_rate)
-        this.run("UPDATE documents SET fx_rate=? WHERE id=?", d.fx_rate, doc.id);
+      if ((d.kind === "purchase" || d.paid_foreign !== undefined) && d.fx_rate)
+        this.run(
+          "UPDATE documents SET fx_rate=? WHERE id=?",
+          d.fx_rate,
+          doc.id,
+        );
+      if (d.kind === "purchase" || d.paid_foreign !== undefined)
+        this.saveForeign("documents", doc.id, d);
+      if (d.paid_foreign !== undefined)
+        this.run(
+          "UPDATE documents SET paid_foreign=? WHERE id=?",
+          d.paid_foreign,
+          doc.id,
+        );
       let cost = 0;
       for (const l of d.lines) {
         const p = this.one(
@@ -743,6 +955,8 @@ export class Store {
           line.cost_aed,
           line.fx_rate,
         );
+        if (d.kind === "purchase")
+          this.saveForeign("document_lines", line.id, line);
         if (d.kind === "sale") {
           line.cost = this.consume(p, line, doc);
           this.run(
@@ -752,6 +966,7 @@ export class Store {
           );
         } else {
           this.receive(p, line, doc);
+          this.saveForeign("products", p.id, line);
           if (line.cost_aed || line.fx_rate)
             this.run(
               "UPDATE products SET unit_cost=?,cost_aed=?,fx_rate=? WHERE id=?",
@@ -764,15 +979,17 @@ export class Store {
         cost += line.cost;
       }
       this.run("UPDATE documents SET cost=? WHERE id=?", cost, doc.id);
-      if (d.kind === "sale")
+      if (d.kind === "sale") {
+        const owed = consignmentCredits(this, doc.id);
         this.ledger(doc, [
           ["cash", d.paid, 0],
           ["receivables", total - d.paid, 0, party.id],
           ["sales", 0, total],
           ["cost_of_goods", cost, 0],
-          ["inventory", 0, cost],
+          ["inventory", 0, cost - owed.reduce((sum, r) => sum + r.amount, 0)],
+          ...owed.map((r) => ["consignment_payables", 0, r.amount, r.owner_id]),
         ]);
-      else
+      } else
         this.ledger(doc, [
           ["inventory", total, 0],
           ["cash", 0, d.paid],
@@ -837,6 +1054,15 @@ export class Store {
       if (action === "delete" && d.confirmation !== old.number)
         throw new Error(
           "Type the exact invoice number to confirm hard deletion.",
+        );
+      if (
+        this.one(
+          "SELECT id FROM consignment_payout_allocations WHERE sale_id=? LIMIT 1",
+          old.id,
+        )
+      )
+        throw new Error(
+          "This invoice has settled customer-owner proceeds. Use a sale return to preserve the owner ledger.",
         );
       // Restore the exact cost batches, then remove the original posting in one transaction.
       for (const line of old.lines) {
@@ -954,7 +1180,9 @@ export class Store {
       }
       const old = this.getDocument(d.id);
       if (old.kind !== "purchase")
-        throw new Error("Only purchase invoices can be edited or deleted here.");
+        throw new Error(
+          "Only purchase invoices can be edited or deleted here.",
+        );
       if (old.category === "Opening balance")
         throw new Error("Opening balance purchases cannot be edited here.");
       if (old.revision !== d.revision)
@@ -997,7 +1225,8 @@ export class Store {
           throw new Error(
             "Some of this purchase has already been sold. Return that stock first, or keep the original purchase unchanged.",
           );
-        for (const b of batches) this.run("DELETE FROM batches WHERE id=?", b.id);
+        for (const b of batches)
+          this.run("DELETE FROM batches WHERE id=?", b.id);
         const stockUpdate = this.run(
           "UPDATE products SET stock=stock-? WHERE id=? AND stock>=?",
           line.quantity,
@@ -1075,6 +1304,9 @@ export class Store {
       did,
     );
     if (!doc) throw new Error("Document not found.");
+    doc.currency_country = this.currencies().find(
+      (c) => c.code === doc.currency,
+    )?.country;
     doc.lines = this.all(
       "SELECT l.*,COALESCE(s.name,p.name) name,COALESCE(s.sku,p.sku) sku,COALESCE(s.brand,p.brand) brand,COALESCE(s.model,p.model) model,COALESCE(s.attributes,p.attributes) attributes,COALESCE(s.image,p.image) image,p.category,COALESCE((SELECT SUM(quantity) FROM document_lines r WHERE r.original_line_id=l.id),0) returned_quantity FROM document_lines l JOIN products p ON p.id=l.product_id LEFT JOIN document_product_snapshots s ON s.line_id=l.id WHERE document_id=?",
       did,
@@ -1085,6 +1317,19 @@ export class Store {
           ? JSON.parse(line.attributes || "{}")
           : line.attributes || {},
     }));
+    if (doc.kind === "purchase")
+      for (const line of doc.lines)
+        line.return_batches = this.all(
+          "SELECT remaining,unit_cost FROM batches WHERE line_id=? AND remaining>0 ORDER BY received_at ASC,rowid ASC",
+          line.id,
+        );
+    if (doc.kind === "consignment_receipt")
+      for (const line of doc.lines)
+        line.owner_unit_amount =
+          this.one(
+            "SELECT owner_unit_amount FROM batches WHERE line_id=?",
+            line.id,
+          )?.owner_unit_amount || 0;
     doc.revision =
       this.one(
         "SELECT revision FROM invoice_revisions WHERE document_id=?",
@@ -1135,7 +1380,10 @@ export class Store {
       );
       if (d.opening_balance) {
         const requestKey = d.request_key || `party-opening-${pid}`;
-        const prev = this.existingRequest(user, requestKey, ["sale", "purchase"]);
+        const prev = this.existingRequest(user, requestKey, [
+          "sale",
+          "purchase",
+        ]);
         if (!prev) {
           const doc = this.document(
             d.kind === "customer" ? "sale" : "purchase",
@@ -1176,6 +1424,9 @@ export class Store {
       .object({
         party_id: z.string(),
         amount: money.refine((n) => n > 0),
+        amount_foreign: money.refine((n) => n > 0).optional(),
+        currency: currencyFields.currency.optional(),
+        fx_rate: fxRate.optional(),
         date: date.optional(),
         note: text.default(""),
         request_key: z.string().min(8),
@@ -1188,6 +1439,19 @@ export class Store {
       ]);
       if (prev) return this.getDocument(prev.id);
       const p = this.partyBalance(d.party_id);
+      if (d.amount_foreign !== undefined) {
+        this.validateCurrency(d.currency, d.fx_rate);
+        if (!d.fx_rate)
+          throw new Error(
+            "Enter the currency→AFN exchange rate for this payment.",
+          );
+        const converted = afnFromAed(d.amount_foreign, d.fx_rate);
+        money.parse(converted);
+        if (converted !== d.amount)
+          throw new Error(
+            "AFN payment must match foreign amount × exchange rate.",
+          );
+      }
       if (d.amount > p.balance)
         throw new Error("Payment exceeds the outstanding balance.");
       const kind = p.kind === "customer" ? "receipt" : "payment";
@@ -1196,6 +1460,15 @@ export class Store {
         total: d.amount,
         paid: d.amount,
       });
+      if (d.amount_foreign !== undefined) {
+        this.saveForeign("documents", doc.id, d);
+        this.run(
+          "UPDATE documents SET paid_foreign=?,fx_rate=? WHERE id=?",
+          d.amount_foreign,
+          d.fx_rate,
+          doc.id,
+        );
+      }
       let rest = d.amount;
       const invoices = this.all(
         `SELECT d.*,d.total-d.paid-COALESCE((SELECT SUM(total) FROM documents r WHERE r.original_id=d.id),0) outstanding FROM documents d WHERE party_id=? AND kind=? ORDER BY date,id`,
@@ -1238,18 +1511,27 @@ export class Store {
       return this.getDocument(doc.id);
     });
   }
+  expenseAccounts(input = {}) {
+    const range = this.dateRange(input);
+    return {
+      ...range,
+      rows: this.all(
+        `SELECT a.id,a.name,
+      COALESCE(SUM(CASE WHEN d.date BETWEEN ? AND ? THEN d.total ELSE 0 END),0) period_total,
+      COALESCE(SUM(d.total),0) lifetime_total
+      FROM expense_accounts a LEFT JOIN documents d ON d.expense_account_id=a.id AND d.kind='expense'
+      GROUP BY a.id ORDER BY a.name COLLATE NOCASE`,
+        range.from,
+        range.to,
+      ),
+    };
+  }
   expense(user, input) {
     const d = z
       .object({
         amount: money.refine((n) => n > 0),
-        category: z.enum([
-          "Rent",
-          "Salaries",
-          "Utilities",
-          "Transport",
-          "Repairs",
-          "Other",
-        ]),
+        category: text.optional(),
+        account_id: z.string().optional(),
         note: text.min(2),
         date: date.optional(),
         request_key: z.string().min(8),
@@ -1258,11 +1540,24 @@ export class Store {
     return this.transaction(() => {
       const prev = this.existingRequest(user, d.request_key, ["expense"]);
       if (prev) return this.getDocument(prev.id);
+      const account = d.account_id
+        ? this.one("SELECT * FROM expense_accounts WHERE id=?", d.account_id)
+        : this.one(
+            "SELECT * FROM expense_accounts WHERE name=? COLLATE NOCASE",
+            d.category || "",
+          );
+      if (!account) throw new Error("Choose a valid expense account.");
       const doc = this.document("expense", user, {
         ...d,
         total: d.amount,
         paid: d.amount,
+        category: account.name,
       });
+      this.run(
+        "UPDATE documents SET expense_account_id=? WHERE id=?",
+        account.id,
+        doc.id,
+      );
       this.ledger(doc, [
         ["expenses", d.amount, 0],
         ["cash", 0, d.amount],
@@ -1286,6 +1581,9 @@ export class Store {
             }),
           )
           .min(1),
+        refund_foreign: money.optional(),
+        refund_currency: currencyFields.currency.optional(),
+        refund_rate: fxRate.optional(),
         note: text.min(2),
         request_key: z.string().min(8),
         date: date.optional(),
@@ -1305,6 +1603,7 @@ export class Store {
         throw new Error("Duplicate return line.");
       let total = 0,
         cost = 0;
+      const ownerReversals = new Map();
       const prepared = d.lines.map((l) => {
         const ol = original.lines.find((x) => x.id === l.line_id);
         if (!ol || l.quantity > ol.quantity - ol.returned_quantity)
@@ -1337,17 +1636,43 @@ export class Store {
       const outstanding = original.total - original.returned - original.paid;
       const creditReduction = Math.min(total, Math.max(0, outstanding));
       const refund = total - creditReduction;
+      if (d.refund_foreign !== undefined) {
+        this.validateCurrency(d.refund_currency, d.refund_rate);
+        if (!d.refund_rate)
+          throw new Error("Enter the currency→AFN refund rate.");
+        if (afnFromAed(d.refund_foreign, d.refund_rate) !== refund)
+          throw new Error(
+            "Converted refund must equal the cash refund due after reducing the unpaid balance. Adjust the amount/rate or refund in AFN.",
+          );
+      }
+
       const doc = this.document(kind, user, {
         ...d,
         party_id: original.party_id,
         total,
         paid: refund,
       });
+      this.saveForeign("documents", doc.id, original);
+      if (original.fx_rate)
+        this.run(
+          "UPDATE documents SET fx_rate=? WHERE id=?",
+          original.fx_rate,
+          doc.id,
+        );
+      if (d.refund_foreign !== undefined)
+        this.run(
+          "UPDATE documents SET paid_foreign=?,currency=?,fx_rate=? WHERE id=?",
+          d.refund_foreign,
+          d.refund_currency,
+          d.refund_rate,
+          doc.id,
+        );
       for (const r of prepared) {
         const ol = r.original,
           p = this.one("SELECT * FROM products WHERE id=?", ol.product_id),
           lid = id();
-        let lineCost = 0;
+        let lineCost = 0,
+          lineOwnerCost = 0;
         this.run(
           "INSERT INTO document_lines(id,document_id,product_id,quantity,price,cost,discount,original_line_id) VALUES (?,?,?,?,?,?,?,?)",
           lid,
@@ -1359,11 +1684,18 @@ export class Store {
           ol.price * r.quantity - r.amount,
           ol.id,
         );
+        this.saveForeign("document_lines", lid, ol);
+        this.run(
+          "UPDATE document_lines SET cost_aed=?,fx_rate=? WHERE id=?",
+          ol.cost_aed || 0,
+          ol.fx_rate || 0,
+          lid,
+        );
         if (kind === "sale_return") {
           let remaining = r.quantity;
           // Undo sale allocations in the same FIFO order they were consumed.
           const allocations = this.all(
-            "SELECT a.*,b.unit_cost FROM allocations a JOIN batches b ON b.id=a.batch_id WHERE a.line_id=? AND a.returned<a.quantity ORDER BY a.rowid ASC",
+            "SELECT a.*,b.unit_cost,b.owner_id,b.owner_unit_amount FROM allocations a JOIN batches b ON b.id=a.batch_id WHERE a.line_id=? AND a.returned<a.quantity ORDER BY a.rowid ASC",
             ol.id,
           );
           for (const a of allocations) {
@@ -1379,12 +1711,21 @@ export class Store {
               q,
               a.batch_id,
             );
-            lineCost += q * a.unit_cost;
+            const restored =
+              q * (a.owner_id ? a.owner_unit_amount : a.unit_cost);
+            lineCost += restored;
+            if (a.owner_id) {
+              lineOwnerCost += restored;
+              ownerReversals.set(
+                a.owner_id,
+                (ownerReversals.get(a.owner_id) || 0) + restored,
+              );
+            }
             remaining -= q;
           }
           if (remaining)
             throw new Error("Original cost allocation could not be restored.");
-          this.move(doc, p, r.quantity, lineCost);
+          this.move(doc, p, r.quantity, lineCost - lineOwnerCost);
         } else {
           let remaining = r.quantity;
           const batches = this.all(
@@ -1415,7 +1756,17 @@ export class Store {
           ["sales", total, 0],
           ["cash", 0, refund],
           ["receivables", 0, creditReduction, original.party_id],
-          ["inventory", cost, 0],
+          [
+            "inventory",
+            cost - [...ownerReversals.values()].reduce((sum, n) => sum + n, 0),
+            0,
+          ],
+          ...[...ownerReversals].map(([owner, amount]) => [
+            "consignment_payables",
+            amount,
+            0,
+            owner,
+          ]),
           ["cost_of_goods", 0, cost],
         ]);
       else {
@@ -1454,12 +1805,14 @@ export class Store {
           .max(1_000_000)
           .refine((n) => n !== 0),
         cost: money.default(0),
+        ...currencyFields,
         cost_aed: money.default(0),
         fx_rate: fxRate.default(0),
         note: text.min(3),
         request_key: z.string().min(8),
         opening: z.boolean().default(false),
       })
+      .transform(normalizeForeign)
       .parse(input);
     return this.transaction(() => {
       const prev = this.existingRequest(user, d.request_key, [
@@ -1483,11 +1836,17 @@ export class Store {
         request_key: d.request_key,
       });
       if (d.fx_rate)
-        this.run("UPDATE documents SET fx_rate=? WHERE id=?", d.fx_rate, doc.id);
+        this.run(
+          "UPDATE documents SET fx_rate=? WHERE id=?",
+          d.fx_rate,
+          doc.id,
+        );
       const l = {
         id: id(),
         quantity: Math.abs(d.quantity),
         cost: Math.abs(d.quantity) * d.cost,
+        currency: d.currency,
+        cost_foreign: d.cost_foreign,
         cost_aed: d.cost_aed || 0,
         fx_rate: d.fx_rate || 0,
       };
@@ -1503,6 +1862,8 @@ export class Store {
         l.cost_aed,
         l.fx_rate,
       );
+      this.saveForeign("document_lines", l.id, l);
+      this.saveForeign("documents", doc.id, d);
       if (!Number.isSafeInteger(l.cost) || l.cost > 1e12)
         throw new Error("Stock adjustment exceeds supported amount.");
       let cost = l.cost;
@@ -1560,7 +1921,8 @@ export class Store {
       clauses.push("p.category=?");
       params.push(d.category);
     }
-    if (d.filter === "low") clauses.push("p.stock<=p.reorder_level");
+    if (d.filter === "low")
+      clauses.push("p.stock<=p.reorder_level AND p.consignment_only=0");
     if (d.after) {
       clauses.push("p.sku>?");
       params.push(d.after);
@@ -1574,11 +1936,19 @@ export class Store {
     rows.length = Math.min(rows.length, d.limit);
     for (const p of rows) {
       p.attributes = JSON.parse(p.attributes);
+      p.consignment_stock = this.one(
+        "SELECT COALESCE(SUM(remaining),0) n FROM batches WHERE product_id=? AND owner_id IS NOT NULL AND remaining>0",
+        p.id,
+      ).n;
       if (
         !user?.permissions.includes("view_costs") &&
         !user?.permissions.includes("purchases")
-      )
+      ) {
         delete p.unit_cost;
+        delete p.cost_aed;
+        delete p.cost_foreign;
+        delete p.fx_rate;
+      }
       if (
         user?.permissions.includes("view_costs") ||
         user?.permissions.includes("purchases")
@@ -1635,7 +2005,7 @@ export class Store {
         d.to,
       );
     const stock = this.one(
-      "SELECT COUNT(*) products,COALESCE(SUM(stock),0) units,COALESCE(SUM(CASE WHEN stock<=reorder_level THEN 1 ELSE 0 END),0) low FROM products WHERE active=1",
+      "SELECT COUNT(*) products,COALESCE(SUM(stock),0) units,COALESCE(SUM(CASE WHEN consignment_only=0 AND stock<=reorder_level THEN 1 ELSE 0 END),0) low FROM products WHERE active=1",
     );
     const inventory = this.one(
       "SELECT COALESCE(SUM(remaining*unit_cost),0) value FROM batches WHERE remaining>0",
@@ -1673,6 +2043,72 @@ export class Store {
     }
     return result;
   }
+  reorderReport(args = {}) {
+    const d = z
+      .object({
+        limit: z.number().int().min(1).max(1000).default(10),
+        cursor: z.string().max(1500).nullable().optional(),
+        revision: z.number().int().nonnegative().optional(),
+        zeroOnly: z.boolean().default(false),
+      })
+      .parse(args);
+    // Audit revision prevents a multi-page export from mixing stock snapshots.
+    const revision = this.one("SELECT COALESCE(MAX(id),0) n FROM audit").n;
+    if (d.revision !== undefined && d.revision !== revision)
+      throw new Error("REPORT_CHANGED");
+    const eligible =
+      "active=1 AND consignment_only=0 AND stock<=reorder_level" +
+      (d.zeroOnly ? " AND stock=0" : "");
+    const referenceCost =
+      "COALESCE((SELECT b.unit_cost FROM batches b WHERE b.product_id=p.id AND b.owner_id IS NULL ORDER BY b.received_at DESC,b.rowid DESC LIMIT 1),p.unit_cost)";
+    let after = "",
+      params = [];
+    if (d.cursor) {
+      const cursor = z
+        .tuple([z.number().int().min(0).max(1), z.string(), z.string()])
+        .parse(JSON.parse(d.cursor));
+      after = " AND ((stock=0) < ? OR ((stock=0)=? AND (sku,id)>(?,?)))";
+      params = [cursor[0], ...cursor];
+    }
+    const rows = this.all(
+      `SELECT id,name,brand,model,sku,stock,reorder_level,
+      MAX(1,reorder_level*2) target_level,
+      MAX(1,reorder_level*2)-stock suggested_quantity,
+      ${referenceCost} reference_unit_cost,
+      (MAX(1,reorder_level*2)-stock)*${referenceCost} estimated_cost
+      FROM products p WHERE ${eligible}${after}
+      ORDER BY (stock=0) DESC,sku,id LIMIT ?`,
+      ...params,
+      d.limit + 1,
+    );
+    const hasMore = rows.length > d.limit;
+    if (hasMore) rows.pop();
+    const last = rows.at(-1);
+    const summary = d.cursor
+      ? undefined
+      : this.one(`SELECT COUNT(*) products,
+      COALESCE(SUM(stock=0),0) out_of_stock,
+      COALESCE(SUM(stock>0),0) low_stock,
+      COALESCE(SUM(MAX(1,reorder_level*2)-stock),0) suggested_quantity,
+      COALESCE(SUM((MAX(1,reorder_level*2)-stock)*${referenceCost}),0) estimated_cost,
+      COALESCE(SUM(${referenceCost}=0),0) unpriced
+      FROM products p WHERE ${eligible}`);
+    for (const amount of [
+      ...rows.map((r) => r.estimated_cost),
+      ...(summary ? [summary.estimated_cost, summary.suggested_quantity] : []),
+    ])
+      if (!Number.isSafeInteger(amount))
+        throw new Error("Report totals exceed supported precision.");
+    return {
+      rows,
+      summary,
+      revision,
+      as_of: today(),
+      next: hasMore
+        ? JSON.stringify([Number(last.stock === 0), last.sku, last.id])
+        : null,
+    };
+  }
   reports(args = {}) {
     const range = this.dateRange(args),
       totals = this.totals(range);
@@ -1686,16 +2122,23 @@ export class Store {
       range.to,
     );
     const best = this.all(
-      `SELECT p.id,p.name,p.category,p.image,SUM(CASE WHEN d.kind='sale' THEN l.quantity ELSE -l.quantity END) quantity,SUM(CASE WHEN d.kind='sale' THEN l.price*l.quantity-l.discount ELSE -(l.price*l.quantity-l.discount) END) revenue,SUM(CASE WHEN d.kind='sale' THEN l.cost ELSE -l.cost END) cost FROM document_lines l JOIN documents d ON d.id=l.document_id JOIN products p ON p.id=l.product_id WHERE d.kind IN ('sale','sale_return') AND d.date BETWEEN ? AND ? GROUP BY p.id ORDER BY revenue DESC LIMIT 100`,
+      `SELECT p.id,p.name,p.brand,p.model,p.category,p.image,SUM(CASE WHEN d.kind='sale' THEN l.quantity ELSE -l.quantity END) quantity,SUM(CASE WHEN d.kind='sale' THEN l.price*l.quantity-l.discount ELSE -(l.price*l.quantity-l.discount) END) revenue,SUM(CASE WHEN d.kind='sale' THEN l.cost ELSE -l.cost END) cost FROM document_lines l JOIN documents d ON d.id=l.document_id JOIN products p ON p.id=l.product_id WHERE d.kind IN ('sale','sale_return') AND d.date BETWEEN ? AND ? GROUP BY p.id ORDER BY revenue DESC LIMIT 100`,
       range.from,
       range.to,
     );
     const expenses = this.all(
-      "SELECT category,SUM(total) amount FROM documents WHERE kind='expense' AND date BETWEEN ? AND ? GROUP BY category",
+      "SELECT d.kind source_kind,COALESCE(NULLIF(d.category,''),d.kind) category,SUM(j.debit-j.credit) amount FROM journal j JOIN documents d ON d.id=j.document_id WHERE j.account='expenses' AND j.date BETWEEN ? AND ? GROUP BY d.kind,COALESCE(NULLIF(d.category,''),d.kind) HAVING SUM(j.debit-j.credit)<>0 ORDER BY amount DESC",
       range.from,
       range.to,
     );
-    return { totals, days, trial, best, expenses };
+    return {
+      totals,
+      days,
+      trial,
+      best,
+      expenses,
+      consignment: consignmentSnapshot(this, range.to),
+    };
   }
   monthEnd(ym) {
     const [y, m] = ym.split("-").map(Number);
@@ -1703,9 +2146,7 @@ export class Store {
   }
   nextMonth(ym) {
     const [y, m] = ym.split("-").map(Number);
-    return m === 12
-      ? `${y + 1}-01`
-      : `${y}-${String(m + 1).padStart(2, "0")}`;
+    return m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`;
   }
   wealthSnapshot(asOf) {
     const rows = this.all(
@@ -1713,19 +2154,20 @@ export class Store {
       asOf,
     );
     const bal = (a) => rows.find((r) => r.account === a)?.balance || 0;
+    const ownerClaims = consignmentSnapshot(this, asOf);
     const cash = bal("cash"),
       receivables = bal("receivables"),
       inventory = bal("inventory"),
       payables = -bal("payables"),
+      consignment_payables = ownerClaims.due,
+      consignment_recoverable = ownerClaims.recoverable,
       capital = -bal("equity"),
-      earnings = -[
-        "sales",
-        "cost_of_goods",
-        "expenses",
-        "other_income",
-      ].reduce((s, a) => s + bal(a), 0),
-      assets = cash + receivables + inventory,
-      liabilities = payables,
+      earnings = -["sales", "cost_of_goods", "expenses", "other_income"].reduce(
+        (s, a) => s + bal(a),
+        0,
+      ),
+      assets = cash + receivables + inventory + consignment_recoverable,
+      liabilities = payables + consignment_payables,
       net_worth = assets - liabilities;
     return {
       as_of: asOf,
@@ -1733,6 +2175,8 @@ export class Store {
       receivables,
       inventory,
       payables,
+      consignment_payables,
+      consignment_recoverable,
       assets,
       liabilities,
       capital,
@@ -1805,7 +2249,14 @@ export class Store {
       clauses.push(
         "(d.date<? OR (d.date=? AND d.created_at<?) OR (d.date=? AND d.created_at=? AND d.id<?))",
       );
-      params.push(cursor[0], cursor[0], cursor[1], cursor[0], cursor[1], cursor[2]);
+      params.push(
+        cursor[0],
+        cursor[0],
+        cursor[1],
+        cursor[0],
+        cursor[1],
+        cursor[2],
+      );
     }
     const movementRows = this.all(
       `SELECT d.id,d.number,d.date,d.note,d.created_at,COALESCE(SUM(CASE WHEN j.account='equity' THEN j.credit-j.debit ELSE 0 END),0) capital_change FROM documents d LEFT JOIN journal j ON j.document_id=d.id WHERE ${clauses.join(" AND ")} GROUP BY d.id ORDER BY d.date DESC,d.created_at DESC,d.id DESC LIMIT ?`,
@@ -1871,8 +2322,10 @@ export class Store {
       params.push(d.kind);
     }
     if (d.q) {
-      clauses.push("(d.number LIKE ? OR p.name LIKE ?)");
-      params.push(d.q + "%", d.q + "%");
+      clauses.push(
+        "(d.number LIKE ? OR p.name LIKE ? OR d.category LIKE ? OR d.note LIKE ?)",
+      );
+      params.push(d.q + "%", d.q + "%", d.q + "%", d.q + "%");
     }
     if (d.after) {
       let cursor;
@@ -1990,6 +2443,7 @@ export class Store {
               {
                 application: "Vault Store",
                 schema: 1,
+                databaseSchema: 2,
                 createdAt: now(),
                 businessDate: today(),
                 automatic,
@@ -2119,6 +2573,7 @@ export class Store {
       productCreate: "inventory",
       productUpdate: "inventory",
       inventoryReports: "reports",
+      reorderReport: "reports",
       openingBalance: "finance",
       adjust: "inventory",
       sale: "sales",
@@ -2128,6 +2583,12 @@ export class Store {
       partyDetail: "people",
       payment: "finance",
       expense: "finance",
+      expenseAccounts: "finance",
+      expenseAccountCreate: "finance",
+      consignments: "finance",
+      consignmentReceive: "finance",
+      consignmentReturn: "finance",
+      consignmentPay: "finance",
       reports: "reports",
       dayBook: "finance",
       users: "users",
@@ -2152,6 +2613,8 @@ export class Store {
         this.sessions.delete(token);
         this.run("DELETE FROM sessions WHERE token=?", token);
         return { ok: true };
+      case "notifications":
+        return notifications(this, user, args);
       case "overview":
         return this.overview(user, args);
       case "products":
@@ -2164,15 +2627,41 @@ export class Store {
         )
           throw new Error("Permission required: inventory or sales");
         return this.listProducts(args, user);
+      case "productPhotoMatch": {
+        if (!user.permissions.includes("inventory"))
+          throw new Error("Permission required: inventory");
+        const d = z
+          .object({ brand: text, model: text, category: text })
+          .parse(args);
+        const photo = this.one(
+          "SELECT image FROM products WHERE active=1 AND category=? AND brand=? COLLATE NOCASE AND model=? COLLATE NOCASE AND substr(image,1,6)='photo:' ORDER BY rowid DESC LIMIT 1",
+          d.category,
+          d.brand,
+          d.model,
+        );
+        return { image: photo?.image || null };
+      }
+      case "productPhoto":
+        if (
+          !user.permissions.some((p) =>
+            ["inventory", "sales", "purchases", "reports", "finance"].includes(
+              p,
+            ),
+          )
+        )
+          throw new Error("Permission required for product photos.");
+        return readProductPhoto(this, args.ref);
       case "productCreate":
         return this.createProduct(user, args);
       case "productUpdate": {
         const d = productSchema.parse(args);
+        this.validateCurrency(d.currency, d.fx_rate);
         const existing = this.one("SELECT * FROM products WHERE id=?", args.id);
         if (!existing) throw new Error("Product not found.");
         if (d.minimum > d.price)
           throw new Error("Minimum price cannot exceed selling price.");
         return this.transaction(() => {
+          const productPhoto = saveProductPhoto(this, d);
           this.run(
             "UPDATE products SET sku=?,barcode=?,name=?,brand=?,model=?,category=?,price=?,minimum=?,reorder_level=?,location=?,condition=?,warranty=?,attributes=?,serialized=0,image=? WHERE id=?",
             d.sku,
@@ -2188,18 +2677,20 @@ export class Store {
             d.condition,
             d.warranty,
             JSON.stringify(d.attributes),
-            d.image,
+            productPhoto,
             existing.id,
           );
-          if (d.cost_aed && !d.fx_rate)
+          if (d.cost_foreign && !d.fx_rate)
             throw new Error(
-              "Enter the AED→AFN exchange rate used for this cost.",
+              "Enter the currency→AFN exchange rate used for this cost.",
             );
-          if (d.fx_rate && !d.cost_aed)
-            throw new Error("Enter the Dubai supplier cost in AED.");
+          if (d.fx_rate && !d.cost_foreign)
+            throw new Error(
+              "Enter the supplier unit cost in the selected currency.",
+            );
           const unitCost =
-            d.cost_aed && d.fx_rate
-              ? afnFromAed(d.cost_aed, d.fx_rate)
+            d.cost_foreign && d.fx_rate
+              ? afnFromAed(d.cost_foreign, d.fx_rate)
               : d.unit_cost !== undefined
                 ? d.unit_cost
                 : existing.unit_cost;
@@ -2210,6 +2701,7 @@ export class Store {
             d.fx_rate || 0,
             existing.id,
           );
+          this.saveForeign("products", existing.id, d);
           this.audit(user, "Update product", existing.id, {
             name: d.name,
             price: d.price,
@@ -2217,6 +2709,10 @@ export class Store {
           return { id: existing.id };
         });
       }
+      case "reorderReport":
+        if (!user.permissions.includes("view_costs"))
+          throw new Error("Permission required: view_costs");
+        return this.reorderReport(args);
       case "inventoryReports": {
         if (!user.permissions.includes("view_costs"))
           throw new Error("Permission required: view_costs");
@@ -2323,8 +2819,12 @@ export class Store {
             if (
               !user.permissions.includes("view_costs") &&
               !user.permissions.includes("purchases")
-            )
+            ) {
               delete p.unit_cost;
+              delete p.cost_aed;
+              delete p.cost_foreign;
+              delete p.fx_rate;
+            }
             results.push({
               type: "product",
               id: p.id,
@@ -2337,8 +2837,7 @@ export class Store {
         }
         if (canPeople) {
           for (const kind of ["customer", "supplier"]) {
-            const account =
-              kind === "customer" ? "receivables" : "payables";
+            const account = kind === "customer" ? "receivables" : "payables";
             const signed =
               kind === "customer" ? "debit-credit" : "credit-debit";
             const parties = this.all(
@@ -2380,6 +2879,14 @@ export class Store {
           throw new Error("Permission required: inventory or sales");
         const p = this.one("SELECT * FROM products WHERE id=?", args.id);
         if (!p) throw new Error("Product not found.");
+        if (
+          !user.permissions.includes("view_costs") &&
+          !user.permissions.includes("purchases")
+        ) {
+          delete p.cost_aed;
+          delete p.cost_foreign;
+          delete p.fx_rate;
+        }
         const movements = this.all(
           "SELECT m.*,d.number,d.kind FROM movements m JOIN documents d ON d.id=m.document_id WHERE product_id=? ORDER BY m.date DESC,m.id DESC LIMIT 100",
           p.id,
@@ -2406,7 +2913,7 @@ export class Store {
         if (!user.permissions.includes("view_costs")) {
           delete doc.cost;
           delete doc.journal;
-          doc.lines = doc.lines.map(({ cost, ...l }) => l);
+          doc.lines = doc.lines.map(({ cost, owner_unit_amount, ...l }) => l);
         }
         return doc;
       }
@@ -2442,12 +2949,15 @@ export class Store {
           : doc.kind.includes("purchase")
             ? "purchases"
             : "finance";
-        if (!user.permissions.includes(p))
+        if (
+          !user.permissions.includes(p) &&
+          !(user.role === "Accountant" && user.permissions.includes("finance"))
+        )
           throw new Error(`Permission required: ${p}`);
         if (!user.permissions.includes("view_costs")) {
           delete doc.cost;
           delete doc.journal;
-          doc.lines = doc.lines.map(({ cost, ...l }) => l);
+          doc.lines = doc.lines.map(({ cost, owner_unit_amount, ...l }) => l);
         }
         return doc;
       }
@@ -2455,7 +2965,10 @@ export class Store {
         const doc = this.getDocument(args.original_id);
         const p = doc.kind === "sale" ? "sales" : "purchases";
         if (
-          !user.permissions.includes(p) ||
+          (!user.permissions.includes(p) &&
+            !(
+              user.role === "Accountant" && user.permissions.includes("finance")
+            )) ||
           !["Owner", "Manager", "Accountant"].includes(user.role)
         )
           throw new Error("Returns require manager or accountant permission.");
@@ -2473,39 +2986,73 @@ export class Store {
             id: z.string(),
             after: z.string().default(""),
             limit: z.number().int().min(1).max(100).default(25),
+            view: z.enum(["trade", "resale"]).default("trade"),
           })
           .parse(args);
         const party = this.partyBalance(d.id);
-        const account = party.kind === "customer" ? "receivables" : "payables";
+        if (
+          d.view === "resale" &&
+          (!user.permissions.includes("finance") ||
+            !user.permissions.includes("view_costs") ||
+            party.kind !== "customer")
+        )
+          throw new Error(
+            "Permission required: finance and view_costs for customer resale.",
+          );
+        if (
+          user.permissions.includes("finance") &&
+          user.permissions.includes("view_costs")
+        )
+          party.consignment_balance = ownerBalance(this, party.id);
+        const balance =
+          d.view === "resale" ? party.consignment_balance : party.balance;
+        const account =
+          d.view === "resale"
+            ? "consignment_payables"
+            : party.kind === "customer"
+              ? "receivables"
+              : "payables";
         const signedSql =
-          party.kind === "customer" ? "debit-credit" : "credit-debit";
+          d.view === "resale"
+            ? "credit-debit"
+            : party.kind === "customer"
+              ? "debit-credit"
+              : "credit-debit";
         let clauses = ["j.party_id=?", "j.account=?"],
           params = [party.id, account];
         if (d.after) {
           const cursor = JSON.parse(
             Buffer.from(d.after, "base64url").toString("utf8"),
           );
-          clauses.push("(j.date < ? OR (j.date = ? AND j.id < ?))");
-          params.push(cursor.date, cursor.date, cursor.id);
+          clauses.push(
+            d.view === "resale"
+              ? "(j.date < ? OR (j.date = ? AND j.rowid < ?))"
+              : "(j.date < ? OR (j.date = ? AND j.id < ?))",
+          );
+          params.push(
+            cursor.date,
+            cursor.date,
+            d.view === "resale" ? cursor.sequence : cursor.id,
+          );
         }
         const rows = this.all(
-          `SELECT j.*,d.number,d.kind,d.note,d.due_date,d.category FROM journal j JOIN documents d ON d.id=j.document_id WHERE ${clauses.join(" AND ")} ORDER BY j.date DESC,j.id DESC LIMIT ?`,
+          `SELECT j.*,j.rowid sequence,d.number,d.kind,d.note,d.due_date,d.category,d.currency,d.fx_rate,d.paid_foreign FROM journal j JOIN documents d ON d.id=j.document_id WHERE ${clauses.join(" AND ")} ORDER BY j.date DESC,${d.view === "resale" ? "j.rowid" : "j.id"} DESC LIMIT ?`,
           ...params,
           d.limit + 1,
         );
         const more = rows.length > d.limit;
         rows.length = Math.min(rows.length, d.limit);
-        let page_start_balance = party.balance;
+        let page_start_balance = balance;
         if (rows[0]) {
           const newer = this.one(
-            `SELECT COALESCE(SUM(${signedSql}),0) n FROM journal WHERE party_id=? AND account=? AND (date > ? OR (date = ? AND id > ?))`,
+            `SELECT COALESCE(SUM(${signedSql}),0) n FROM journal WHERE party_id=? AND account=? AND (date > ? OR (date = ? AND ${d.view === "resale" ? "rowid" : "id"} > ?))`,
             party.id,
             account,
             rows[0].date,
             rows[0].date,
-            rows[0].id,
+            d.view === "resale" ? rows[0].sequence : rows[0].id,
           ).n;
-          page_start_balance = party.balance - newer;
+          page_start_balance = balance - newer;
         }
         return {
           party,
@@ -2516,6 +3063,7 @@ export class Store {
                 JSON.stringify({
                   date: rows.at(-1).date,
                   id: rows.at(-1).id,
+                  sequence: rows.at(-1).sequence,
                 }),
               ).toString("base64url")
             : null,
@@ -2529,6 +3077,56 @@ export class Store {
       }
       case "payment":
         return this.payment(user, args);
+      case "expenseAccounts":
+        return this.expenseAccounts(args);
+      case "expenseAccountCreate": {
+        const d = z
+          .object({ name: z.string().trim().min(2).max(80) })
+          .parse(args);
+        return this.transaction(() => {
+          if (
+            this.one(
+              "SELECT id FROM expense_accounts WHERE name=? COLLATE NOCASE",
+              d.name,
+            )
+          )
+            throw new Error(
+              "An expense account with this name already exists.",
+            );
+          const accountId = id();
+          this.run(
+            "INSERT INTO expense_accounts VALUES (?,?,?)",
+            accountId,
+            d.name,
+            now(),
+          );
+          this.audit(user, "Create expense account", accountId, {
+            name: d.name,
+          });
+          return { id: accountId, name: d.name };
+        });
+      }
+      case "consignments":
+      case "consignmentReceive":
+      case "consignmentReturn":
+      case "consignmentPay": {
+        if (!user.permissions.includes("view_costs"))
+          throw new Error("Permission required: view_costs");
+        if (
+          ["consignmentReceive", "consignmentReturn"].includes(command) &&
+          !user.permissions.includes("inventory")
+        )
+          throw new Error("Permission required: inventory");
+        return {
+          consignments,
+          consignmentReceive: receiveConsignment,
+          consignmentReturn: returnConsignment,
+          consignmentPay: payConsignment,
+        }[command](
+          this,
+          ...(command === "consignments" ? [args] : [user, args]),
+        );
+      }
       case "expense":
         return this.expense(user, args);
       case "reports":
@@ -2687,6 +3285,48 @@ export class Store {
           db.close();
         }
       }
+      case "currencies":
+        return this.currencies();
+      case "currencyCreate": {
+        if (
+          !user.permissions.some((p) =>
+            ["settings", "purchases", "inventory", "finance"].includes(p),
+          )
+        )
+          throw new Error(
+            "Permission required: settings, purchases, inventory or finance",
+          );
+        const d = z
+          .object({
+            code: z
+              .string()
+              .trim()
+              .toUpperCase()
+              .regex(/^[A-Z]{3}$/),
+            name: text.min(2).max(80),
+            country: z
+              .string()
+              .regex(/^[a-z]{2}$/)
+              .refine(
+                (c) => SUPPORTED_FLAG_COUNTRIES.includes(c),
+                "Choose a valid country flag.",
+              ),
+          })
+          .parse(args);
+        return this.transaction(() => {
+          const rows = this.currencies();
+          const existing = rows.find((c) => c.code === d.code);
+          if (existing) {
+            if (existing.name === d.name && existing.country === d.country)
+              return existing;
+            throw new Error("Currency code already exists.");
+          }
+          if (rows.length >= 300) throw new Error("Currency limit reached.");
+          this.saveSetting("currencies", [...rows, d]);
+          this.audit(user, "Add currency", d.code, d);
+          return d;
+        });
+      }
       case "settings":
         return {
           store: this.setting("store"),
@@ -2705,8 +3345,7 @@ export class Store {
               .default("")
               .refine(
                 (v) =>
-                  !v ||
-                  /^data:image\/(png|jpeg|jpg|webp|gif);base64,/i.test(v),
+                  !v || /^data:image\/(png|jpeg|jpg|webp|gif);base64,/i.test(v),
                 "Logo must be a PNG, JPG, WEBP or GIF image.",
               ),
             bill_footer: text.default(""),

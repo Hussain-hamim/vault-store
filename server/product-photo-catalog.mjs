@@ -1,0 +1,312 @@
+export default [
+  {
+    "id": "samsung-galaxy-s24",
+    "brand": "Samsung",
+    "category": "Mobiles",
+    "model": "Galaxy S24",
+    "aliases": [
+      "Galaxy S24",
+      "S24"
+    ],
+    "src": "/assets/products/samsung-galaxy-s24.png",
+    "source": "https://commons.wikimedia.org/wiki/File:S24_Onyx_Black.png",
+    "download": "https://upload.wikimedia.org/wikipedia/commons/e/e5/S24_Onyx_Black.png",
+    "author": "Eleanor Chin",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+    "changes": "Wikimedia thumbnail, resized from original; no generative changes."
+  },
+  {
+    "id": "apple-iphone-15-pro",
+    "brand": "Apple",
+    "category": "Mobiles",
+    "model": "iPhone 15 Pro",
+    "aliases": [
+      "iPhone 15 Pro",
+      "15 Pro"
+    ],
+    "src": "/assets/products/apple-iphone-15-pro.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Apple_iPhone_15_Pro.jpg",
+    "download": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/19/Apple_iPhone_15_Pro.jpg/500px-Apple_iPhone_15_Pro.jpg",
+    "author": "IPHONE 15",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+    "changes": "Wikimedia thumbnail, resized from original; no generative changes."
+  },
+  {
+    "id": "apple-iphone-15",
+    "brand": "Apple",
+    "category": "Mobiles",
+    "model": "iPhone 15",
+    "aliases": [
+      "iPhone 15",
+      "15"
+    ],
+    "src": "/assets/products/apple-iphone-15.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Back_of_iPhone_15.jpg",
+    "download": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f9/Back_of_iPhone_15.jpg/500px-Back_of_iPhone_15.jpg",
+    "author": "ThePhotoGraphIc",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+    "changes": "Wikimedia thumbnail, resized from original; no generative changes."
+  },
+  {
+    "id": "hp-elitebook-850-g5",
+    "brand": "HP",
+    "category": "Computers",
+    "model": "EliteBook 850 G5",
+    "aliases": [
+      "EliteBook 850 G5",
+      "850 G5"
+    ],
+    "src": "/assets/products/hp-elitebook-850-g5.png",
+    "source": "https://commons.wikimedia.org/wiki/File:HP_EliteBook_850_G5.png",
+    "download": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/db/HP_EliteBook_850_G5.png/500px-HP_EliteBook_850_G5.png",
+    "author": "Infinatious",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+    "changes": "Wikimedia thumbnail, resized from original; no generative changes."
+  },
+  {
+    "id": "hp-elitebook-840-g4",
+    "brand": "HP",
+    "category": "Computers",
+    "model": "EliteBook 840 G4",
+    "aliases": [
+      "EliteBook 840 G4",
+      "840 G4"
+    ],
+    "src": "/assets/products/hp-elitebook-840-g4.png",
+    "source": "https://commons.wikimedia.org/wiki/File:HP_EliteBook_840_G4.png",
+    "download": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d7/HP_EliteBook_840_G4.png/500px-HP_EliteBook_840_G4.png",
+    "author": "Dienthoaiquangcao12",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+    "changes": "Wikimedia thumbnail, resized from original; no generative changes."
+  },
+  {
+    "id": "dell-latitude-7490",
+    "brand": "Dell",
+    "category": "Computers",
+    "model": "Latitude 7490",
+    "aliases": [
+      "Latitude 7490",
+      "7490"
+    ],
+    "src": "/assets/products/dell-latitude-7490.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Dell_Latitude_7490_running_Ubuntu_Cinnamon_23.10.jpg",
+    "download": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/8c/Dell_Latitude_7490_running_Ubuntu_Cinnamon_23.10.jpg/500px-Dell_Latitude_7490_running_Ubuntu_Cinnamon_23.10.jpg",
+    "author": "Ahunt",
+    "license": "CC0 (hardware); GNU GPL 2+ (software screen)",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/deed.en",
+    "changes": "Wikimedia thumbnail, resized from original; no generative changes. Software screen license: https://www.gnu.org/licenses/old-licenses/gpl-2.0.html"
+  },
+  {
+    "id": "lenovo-x1-carbon-gen7",
+    "brand": "Lenovo",
+    "category": "Computers",
+    "model": "ThinkPad X1 Carbon Gen 7",
+    "aliases": [
+      "ThinkPad X1 Carbon Gen 7",
+      "X1 Carbon Gen 7",
+      "X1 Carbon 7th Gen"
+    ],
+    "src": "/assets/products/lenovo-x1-carbon-gen7.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:ThinkPad_X1_Carbon_gen7_(0).jpg",
+    "download": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/e9/ThinkPad_X1_Carbon_gen7_%280%29.jpg/500px-ThinkPad_X1_Carbon_gen7_%280%29.jpg",
+    "author": "IAEA Imagebank",
+    "license": "CC BY 2.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/2.0",
+    "changes": "Wikimedia thumbnail, resized from original; no generative changes."
+  },
+  {
+    "id": "apple-macbook-air-m2",
+    "brand": "Apple",
+    "category": "Computers",
+    "model": "MacBook Air M2",
+    "aliases": [
+      "MacBook Air M2",
+      "Air M2",
+      "MacBook Air A2681",
+      "A2681"
+    ],
+    "src": "/assets/products/apple-macbook-air-m2.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:MacBook_Air_(A2681)_front.jpg",
+    "download": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/dc/MacBook_Air_%28A2681%29_front.jpg/500px-MacBook_Air_%28A2681%29_front.jpg",
+    "author": "メイド理世",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+    "changes": "Wikimedia thumbnail, resized from original; no generative changes."
+  },
+  {
+    "id": "samsung-galaxy-tab-s9",
+    "brand": "Samsung",
+    "category": "Tablets",
+    "model": "Galaxy Tab S9",
+    "aliases": [
+      "Galaxy Tab S9",
+      "Tab S9"
+    ],
+    "src": "/assets/products/samsung-galaxy-tab-s9.png",
+    "source": "https://commons.wikimedia.org/wiki/File:Samsung_Galaxy_Tab_S9.png",
+    "download": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/05/Samsung_Galaxy_Tab_S9.png/500px-Samsung_Galaxy_Tab_S9.png",
+    "author": "AnVuong1222004 (11)",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+    "changes": "Wikimedia thumbnail, resized from original; no generative changes."
+  },
+  {
+    "id": "asus-zenbook-duo-ux481fl",
+    "brand": "Asus",
+    "category": "Computers",
+    "model": "ZenBook Duo UX481FL",
+    "aliases": [
+      "ZenBook Duo UX481FL",
+      "UX481FL"
+    ],
+    "src": "/assets/products/asus-zenbook-duo-ux481fl.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:ASUS_ZenBook_Duo_UX481FL.jpg",
+    "download": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a8/ASUS_ZenBook_Duo_UX481FL.jpg/500px-ASUS_ZenBook_Duo_UX481FL.jpg",
+    "author": "KKPCW",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+    "changes": "Wikimedia thumbnail, resized from original; no generative changes."
+  },
+  {
+    "id": "apple-ipad-10",
+    "brand": "Apple",
+    "category": "Tablets",
+    "model": "iPad 10th generation",
+    "aliases": [
+      "iPad 10",
+      "iPad 10th generation",
+      "iPad 10th Gen"
+    ],
+    "src": "/assets/products/apple-ipad-10.png",
+    "source": "https://commons.wikimedia.org/wiki/File:IPad_10.png",
+    "download": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/0f/IPad_10.png/500px-IPad_10.png",
+    "author": "Riski394",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+    "changes": "Wikimedia thumbnail, resized from original; no generative changes."
+  },
+  {
+    "id": "acer-aspire-a515-51",
+    "brand": "Acer",
+    "category": "Computers",
+    "model": "Aspire A515-51",
+    "aliases": [
+      "Aspire A515-51",
+      "A515-51"
+    ],
+    "src": "/assets/products/acer-aspire-a515-51.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Acer_Aspire_A515-51.jpg",
+    "download": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/1d/Acer_Aspire_A515-51.jpg/500px-Acer_Aspire_A515-51.jpg",
+    "author": "Woofstarcat",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+    "changes": "Wikimedia thumbnail, resized from original; no generative changes."
+  },
+  {
+    "id": "huawei-p30",
+    "brand": "Huawei",
+    "category": "Mobiles",
+    "model": "P30",
+    "aliases": [
+      "P30",
+      "Huawei P30"
+    ],
+    "src": "/assets/products/huawei-p30.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Huawei_P30.jpg",
+    "download": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/54/Huawei_P30.jpg/500px-Huawei_P30.jpg",
+    "author": "TGspot - (Huawei S10)",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+    "changes": "Wikimedia thumbnail, resized from original; no generative changes."
+  },
+  {
+    "id": "xiaomi-redmi-note",
+    "brand": "Xiaomi",
+    "category": "Mobiles",
+    "model": "Redmi Note",
+    "aliases": [
+      "Redmi Note"
+    ],
+    "src": "/assets/products/xiaomi-redmi-note.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Xiaomi_Redmi_Note.JPG",
+    "download": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/8d/Xiaomi_Redmi_Note.JPG/500px-Xiaomi_Redmi_Note.JPG",
+    "author": "Ilya Plekhanov",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+    "changes": "Wikimedia thumbnail, resized from original; no generative changes."
+  },
+  {
+    "id": "samsung-990-evo-plus",
+    "brand": "Samsung",
+    "category": "Storage",
+    "model": "990 EVO Plus",
+    "aliases": [
+      "990 EVO Plus",
+      "MZ-V9S2T0"
+    ],
+    "src": "/assets/products/samsung-990-evo-plus.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:SSD_Samsung_990_EVO_Plus_2TB,_Model_MZ-V9S2T0-2800.jpg",
+    "download": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/81/SSD_Samsung_990_EVO_Plus_2TB%2C_Model_MZ-V9S2T0-2800.jpg/500px-SSD_Samsung_990_EVO_Plus_2TB%2C_Model_MZ-V9S2T0-2800.jpg",
+    "author": "Raimond Spekking",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+    "changes": "Wikimedia thumbnail, resized from original; no generative changes."
+  },
+  {
+    "id": "microsoft-surface-pro-9",
+    "brand": "Microsoft",
+    "category": "Tablets",
+    "model": "Surface Pro 9",
+    "aliases": [
+      "Surface Pro 9",
+      "Pro 9"
+    ],
+    "src": "/assets/products/microsoft-surface-pro-9.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Surface_Pro_9_in_Sapphire_colour.jpg",
+    "download": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/7c/Surface_Pro_9_in_Sapphire_colour.jpg/500px-Surface_Pro_9_in_Sapphire_colour.jpg",
+    "author": "Kyler Chin",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+    "changes": "Wikimedia thumbnail, resized from original; no generative changes."
+  },
+  {
+    "id": "logitech-m185",
+    "brand": "Logitech",
+    "category": "Accessories",
+    "model": "M185",
+    "aliases": [
+      "M185",
+      "Wireless Mouse M185"
+    ],
+    "accessoryType": "Mouse",
+    "src": "/assets/products/logitech-m185.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Logitech_M185_mouse_HS06.jpg",
+    "download": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/dd/Logitech_M185_mouse_HS06.jpg/500px-Logitech_M185_mouse_HS06.jpg",
+    "author": "Hayden Schiff",
+    "license": "CC BY 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/4.0",
+    "changes": "Wikimedia thumbnail, resized from original; no generative changes."
+  },
+  {
+    "id": "western-digital-wd10jpvx",
+    "brand": "Western Digital",
+    "category": "Storage",
+    "model": "WD10JPVX",
+    "aliases": [
+      "WD10JPVX",
+      "WDBMYH0010BNC"
+    ],
+    "src": "/assets/products/western-digital-wd10jpvx.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Western_Digital_WD10JPVX_1.0TB_(WDBMYH0010BNC)_1TB_Laptop_Internal_Hard_Drive.jpg",
+    "download": "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/9e/Western_Digital_WD10JPVX_1.0TB_%28WDBMYH0010BNC%29_1TB_Laptop_Internal_Hard_Drive.jpg/500px-Western_Digital_WD10JPVX_1.0TB_%28WDBMYH0010BNC%29_1TB_Laptop_Internal_Hard_Drive.jpg",
+    "author": "Amirhossein Ashrafzadeh",
+    "license": "CC BY-SA 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+    "changes": "Wikimedia thumbnail, resized from original; no generative changes."
+  }
+];

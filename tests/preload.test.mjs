@@ -36,3 +36,15 @@ test("desktop validation errors stay readable without Electron protocol details"
     (e) => e.message === "Insufficient stock for this product.",
   );
 });
+test("desktop print bridge returns save results and readable print errors", async () => {
+  const success = bridge({ ok: true, result: { saved: true } });
+  assert.equal(
+    (await success.renderPrint({ mode: "pdf" }, "test-session")).saved,
+    true,
+  );
+  const failure = bridge({ ok: false, error: "Invalid print job." });
+  await assert.rejects(
+    failure.renderPrint({}, "test-session"),
+    (e) => e.message === "Invalid print job.",
+  );
+});

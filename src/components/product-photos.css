@@ -1,0 +1,114 @@
+.product-photo {
+  display: inline-flex;
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  color: #81969e;
+  background: #f4f7f7;
+}
+.product-photo.product-photo > img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: transparent;
+}
+.product-form-preview > .product-photo {
+  width: 80px;
+  height: 80px;
+  flex: none;
+  border-radius: 9px;
+  background: white;
+}
+.product-photo-picker .product-form-preview {
+  border-radius: 12px;
+  background: #f8fbfc;
+  border-color: #dbe7ed;
+  flex-wrap: wrap;
+}
+.photo-picker-copy {
+  flex: 1;
+  min-width: 180px;
+}
+.photo-picker-copy small {
+  display: block;
+  font-size: 11px;
+  color: #487d7e;
+  margin-top: 5px;
+}
+.photo-picker-copy p {
+  font-size: 10px;
+  color: #84939b;
+  line-height: 1.7;
+  margin: 6px 0 0;
+}
+.photo-picker-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+}
+.photo-picker-actions label {
+  cursor: pointer;
+  position: relative;
+  font-size: 11px;
+}
+.photo-picker-actions label input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+}
+.photo-picker-actions label:focus-within {
+  outline: 2px solid #289285;
+  outline-offset: 3px;
+}
+.photo-picker-actions .text-button {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  font-size: 10px;
+}
+.photo-error {
+  color: #b6505c;
+  font-size: 11px;
+  margin-top: -10px;
+}
+.product-detail-top > .product-photo {
+  width: 130px;
+  height: 130px;
+  flex: none;
+  border-radius: 12px;
+}
+.photo-credits {
+  margin-top: 20px;
+  font-size: 10px;
+  color: #7e8b95;
+}
+.photo-credits summary {
+  cursor: pointer;
+  font-weight: 650;
+}
+.photo-credits article {
+  border-top: 1px solid #e5ebef;
+  padding: 12px 0;
+  margin-top: 10px;
+  overflow-wrap: anywhere;
+}
+.photo-credits article strong,
+.photo-credits article small {
+  display: block;
+  margin-top: 5px;
+}
+.photo-credits article a {
+  color: #3a817d;
+}
+@media (max-width: 650px) {
+  .photo-picker-actions {
+    align-items: flex-start;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+}

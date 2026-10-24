@@ -1,6 +1,31 @@
+import {
+  useNotificationSummary,
+  NotificationButton,
+  NotificationsDialog,
+} from "./components/Notifications";
+import { BrandMark, BrandWordmark } from "./components/Brand";
+import {
+  CompanyPage,
+  CommandPalette,
+  HelpContent,
+  isMac,
+} from "./components/CompanyPages";
+import {
+  shortcutAction,
+  shortcutLabel,
+  availableActions,
+} from "./shortcuts.mjs";
+import {
+  CustomerResalePage,
+  ResaleReceiveDialog,
+  ResaleSettlementDialog,
+  ResaleReturnDialog,
+} from "./components/CustomerResale";
+import { ExpenseAccountsDialog } from "./components/ExpenseAccountsDialog";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  HandbagIcon,
+  InfoIcon,
+  LifebuoyIcon,
   SidebarSimpleIcon,
   SquaresFourIcon,
   PackageIcon,
@@ -11,10 +36,7 @@ import {
   ChartBarIcon,
   BookOpenTextIcon,
   ReceiptIcon,
-  BankIcon,
-  HardDrivesIcon,
   GearSixIcon,
-  QuestionIcon,
   SignOutIcon,
   ArrowUpRightIcon,
   MagnifyingGlassIcon,
@@ -36,9 +58,7 @@ import {
   DocumentsPage,
   PeoplePage,
   DayBookPage,
-  CapitalPage,
   ReportsPage,
-  BackupsPage,
   SettingsPage,
   AlertsDialogContent,
 } from "./components/Pages";
@@ -56,10 +76,7 @@ import {
   OpeningBalanceForm,
   DeleteInvoiceDialog,
 } from "./components/Dialogs";
-import {
-  GlobalSearch,
-  GlobalSearchHit,
-} from "./components/GlobalSearch";
+import { GlobalSearch, GlobalSearchHit } from "./components/GlobalSearch";
 import { Modal, ErrorMessage, Field } from "./components/ui";
 import { StoreDecor } from "./components/StoreDecor";
 type AppModal = {
@@ -79,7 +96,10 @@ type PageId =
   | "capital"
   | "expenses"
   | "backups"
-  | "settings";
+  | "settings"
+  | "about"
+  | "support"
+  | "help";
 
 const PAGE_ALIASES: Record<string, PageId> = {
   Dashboard: "dashboard",
@@ -95,6 +115,9 @@ const PAGE_ALIASES: Record<string, PageId> = {
   Expenses: "expenses",
   Backups: "backups",
   Settings: "settings",
+  help: "help",
+  about: "about",
+  support: "support",
   dashboard: "dashboard",
   inventory: "inventory",
   sales: "sales",
@@ -110,20 +133,68 @@ const PAGE_ALIASES: Record<string, PageId> = {
 };
 
 const nav = [
-  { id: "dashboard" as PageId, labelKey: "nav.dashboard", icon: SquaresFourIcon, permission: "" },
-  { id: "inventory" as PageId, labelKey: "nav.inventory", icon: PackageIcon, permission: "inventory" },
-  { id: "sales" as PageId, labelKey: "nav.sales", icon: ShoppingCartSimpleIcon, permission: "sales" },
-  { id: "purchases" as PageId, labelKey: "nav.purchases", icon: TruckIcon, permission: "purchases" },
-  { id: "customers" as PageId, labelKey: "nav.customers", icon: UsersIcon, permission: "people" },
-  { id: "suppliers" as PageId, labelKey: "nav.suppliers", icon: BuildingsIcon, permission: "people" },
-  { id: "reports" as PageId, labelKey: "nav.reports", icon: ChartBarIcon, permission: "reports" },
+  {
+    id: "dashboard" as PageId,
+    labelKey: "nav.dashboard",
+    icon: SquaresFourIcon,
+    permission: "",
+  },
+  {
+    id: "inventory" as PageId,
+    labelKey: "nav.inventory",
+    icon: PackageIcon,
+    permission: "inventory",
+  },
+  {
+    id: "sales" as PageId,
+    labelKey: "nav.sales",
+    icon: ShoppingCartSimpleIcon,
+    permission: "sales",
+  },
+  {
+    id: "purchases" as PageId,
+    labelKey: "nav.purchases",
+    icon: TruckIcon,
+    permission: "purchases",
+  },
+  {
+    id: "customers" as PageId,
+    labelKey: "nav.customers",
+    icon: UsersIcon,
+    permission: "people",
+  },
+  {
+    id: "suppliers" as PageId,
+    labelKey: "nav.suppliers",
+    icon: BuildingsIcon,
+    permission: "people",
+  },
+  {
+    id: "reports" as PageId,
+    labelKey: "nav.reports",
+    icon: ChartBarIcon,
+    permission: "reports",
+  },
 ];
 const general = [
-  { id: "dailyBook" as PageId, labelKey: "nav.dailyBook", icon: BookOpenTextIcon, permission: "finance" },
-  { id: "capital" as PageId, labelKey: "nav.capital", icon: BankIcon, permission: "finance" },
-  { id: "expenses" as PageId, labelKey: "nav.expenses", icon: ReceiptIcon, permission: "finance" },
-  { id: "backups" as PageId, labelKey: "nav.backups", icon: HardDrivesIcon, permission: "backups" },
-  { id: "settings" as PageId, labelKey: "nav.settings", icon: GearSixIcon, permission: "settings" },
+  {
+    id: "dailyBook" as PageId,
+    labelKey: "nav.dailyBook",
+    icon: BookOpenTextIcon,
+    permission: "finance",
+  },
+  {
+    id: "expenses" as PageId,
+    labelKey: "nav.expenses",
+    icon: ReceiptIcon,
+    permission: "finance",
+  },
+  {
+    id: "settings" as PageId,
+    labelKey: "nav.settings",
+    icon: GearSixIcon,
+    permission: "",
+  },
 ];
 
 function normalizePage(name: string): PageId {
@@ -150,9 +221,23 @@ export function App() {
     [collapsed, setCollapsed] = useState(false),
     [profile, setProfile] = useState(false),
     [globalOpen, setGlobalOpen] = useState(false),
+    [palette, setPalette] = useState(false),
     [saleSeed, setSaleSeed] = useState<Product | undefined>();
+  const notifications = useNotificationSummary(user, refresh);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const workspaceRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const animation = workspaceRef.current?.animate(
+      [
+        { opacity: 0.5, transform: "translateY(6px)" },
+        { opacity: 1, transform: "translateY(0)" },
+      ],
+      { duration: 190, easing: "ease-out" },
+    );
+    return () => animation?.cancel();
+  }, [page, user?.id]);
   useEffect(() => {
     let active = true;
     api("status")
@@ -194,6 +279,8 @@ export function App() {
       setToken("");
       setUser(null);
       setModal(null);
+      setPalette(false);
+      setGlobalOpen(false);
     };
     window.addEventListener("vault-session-expired", expired);
     return () => window.removeEventListener("vault-session-expired", expired);
@@ -241,6 +328,11 @@ export function App() {
       }
       return;
     }
+    if (name === "customerResale") {
+      setPage("sales");
+      setSaleTab("resale");
+      return;
+    }
     if (name === "category") {
       setPage("inventory");
       setSearch("");
@@ -251,12 +343,26 @@ export function App() {
       const stackFrom =
         current &&
         ["partyDetail", "productDetail"].includes(current.name) &&
-        ["payment", "invoice", "openingBalance", "product"].includes(name);
+        [
+          "payment",
+          "invoice",
+          "openingBalance",
+          "product",
+          "consignmentReceive",
+          "consignmentSettlement",
+        ].includes(name);
       return {
         name,
         data,
         returnTo: stackFrom
-          ? { name: current.name, data: current.data }
+          ? {
+              name: current.name,
+              data:
+                name === "consignmentSettlement" &&
+                current.name === "partyDetail"
+                  ? { ...current.data, ledgerView: "resale" }
+                  : current.data,
+            }
           : undefined,
       };
     });
@@ -300,37 +406,87 @@ export function App() {
     },
     [open],
   );
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") {
-        e.preventDefault();
+  const runAction = useCallback(
+    (id: string) => {
+      if (!user) return;
+      if (
+        id !== "palette" &&
+        !availableActions(user.permissions).some((a) => a.id === id)
+      )
+        return;
+      setPalette(false);
+      setProfile(false);
+      if (id === "palette") {
+        setPalette(true);
+        return;
+      }
+      if (id === "search") {
         setGlobalOpen(true);
         return;
       }
-      if ((e.metaKey || e.ctrlKey) && e.key === "k" && page === "dashboard") {
-        e.preventDefault();
-        searchRef.current?.focus();
+      if (id === "sale") {
+        setPage("sales");
+        setSaleTab("bill");
+        return;
       }
+      if (id === "purchase") {
+        setPage("purchases");
+        setPurchaseTab("bill");
+        return;
+      }
+      if (id === "history") {
+        setPage("sales");
+        setSaleTab("history");
+        return;
+      }
+      if (["product", "customer", "supplier", "expense"].includes(id)) {
+        open(id);
+        return;
+      }
+      navigate(id);
+    },
+    [user, open, navigate],
+  );
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         setProfile(false);
         setGlobalOpen(false);
+        setPalette(false);
+      }
+      if (!user) return;
+      const action = shortcutAction(e, {
+        permissions: user.permissions,
+        overlay:
+          !!modal ||
+          globalOpen ||
+          palette ||
+          !!document.querySelector('[role="dialog"]'),
+        editable:
+          e.target instanceof Element &&
+          !!e.target.closest('input,textarea,select,[contenteditable="true"]'),
+      });
+      if (action) {
+        e.preventDefault();
+        runAction(action);
       }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [page]);
+  }, [user, modal, globalOpen, palette, runAction]);
   async function signOut() {
     await api("logout");
     setToken("");
     setUser(null);
     setProfile(false);
+    setPalette(false);
+    setGlobalOpen(false);
   }
   if (fatal)
     return (
       <div className="boot-screen" dir={dir}>
         <div className="brand">
-          <HandbagIcon weight="fill" />
-          <span>{t("app.brand")}</span>
+          <BrandWordmark />
         </div>
         <h2>{t("app.fatalTitle")}</h2>
         <p>{fatal}</p>
@@ -345,7 +501,7 @@ export function App() {
   if (!status)
     return (
       <div className="boot-screen" dir={dir}>
-        <HandbagIcon size={36} weight="fill" />
+        <BrandMark />
         <p>{t("app.opening")}</p>
       </div>
     );
@@ -364,7 +520,11 @@ export function App() {
     );
   const props = { user, refresh, open, toast, globalSearch: search };
   const cost = user.permissions.includes("view_costs");
-  const current = page;
+  const current = ["about", "support", "help", "capital", "backups"].includes(
+    page,
+  )
+    ? "settings"
+    : page;
   return (
     <div
       className={`app-shell ${collapsed ? "sidebar-collapsed" : ""}`}
@@ -381,9 +541,7 @@ export function App() {
             }}
             aria-label={t("nav.inventory")}
           >
-            <HandbagIcon weight="fill" size={27} />
-            <span>{t("app.brand")}</span>
-            <span className="brand-dot">®</span>
+            <BrandWordmark />
           </a>
           <button
             className="sidebar-toggle"
@@ -394,6 +552,21 @@ export function App() {
           </button>
         </div>
         <div className="sidebar-scroll">
+          <NotificationButton
+            sidebar
+            data={notifications.data}
+            error={notifications.error}
+            open={() => open("notifications")}
+          />
+          <button
+            className="sidebar-command"
+            onClick={() => setPalette(true)}
+            title={t("shortcuts.palette")}
+          >
+            <CommandIcon size={18} />
+            <span>{t("shortcuts.quickActions")}</span>
+            <kbd>{shortcutLabel("Ctrl + K", isMac())}</kbd>
+          </button>
           <span className="nav-label">{t("app.menu")}</span>
           <nav aria-label={t("app.menu")}>
             {nav
@@ -419,7 +592,9 @@ export function App() {
           <span className="nav-label">{t("app.workspace")}</span>
           <nav aria-label={t("app.workspace")}>
             {general
-              .filter((n) => user.permissions.includes(n.permission))
+              .filter(
+                (n) => !n.permission || user.permissions.includes(n.permission),
+              )
               .map((n) => (
                 <button
                   key={n.id}
@@ -431,34 +606,8 @@ export function App() {
                   <span>{t(n.labelKey)}</span>
                 </button>
               ))}
-            <button
-              className="nav-item"
-              onClick={() => open("help")}
-              title={t("nav.help")}
-            >
-              <QuestionIcon size={18} />
-              <span>{t("nav.help")}</span>
-            </button>
           </nav>
           <div className="sidebar-spacer" />
-          <div className="backup-promo">
-            <span className="promo-icon">
-              <ShieldCheckIcon size={21} weight="duotone" />
-            </span>
-            <h3>{t("backups.promoTitle")}</h3>
-            <p>{t("backups.promoBody")}</p>
-            <button
-              onClick={() =>
-                navigate(
-                  user.permissions.includes("backups")
-                    ? "backups"
-                    : "dashboard",
-                )
-              }
-            >
-              {t("nav.backups")} <ArrowUpRightIcon size={13} />
-            </button>
-          </div>
           <div className="offline-status">
             <span className="live-dot" />
             <span>{t("app.offline")}</span>
@@ -519,9 +668,6 @@ export function App() {
         <StoreDecor />
         {page === "dashboard" && (
           <header className="topbar">
-            <div className="page-title">
-              <h1>{t("dashboard.title")}</h1>
-            </div>
             <form
               className="global-search"
               onSubmit={(e) => {
@@ -541,7 +687,7 @@ export function App() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
-              <kbd>⌘ K</kbd>
+              <kbd>{shortcutLabel("Ctrl + F", isMac())}</kbd>
             </form>
             <div className="topbar-actions">
               <button
@@ -559,14 +705,11 @@ export function App() {
                 <SlidersHorizontalIcon size={19} />
               </button>
               <span className="header-divider" />
-              <button
-                className="header-icon"
-                aria-label={t("topbar.stockAlerts")}
-                title={t("topbar.stockAlerts")}
-                onClick={() => open("lowStock")}
-              >
-                <BellIcon size={20} />
-              </button>
+              <NotificationButton
+                data={notifications.data}
+                error={notifications.error}
+                open={() => open("notifications")}
+              />
               <button
                 className="header-icon messages-icon"
                 aria-label={t("topbar.backupStatus")}
@@ -586,6 +729,7 @@ export function App() {
           </header>
         )}
         <div
+          ref={workspaceRef}
           className={`workspace-scroll${
             (page === "sales" && saleTab === "bill") ||
             (page === "purchases" && purchaseTab === "bill")
@@ -629,6 +773,18 @@ export function App() {
                 >
                   {t("sales.invoiceHistory")}
                 </button>
+                {user.permissions.includes("finance") &&
+                  user.permissions.includes("view_costs") && (
+                    <button
+                      role="tab"
+                      id="resale-tab"
+                      aria-controls="resale-panel"
+                      aria-selected={saleTab === "resale"}
+                      onClick={() => setSaleTab("resale")}
+                    >
+                      {t("resale.title")}
+                    </button>
+                  )}
               </div>
               <div
                 role="tabpanel"
@@ -654,7 +810,7 @@ export function App() {
                     setSaleEditId(undefined);
                     setSaleSeed(undefined);
                     setBillEpoch((v) => v + 1);
-                    if (result?.print && result?.id)
+                    if (result?.print === true && result?.id)
                       open("invoice", {
                         id: result.id,
                         kind: result.kind || "sale",
@@ -671,6 +827,17 @@ export function App() {
               >
                 <DocumentsPage {...props} kind="sale" />
               </div>
+              {saleTab === "resale" &&
+                user.permissions.includes("finance") &&
+                user.permissions.includes("view_costs") && (
+                  <div
+                    role="tabpanel"
+                    id="resale-panel"
+                    aria-labelledby="resale-tab"
+                  >
+                    <CustomerResalePage {...props} />
+                  </div>
+                )}
             </div>
           ) : page === "purchases" ? (
             <div
@@ -723,7 +890,7 @@ export function App() {
                     setPurchaseTab("history");
                     setPurchaseEditId(undefined);
                     setPurchaseEpoch((v) => v + 1);
-                    if (result?.print && result?.id)
+                    if (result?.print === true && result?.id)
                       open("invoice", {
                         id: result.id,
                         kind: result.kind || "purchase",
@@ -742,13 +909,11 @@ export function App() {
               </div>
             </div>
           ) : page === "customers" ? (
-            <PeoplePage {...props} kind="customer" />
+            <PeoplePage key="customer" {...props} kind="customer" />
           ) : page === "suppliers" ? (
-            <PeoplePage {...props} kind="supplier" />
+            <PeoplePage key="supplier" {...props} kind="supplier" />
           ) : page === "dailyBook" ? (
             <DayBookPage {...props} />
-          ) : page === "capital" ? (
-            <CapitalPage {...props} />
           ) : page === "expenses" ? (
             <DocumentsPage {...props} kind="expense" />
           ) : page === "reports" ? (
@@ -759,13 +924,30 @@ export function App() {
                 <h2>{t("reports.title")}</h2>
               </div>
             )
-          ) : page === "backups" ? (
-            <BackupsPage {...props} />
           ) : (
-            <SettingsPage {...props} />
+            <SettingsPage
+              {...props}
+              key={page}
+              initialTab={
+                page === "about" ||
+                page === "support" ||
+                page === "help" ||
+                page === "capital" ||
+                page === "backups"
+                  ? page
+                  : undefined
+              }
+            />
           )}
         </div>
       </main>
+      {palette && (
+        <CommandPalette
+          permissions={user.permissions}
+          close={() => setPalette(false)}
+          run={runAction}
+        />
+      )}
       {message && (
         <div className="toast" role="status">
           <CheckCircleIcon size={20} weight="fill" />
@@ -788,24 +970,54 @@ export function App() {
           done={done}
         />
       )}
-      {modal?.name === "expense" && <ExpenseForm close={close} done={done} />}
-      {modal?.name === "payment" && (
-        <PaymentForm party={modal.data} close={close} done={done} />
-      )}
-      {["saleDelete", "purchaseDelete"].includes(modal?.name || "") && modal && (
-        <DeleteInvoiceDialog
-          documentId={modal.data.id}
+      {modal?.name === "consignmentReceive" && (
+        <ResaleReceiveDialog
+          user={user}
+          party={modal.data}
           close={close}
           done={done}
         />
       )}
+      {modal?.name === "consignmentSettlement" && (
+        <ResaleSettlementDialog owner={modal.data} close={close} done={done} />
+      )}
+      {modal?.name === "consignmentReturn" && (
+        <ResaleReturnDialog batch={modal.data} close={close} done={done} />
+      )}
+      {modal?.name === "expense" && <ExpenseForm close={close} done={done} />}
+      {modal?.name === "expenseAccounts" && (
+        <ExpenseAccountsDialog
+          close={close}
+          changed={() => setRefresh((v) => v + 1)}
+        />
+      )}
+      {modal?.name === "payment" && (
+        <PaymentForm party={modal.data} close={close} done={done} />
+      )}
+      {["saleDelete", "purchaseDelete"].includes(modal?.name || "") &&
+        modal && (
+          <DeleteInvoiceDialog
+            documentId={modal.data.id}
+            close={close}
+            done={done}
+          />
+        )}
       {modal?.name === "invoice" && (
         <InvoiceDialog
+          key={modal.data.id}
           documentId={modal.data.id}
           user={user}
           close={close}
-          done={done}
-          autoPrint={!!modal.data.autoPrint}
+          done={(message, result: any) => {
+            done(message);
+            if (result?.print === true && result?.id)
+              open("invoice", {
+                id: result.id,
+                kind: result.kind,
+                autoPrint: true,
+              });
+          }}
+          autoPrint={modal.data.autoPrint === true}
           edit={() =>
             open(
               modal.data.kind === "purchase" ? "purchaseEdit" : "saleEdit",
@@ -851,6 +1063,15 @@ export function App() {
       {modal?.name === "owner" && <OwnerMovement close={close} done={done} />}
       {modal?.name === "openingBalance" && (
         <OpeningBalanceForm party={modal.data} close={close} done={done} />
+      )}
+      {modal?.name === "notifications" && (
+        <NotificationsDialog
+          user={user}
+          refresh={refresh}
+          close={close}
+          open={open}
+          changed={notifications.reload}
+        />
       )}
       {modal?.name === "lowStock" && (
         <Modal
@@ -900,23 +1121,8 @@ export function App() {
           subtitle={t("help.subtitle")}
           onClose={close}
         >
-          <div className="form-body help-content">
-            <h3>{t("help.productsTitle")}</h3>
-            <p>{t("help.productsBody")}</p>
-            <h3>{t("help.saleTitle")}</h3>
-            <p>{t("help.saleBody")}</p>
-            <h3>{t("help.profitTitle")}</h3>
-            <p>{t("help.profitBody")}</p>
-            <h3>{t("help.dataTitle")}</h3>
-            <p>{t("help.dataBody")}</p>
-            <div className="shortcut-row">
-              <span>{t("help.searchShortcut")}</span>
-              <kbd>⌘ / Ctrl + K</kbd>
-            </div>
-            <div className="shortcut-row">
-              <span>{t("help.closeShortcut")}</span>
-              <kbd>Esc</kbd>
-            </div>
+          <div className="form-body">
+            <HelpContent permissions={user.permissions} />
           </div>
         </Modal>
       )}
@@ -955,8 +1161,7 @@ function Auth({
     <div className="auth-screen" dir={dir}>
       <div className="auth-story">
         <div className="brand">
-          <HandbagIcon size={35} weight="fill" />
-          <span>{t("app.brand")}</span>
+          <BrandWordmark />
         </div>
         <div>
           <span className="auth-eyebrow">{t("auth.eyebrow")}</span>

@@ -1,3 +1,5 @@
+import { ProductPhoto } from "./ProductPhoto";
+import { CurrencyPicker, CurrencyFlag } from "./CurrencyPicker";
 import { useEffect, useState } from "react";
 import {
   PlusIcon,
@@ -20,6 +22,8 @@ import {
 import {
   api,
   af,
+  foreignMoney,
+  afnFromAed,
   exportCSV,
   businessDate,
   getToken,
@@ -29,6 +33,10 @@ import {
   User,
 } from "../api";
 import { useI18n, useT, LOCALES, type Locale } from "../i18n";
+import { ReportPrintButton } from "../printing/PrintDialog";
+import type { PrintDocument } from "../printing/types";
+
+import { CompanyPage, HelpContent } from "./CompanyPages";
 
 const EM_DASH = "—";
 import {
@@ -52,14 +60,19 @@ export type PageProps = {
 };
 function useLoad<T = any>(command: string, args: unknown, refresh: number) {
   const [data, setData] = useState<T | null>(null),
-    [error, setError] = useState("");
+    [error, setError] = useState(""),
+    [resolved, setResolved] = useState("");
   const key = JSON.stringify(args);
+  const signature = JSON.stringify([command, key, refresh]);
   useEffect(() => {
     let active = true;
     setError("");
     api<T>(command, args)
       .then((d) => {
-        if (active) setData(d);
+        if (active) {
+          setData(d);
+          setResolved(signature);
+        }
       })
       .catch((e) => {
         if (active) setError(e.message);
@@ -68,7 +81,7 @@ function useLoad<T = any>(command: string, args: unknown, refresh: number) {
       active = false;
     };
   }, [command, key, refresh]);
-  return { data, error };
+  return { data, error, pending: resolved !== signature };
 }
 function Loading() {
   const t = useT();
@@ -88,70 +101,6 @@ const INVENTORY_CATEGORIES = [
   ["Storage", "storage"],
   ["Accessories", "accessories"],
 ] as const;
-const REPORT_TAB_IDS = [
-  "profitLoss",
-  "daily",
-  "productProfit",
-  "trialBalance",
-  "balanceSheet",
-  "capitalNet",
-  "expenseBreak",
-  "inventoryVal",
-  "stockAging",
-  "receivables",
-  "payables",
-] as const;
-type ReportTabId = (typeof REPORT_TAB_IDS)[number];
-const REPORT_GROUPS: { labelKey: string; tabs: ReportTabId[] }[] = [
-  {
-    labelKey: "reports.groupPerformance",
-    tabs: ["profitLoss", "daily", "productProfit", "expenseBreak"],
-  },
-  {
-    labelKey: "reports.groupBooks",
-    tabs: ["trialBalance", "balanceSheet", "capitalNet"],
-  },
-  {
-    labelKey: "reports.groupStockDebt",
-    tabs: ["inventoryVal", "stockAging", "receivables", "payables"],
-  },
-];
-const REPORT_HINT: Record<ReportTabId, string> = {
-  profitLoss: "reports.hintProfitLoss",
-  daily: "reports.hintDaily",
-  productProfit: "reports.hintProductProfit",
-  trialBalance: "reports.hintTrialBalance",
-  balanceSheet: "reports.hintBalanceSheet",
-  capitalNet: "reports.hintCapitalNet",
-  expenseBreak: "reports.hintExpenseBreak",
-  inventoryVal: "reports.hintInventoryVal",
-  stockAging: "reports.hintStockAging",
-  receivables: "reports.hintReceivables",
-  payables: "reports.hintPayables",
-};
-function reportMoneyClass(n: number) {
-  if (n > 0) return "report-amt pos";
-  if (n < 0) return "report-amt neg";
-  return "report-amt";
-}
-function localizedAccountName(
-  s: string,
-  t: ReturnType<typeof useT>,
-): string {
-  const keys: Record<string, string> = {
-    cash: "accounts.cash",
-    receivables: "accounts.receivables",
-    payables: "accounts.payables",
-    inventory: "accounts.inventory",
-    equity: "accounts.equity",
-    sales: "accounts.sales",
-    cost_of_goods: "accounts.cogs",
-    expenses: "accounts.expenses",
-    other_income: "accounts.otherIncome",
-  };
-  const key = keys[s];
-  return key ? t(key) : s;
-}
 export function ProductsPage({
   refresh,
   open,
@@ -160,7 +109,7 @@ export function ProductsPage({
   initialCategory = "All products",
   user,
 }: PageProps & { initialFilter?: string; initialCategory?: string }) {
-  const t = useT();
+  const { t, locale } = useI18n();
   const [q, setQ] = useState(globalSearch),
     [category, setCategory] = useState(initialCategory),
     [filter, setFilter] = useState("all"),
@@ -281,10 +230,57 @@ export function ProductsPage({
                 <option value="all">{t("inventory.allStock")}</option>
                 <option value="low">{t("inventory.lowStock")}</option>
               </select>
+              <ReportPrintButton
+                disabled={loading || !!error}
+                getDocument={() => ({
+                  kind: "report",
+                  locale,
+                  title: t("inventory.title"),
+                  source: { type: "report", permission: "inventory" },
+                  subtitle: t("printing.loadedRows", { n: rows.length }),
+                  emptyLabel: t("reports.noRows"),
+                  sections: [
+                    {
+                      note: t("printing.loadedOnly"),
+                      columns: [
+                        { label: t("invoice.product") },
+                        { label: t("invoice.quantity"), numeric: true },
+                        ...(showCost
+                          ? [{ label: t("invoice.unitCostAf"), numeric: true }]
+                          : []),
+                        { label: t("product.sellingPrice"), numeric: true },
+                      ],
+                      rows: rows.map((p) => [
+                        [
+                          p.name,
+                          [p.brand, p.model, p.sku].filter(Boolean).join(" · "),
+                          productSpecEntries(p)
+                            .map((s) => `${s.key}: ${s.value}`)
+                            .join(" · "),
+                        ]
+                          .filter(Boolean)
+                          .join("\n"),
+                        p.stock,
+                        ...(showCost
+                          ? [
+                              af(
+                                p.stock
+                                  ? (p.cost || 0) / p.stock
+                                  : p.unit_cost || 0,
+                                2,
+                              ),
+                            ]
+                          : []),
+                        af(p.price, 2),
+                      ]),
+                    },
+                  ],
+                })}
+              />
               <ExportButton
                 onClick={() => {
                   exportCSV(
-                    "vault-products",
+                    "radefy-techmart-products",
                     rows.map(
                       ({
                         name,
@@ -356,11 +352,7 @@ export function ProductsPage({
                     <div className="inventory-row-main">
                       <div className="inventory-row-product">
                         <span className="inventory-row-image">
-                          {p.image ? (
-                            <img src={p.image} alt="" />
-                          ) : (
-                            <PackageIcon size={22} />
-                          )}
+                          <ProductPhoto product={p} />
                         </span>
                         <span className="inventory-row-copy">
                           <strong>{p.name}</strong>
@@ -381,12 +373,21 @@ export function ProductsPage({
                         <Badge tone={tone}>
                           {p.stock} {t("dashboard.units")}
                         </Badge>
+                        {!!p.consignment_stock && (
+                          <small>
+                            {t("resale.customerOwnedCount", {
+                              n: p.consignment_stock,
+                            })}
+                          </small>
+                        )}
                       </div>
                       {showCost && (
                         <div className="inventory-row-meta inventory-row-cost">
                           <strong>{af(unitCost, 2)}</strong>
                           <small>
-                            {p.stock ? t("inventory.fifoAvg") : t("inventory.lastBuy")}
+                            {p.stock
+                              ? t("inventory.fifoAvg")
+                              : t("inventory.lastBuy")}
                           </small>
                         </div>
                       )}
@@ -418,18 +419,14 @@ export function ProductsPage({
               )}
             </div>
             <div className="pagination inventory-list-pager">
-              <span>
-                {t("inventory.showingProducts", { n: rows.length })}
-              </span>
+              <span>{t("inventory.showingProducts", { n: rows.length })}</span>
               {next ? (
                 <button
                   className="button button-dark"
                   disabled={loadingMore}
                   onClick={loadMore}
                 >
-                  {loadingMore
-                    ? t("common.loading")
-                    : t("pagination.loadMore")}
+                  {loadingMore ? t("common.loading") : t("pagination.loadMore")}
                 </button>
               ) : (
                 rows.length > 0 && (
@@ -451,7 +448,7 @@ export function DocumentsPage({
   globalSearch = "",
   user,
 }: PageProps & { kind: "sale" | "purchase" | "expense" }) {
-  const t = useT();
+  const { t, locale } = useI18n();
   const [q, setQ] = useState(globalSearch),
     [rows, setRows] = useState<any[]>([]),
     [next, setNext] = useState<string | null>(null),
@@ -546,14 +543,24 @@ export function DocumentsPage({
               : t("expenses.description")
         }
         action={
-          <button className="button button-dark" onClick={() => open(kind)}>
-            <PlusIcon size={16} />
-            {kind === "sale"
-              ? t("documents.newSale")
-              : kind === "purchase"
-                ? t("documents.receivePurchase")
-                : t("documents.recordExpense")}
-          </button>
+          <div className="inline-actions">
+            {kind === "expense" && (
+              <button
+                className="button"
+                onClick={() => open("expenseAccounts")}
+              >
+                {t("expenseAccounts.title")}
+              </button>
+            )}
+            <button className="button button-dark" onClick={() => open(kind)}>
+              <PlusIcon size={16} />
+              {kind === "sale"
+                ? t("documents.newSale")
+                : kind === "purchase"
+                  ? t("documents.receivePurchase")
+                  : t("documents.recordExpense")}
+            </button>
+          </div>
         }
       />
       <section className="panel docs-list">
@@ -570,10 +577,50 @@ export function DocumentsPage({
                     : t("documents.searchSale")
               }
             />
+            <ReportPrintButton
+              disabled={loading || !!error}
+              getDocument={() => ({
+                kind: "report",
+                locale,
+                title: label,
+                source: {
+                  type: "report",
+                  permission:
+                    kind === "sale"
+                      ? "sales"
+                      : kind === "purchase"
+                        ? "purchases"
+                        : "finance",
+                },
+                subtitle: t("printing.loadedRows", { n: rows.length }),
+                emptyLabel: t("reports.noRows"),
+                sections: [
+                  {
+                    note: t("printing.loadedOnly"),
+                    columns: [
+                      { label: t("documents.reference") },
+                      { label: t("common.date") },
+                      { label: partyLabel },
+                      { label: t("common.total"), numeric: true },
+                      { label: t("common.paid"), numeric: true },
+                      { label: t("common.outstanding"), numeric: true },
+                    ],
+                    rows: rows.map((d) => [
+                      d.number,
+                      d.date,
+                      kind === "expense" ? d.category : d.party_name,
+                      af(d.total, 2),
+                      af(d.paid, 2),
+                      af(Math.max(0, d.total - d.paid - d.returned), 2),
+                    ]),
+                  },
+                ],
+              })}
+            />
             <ExportButton
               onClick={() => {
                 exportCSV(
-                  `vault-${label.toLowerCase()}`,
+                  `radefy-techmart-${label.toLowerCase()}`,
                   rows.map((d: any) => ({
                     invoice: d.number,
                     date: d.date,
@@ -730,18 +777,14 @@ export function DocumentsPage({
               )}
             </div>
             <div className="pagination docs-list-pager">
-              <span>
-                {t("ui.showing", { n: rows.length })}
-              </span>
+              <span>{t("ui.showing", { n: rows.length })}</span>
               {next ? (
                 <button
                   className="button button-dark"
                   disabled={loadingMore}
                   onClick={loadMore}
                 >
-                  {loadingMore
-                    ? t("common.loading")
-                    : t("pagination.loadMore")}
+                  {loadingMore ? t("common.loading") : t("pagination.loadMore")}
                 </button>
               ) : (
                 rows.length > 0 && (
@@ -782,6 +825,10 @@ function daybookKindLabel(kind: string, t: ReturnType<typeof useT>) {
     sale: "ledger.sale",
     purchase: "ledger.purchase",
     expense: "ledger.expense",
+    consignment_receipt: "resale.receive",
+    consignment_return: "resale.returnOwner",
+    consignment_payment: "resale.payOwner",
+    consignment_recovery: "resale.recover",
     payment: "ledger.paymentOut",
     receipt: "ledger.paymentIn",
     sale_return: "ledger.returnSale",
@@ -804,7 +851,7 @@ export function PeoplePage({
   toast,
   user,
 }: PageProps & { kind: "customer" | "supplier" }) {
-  const t = useT();
+  const { t, locale } = useI18n();
   const [q, setQ] = useState(""),
     [selected, setSelected] = useState<string | null>(null),
     [rows, setRows] = useState<Party[]>([]),
@@ -860,7 +907,11 @@ export function PeoplePage({
       setLoadingMore(false);
     }
   }
-  const { data: detail, error: detailError } = useLoad<any>(
+  const {
+    data: detail,
+    error: detailError,
+    pending: detailPending,
+  } = useLoad<any>(
     selected ? "partyDetail" : "status",
     selected ? { id: selected, after: ledgerAfter, limit: 25 } : {},
     refresh,
@@ -901,12 +952,24 @@ export function PeoplePage({
             : t("people.suppliersDesc")
         }
         action={
-          <button className="button button-dark" onClick={() => open(kind)}>
-            <PlusIcon size={16} />
-            {kind === "customer"
-              ? t("people.addCustomer")
-              : t("people.addSupplier")}
-          </button>
+          <div className="inline-actions">
+            {kind === "customer" &&
+              user.permissions.includes("finance") &&
+              user.permissions.includes("view_costs") && (
+                <button
+                  className="button"
+                  onClick={() => open("customerResale")}
+                >
+                  {t("resale.title")}
+                </button>
+              )}
+            <button className="button button-dark" onClick={() => open(kind)}>
+              <PlusIcon size={16} />
+              {kind === "customer"
+                ? t("people.addCustomer")
+                : t("people.addSupplier")}
+            </button>
+          </div>
         }
       />
       <div className="metrics-row people-metrics">
@@ -948,7 +1011,7 @@ export function PeoplePage({
               <ExportButton
                 onClick={() => {
                   exportCSV(
-                    `vault-${kind}s`,
+                    `radefy-techmart-${kind}s`,
                     rows.map((p) => ({
                       name: p.name,
                       phone: p.phone,
@@ -1043,9 +1106,7 @@ export function PeoplePage({
                 )}
               </div>
               <div className="pagination people-list-pager">
-                <span>
-                  {t("people.showingContacts", { n: rows.length })}
-                </span>
+                <span>{t("people.showingContacts", { n: rows.length })}</span>
                 {next ? (
                   <button
                     className="button button-dark"
@@ -1069,12 +1130,49 @@ export function PeoplePage({
           <section className="panel contact-detail people-detail">
             <div className="panel-heading">
               <h3>{t("people.contactLedger")}</h3>
+              <ReportPrintButton
+                disabled={!detail?.party || detailPending || !!detailError}
+                getDocument={() => ({
+                  kind: "report",
+                  locale,
+                  title: t("people.contactLedger"),
+                  subtitle: detail.party.name,
+                  source: { type: "report", permission: "people" },
+                  emptyLabel: t("reports.noRows"),
+                  summary: [
+                    {
+                      label: t("common.outstanding"),
+                      value: af(detail.party.balance, 2),
+                    },
+                  ],
+                  sections: [
+                    {
+                      note: t("printing.ledgerPage"),
+                      columns: [
+                        { label: t("partyDetail.colDateRef") },
+                        { label: t("ledger.debit"), numeric: true },
+                        { label: t("ledger.credit"), numeric: true },
+                        { label: t("ledger.balance"), numeric: true },
+                      ],
+                      rows: ledgerRows.map((e: any) => [
+                        `${e.date} · ${e.label} · ${e.number || ""}${["payment", "receipt"].includes(e.kind) && e.paid_foreign != null ? ` · ${foreignMoney(e.paid_foreign, e.currency)} → ${af(afnFromAed(e.paid_foreign, e.fx_rate), 2)}` : ""}`,
+                        af(e.debit, 2),
+                        af(e.credit, 2),
+                        af(e.running, 2),
+                      ]),
+                    },
+                  ],
+                })}
+              />
               <button className="text-button" onClick={() => setSelected(null)}>
                 {t("common.close")}
               </button>
             </div>
             <ErrorMessage error={detailError} />
-            {detail?.party ? (
+            {!detailPending &&
+            !detailError &&
+            detail?.party?.id === selected &&
+            detail.party.kind === kind ? (
               <>
                 <div className="contact-summary">
                   <span className="customer-initial avatar-lg people-detail-avatar">
@@ -1132,9 +1230,7 @@ export function PeoplePage({
                       {ledgerRows.map((e: any) => (
                         <tr
                           key={e.id}
-                          onClick={() =>
-                            open("invoice", { id: e.document_id })
-                          }
+                          onClick={() => open("invoice", { id: e.document_id })}
                         >
                           <td>
                             {e.date}
@@ -1142,6 +1238,18 @@ export function PeoplePage({
                               {e.label}
                               {e.number ? ` · ${e.number}` : ""}
                             </small>
+                            {["payment", "receipt"].includes(e.kind) &&
+                              e.paid_foreign != null && (
+                                <small className="block ledger-foreign-payment">
+                                  <bdi dir="ltr">
+                                    {foreignMoney(e.paid_foreign, e.currency)} →{" "}
+                                    {af(
+                                      afnFromAed(e.paid_foreign, e.fx_rate),
+                                      2,
+                                    )}
+                                  </bdi>
+                                </small>
+                              )}
                           </td>
                           <td
                             className={`money ${e.debit ? (kind === "customer" ? "text-red" : "text-green") : "muted"}`}
@@ -1270,9 +1378,7 @@ export function CapitalPage({ refresh, open, toast, user }: PageProps) {
             </div>
             <div className="capital-hero-card tone-earn">
               <span>{t("reports.earningsKept")}</span>
-              <strong
-                className={c.earnings >= 0 ? "amt-up" : "amt-down"}
-              >
+              <strong className={c.earnings >= 0 ? "amt-up" : "amt-down"}>
                 {af(c.earnings)}
               </strong>
             </div>
@@ -1302,6 +1408,14 @@ export function CapitalPage({ refresh, open, toast, user }: PageProps) {
                   <span>{t("capital.inventory")}</span>
                   <strong className="amt-inv">{af(c.inventory, 2)}</strong>
                 </div>
+                {!!c.consignment_recoverable && (
+                  <div className="capital-sit-row">
+                    <span>{t("resale.recoverable")}</span>
+                    <strong className="amt-recv">
+                      {af(c.consignment_recoverable, 2)}
+                    </strong>
+                  </div>
+                )}
                 <div className="capital-sit-row sub">
                   <span>{t("capital.totalAssets")}</span>
                   <strong className="amt-worth">{af(c.assets, 2)}</strong>
@@ -1310,6 +1424,14 @@ export function CapitalPage({ refresh, open, toast, user }: PageProps) {
                   <span>{t("capital.supplierPayables")}</span>
                   <strong className="amt-down">{af(c.payables, 2)}</strong>
                 </div>
+                {!!c.consignment_payables && (
+                  <div className="capital-sit-row">
+                    <span>{t("resale.owedToOwners")}</span>
+                    <strong className="amt-down">
+                      {af(c.consignment_payables, 2)}
+                    </strong>
+                  </div>
+                )}
                 <div className="capital-sit-row total">
                   <span>{t("capital.netWorth")}</span>
                   <strong className="amt-worth">{af(c.net_worth, 2)}</strong>
@@ -1325,10 +1447,56 @@ export function CapitalPage({ refresh, open, toast, user }: PageProps) {
                   <h3>{t("capital.monthlyNetWorth")}</h3>
                   <p className="subtle">{t("capital.monthlyNetWorthSub")}</p>
                 </div>
+                <ReportPrintButton
+                  getDocument={() => ({
+                    kind: "report",
+                    locale,
+                    title: t("capital.monthlyNetWorth"),
+                    subtitle: t("ui.asOf", { date: businessDate() }),
+                    source: { type: "report", permission: "finance" },
+                    emptyLabel: t("reports.noRows"),
+                    summary: [
+                      {
+                        label: t("reports.ownerCapital"),
+                        value: af(c.capital, 2),
+                      },
+                      {
+                        label: t("reports.earningsKept"),
+                        value: af(c.earnings, 2),
+                      },
+                      {
+                        label: t("capital.netWorth"),
+                        value: af(c.net_worth, 2),
+                      },
+                    ],
+                    sections: [
+                      {
+                        columns: [
+                          { label: t("capital.month") },
+                          ...[
+                            "capital.colIn",
+                            "capital.colOut",
+                            "capital.profit",
+                            "capital.netWorth",
+                            "capital.change",
+                          ].map((key) => ({ label: t(key), numeric: true })),
+                        ],
+                        rows: data.months.map((m: any) => [
+                          m.month,
+                          af(m.invested, 2),
+                          af(m.withdrawn, 2),
+                          af(m.profit, 2),
+                          af(m.net_worth, 2),
+                          af(m.change, 2),
+                        ]),
+                      },
+                    ],
+                  })}
+                />
                 <ExportButton
                   onClick={() => {
                     exportCSV(
-                      "vault-capital-months",
+                      "radefy-techmart-capital-months",
                       data.months.map((m: any) => ({
                         month: m.month,
                         invested_AF: m.invested / 100,
@@ -1373,7 +1541,9 @@ export function CapitalPage({ refresh, open, toast, user }: PageProps) {
                           {af(m.profit)}
                         </td>
                         <td>
-                          <strong className="amt-worth">{af(m.net_worth)}</strong>
+                          <strong className="amt-worth">
+                            {af(m.net_worth)}
+                          </strong>
                         </td>
                         <td
                           className={`money ${m.change > 0 ? "amt-up" : m.change < 0 ? "amt-down" : ""}`}
@@ -1466,10 +1636,14 @@ export function CapitalPage({ refresh, open, toast, user }: PageProps) {
   );
 }
 export function DayBookPage({ refresh, open, toast, user }: PageProps) {
-  const t = useT();
+  const { t, locale } = useI18n();
   const [day, setDay] = useState(businessDate()),
     [counted, setCounted] = useState("");
-  const { data, error } = useLoad<any>("dayBook", { date: day }, refresh);
+  const { data, error, pending } = useLoad<any>(
+    "dayBook",
+    { date: day },
+    refresh,
+  );
   return (
     <div className="page-content daybook-page">
       <PageIntro
@@ -1479,6 +1653,71 @@ export function DayBookPage({ refresh, open, toast, user }: PageProps) {
         description={t("daybook.description")}
         action={
           <div className="inline-actions">
+            <ReportPrintButton
+              disabled={!data || pending || !!error}
+              getDocument={() => ({
+                kind: "report",
+                locale,
+                title: t("daybook.title"),
+                subtitle: day,
+                source: { type: "report", permission: "finance" },
+                emptyLabel: t("reports.noRows"),
+                metadata: [
+                  {
+                    label: t("daybook.openingCash"),
+                    value: af(data.opening, 2),
+                    numeric: true,
+                  },
+                  {
+                    label: t("daybook.expectedClosing"),
+                    value: af(data.closing, 2),
+                    numeric: true,
+                  },
+                ],
+                summary: [
+                  {
+                    label: t("daybook.dailySales"),
+                    value: af(data.totals.sales, 2),
+                  },
+                  ...(user.permissions.includes("view_costs")
+                    ? [
+                        {
+                          label: t("daybook.grossTrading"),
+                          value: af(data.totals.gross, 2),
+                        },
+                        {
+                          label: t("reports.netProfit"),
+                          value: af(data.totals.net, 2),
+                        },
+                      ]
+                    : []),
+                  {
+                    label: t("daybook.expenses"),
+                    value: af(data.totals.expenses, 2),
+                  },
+                  {
+                    label: t("daybook.netCashMovement"),
+                    value: af(data.totals.cash, 2),
+                  },
+                ],
+                sections: [
+                  {
+                    columns: [
+                      { label: t("documents.reference") },
+                      { label: t("documents.party") },
+                      { label: t("common.total"), numeric: true },
+                      { label: t("daybook.netCashMovement"), numeric: true },
+                    ],
+                    rows: data.entries.map((d: any) => [
+                      d.number,
+                      d.party_name || d.note || "—",
+                      af(d.total, 2),
+                      af(d.cash_change, 2),
+                    ]),
+                  },
+                ],
+              })}
+            />
             <input
               aria-label={t("daybook.dateLabel")}
               type="date"
@@ -1513,9 +1752,7 @@ export function DayBookPage({ refresh, open, toast, user }: PageProps) {
               <div className="daybook-metric tone-gross">
                 <span>{t("daybook.grossTrading")}</span>
                 <strong
-                  className={
-                    data.totals.gross >= 0 ? "amt-up" : "amt-down"
-                  }
+                  className={data.totals.gross >= 0 ? "amt-up" : "amt-down"}
                 >
                   {af(data.totals.gross)}
                 </strong>
@@ -1544,11 +1781,7 @@ export function DayBookPage({ refresh, open, toast, user }: PageProps) {
             <ArrowRightIcon size={18} />
             <div>
               <span>{t("daybook.netCashMovement")}</span>
-              <strong
-                className={
-                  data.totals.cash >= 0 ? "amt-up" : "amt-down"
-                }
-              >
+              <strong className={data.totals.cash >= 0 ? "amt-up" : "amt-down"}>
                 {af(data.totals.cash)}
               </strong>
             </div>
@@ -1587,7 +1820,7 @@ export function DayBookPage({ refresh, open, toast, user }: PageProps) {
               <ExportButton
                 onClick={() => {
                   exportCSV(
-                    `vault-daily-book-${day}`,
+                    `radefy-techmart-daily-book-${day}`,
                     data.entries.map((d: any) => ({
                       reference: d.number,
                       type: d.kind,
@@ -1649,717 +1882,7 @@ export function DayBookPage({ refresh, open, toast, user }: PageProps) {
     </div>
   );
 }
-export function ReportsPage({ refresh, open, toast }: PageProps) {
-  const { t, locale } = useI18n();
-  const [from, setFrom] = useState(businessDate().slice(0, 7) + "-01"),
-    [to, setTo] = useState(businessDate()),
-    [tab, setTab] = useState<ReportTabId>("profitLoss");
-  const { data, error } = useLoad<any>("reports", { from, to }, refresh);
-  const { data: inventoryReport, error: inventoryError } = useLoad<any>(
-    "inventoryReports",
-    {},
-    refresh,
-  );
-  const { data: capitalReport, error: capitalError } = useLoad<any>(
-    tab === "capitalNet" ? "capitalReport" : "status",
-    tab === "capitalNet" ? { to } : {},
-    refresh,
-  );
-  function exportReport() {
-    let rows: any[] = [];
-    if (tab === "inventoryVal" || tab === "stockAging") {
-      exportCSV(
-        "vault-" + tab,
-        inventoryReport?.stock.map((p: any) => ({
-          name: p.name,
-          sku: p.sku,
-          stock: p.stock,
-          value_AF: p.value / 100,
-          oldest_receipt: p.oldest || "",
-        })) || [],
-      );
-      toast(t("reports.inventoryExported"));
-      return;
-    }
-    if (tab === "receivables" || tab === "payables") {
-      exportCSV(
-        "vault-" + tab,
-        (tab === "receivables"
-          ? inventoryReport?.customers
-          : inventoryReport?.suppliers
-        )?.map((p: any) => ({
-          name: p.name,
-          phone: p.phone,
-          balance_AF: p.balance / 100,
-          overdue_AF: p.overdue / 100,
-        })) || [],
-      );
-      toast(t("reports.balanceExported"));
-      return;
-    }
-    if (tab === "profitLoss")
-      rows = [
-        { metric: "Net sales", amount_AF: data.totals.sales / 100 },
-        { metric: "Cost of goods sold", amount_AF: data.totals.cogs / 100 },
-        { metric: "Gross profit", amount_AF: data.totals.gross / 100 },
-        { metric: "Expenses", amount_AF: data.totals.expenses / 100 },
-        { metric: "Other income", amount_AF: data.totals.other / 100 },
-        { metric: "Net profit", amount_AF: data.totals.net / 100 },
-      ];
-    else if (tab === "daily")
-      rows = data.days.map((d: any) => ({
-        date: d.date,
-        sales_AF: d.sales / 100,
-        cost_AF: d.cogs / 100,
-        expenses_AF: d.expenses / 100,
-        net_profit_AF: (d.sales - d.cogs - d.expenses + d.other) / 100,
-      }));
-    else if (tab === "productProfit")
-      rows = data.best.map((p: any) => ({
-        product: p.name,
-        quantity: p.quantity,
-        revenue_AF: p.revenue / 100,
-        cost_AF: p.cost / 100,
-        profit_AF: (p.revenue - p.cost) / 100,
-      }));
-    else if (tab === "expenseBreak")
-      rows = data.expenses.map((r: any) => ({
-        category: r.category,
-        amount_AF: r.amount / 100,
-      }));
-    else if (tab === "capitalNet") {
-      exportCSV(
-        "vault-capital-net-worth",
-        capitalReport?.months.map((m: any) => ({
-          month: m.month,
-          invested_AF: m.invested / 100,
-          withdrawn_AF: m.withdrawn / 100,
-          profit_AF: m.profit / 100,
-          capital_AF: m.capital / 100,
-          net_worth_AF: m.net_worth / 100,
-          change_AF: m.change / 100,
-        })) || [],
-      );
-      toast(t("reports.capitalExported"));
-      return;
-    } else
-      rows = data.trial.map((r: any) => ({
-        account: localizedAccountName(r.account, t),
-        debit_AF: r.debit / 100,
-        credit_AF: r.credit / 100,
-        balance_AF: r.balance / 100,
-      }));
-    exportCSV("vault-" + tab, rows);
-    toast(t("reports.exported"));
-  }
-  const marginPct = data?.totals?.sales
-    ? Math.round((data.totals.gross / data.totals.sales) * 100)
-    : 0;
-  const expenseTotal =
-    data?.expenses?.reduce((s: number, r: any) => s + r.amount, 0) || 0;
-  const periodLabel =
-    tab === "balanceSheet" || tab === "trialBalance" || tab === "capitalNet"
-      ? t("ui.asOf", { date: to })
-      : `${from} — ${to}`;
-
-  return (
-    <div className="page-content reports-page">
-      <PageIntro
-        compact
-        eyebrow={t("reports.title")}
-        title={t("reports.title")}
-        description={t("reports.description")}
-        action={
-          <div className="report-date-range">
-            <input
-              aria-label={t("reports.startDate")}
-              type="date"
-              value={from}
-              onChange={(e) => setFrom(e.target.value)}
-            />
-            <span>{t("ui.to")}</span>
-            <input
-              aria-label={t("reports.endDate")}
-              type="date"
-              value={to}
-              max={businessDate()}
-              onChange={(e) => setTo(e.target.value)}
-            />
-          </div>
-        }
-      />
-      <ErrorMessage error={error} />
-      {!data ? (
-        <Loading />
-      ) : (
-        <>
-          <div className="report-kpi-row">
-            <div className="report-kpi">
-              <span>{t("reports.netSales")}</span>
-              <strong className="money">{af(data.totals.sales)}</strong>
-              <small>{periodLabel}</small>
-            </div>
-            <div className="report-kpi">
-              <span>{t("reports.cogs")}</span>
-              <strong className="money">{af(data.totals.cogs)}</strong>
-              <small>{t("reports.colCogsShort")}</small>
-            </div>
-            <div className="report-kpi accent">
-              <span>{t("reports.grossProfit")}</span>
-              <strong className="money">{af(data.totals.gross)}</strong>
-              <small>
-                {t("reports.marginLabel")} · {marginPct}%
-              </small>
-            </div>
-            <div className="report-kpi dark">
-              <span>{t("reports.netProfit")}</span>
-              <strong className="money">{af(data.totals.net)}</strong>
-              <small>{t("common.afn")}</small>
-            </div>
-          </div>
-
-          <section className="panel report-panel">
-            <div className="report-nav">
-              {REPORT_GROUPS.map((group) => (
-                <div className="report-nav-group" key={group.labelKey}>
-                  <span className="report-nav-label">{t(group.labelKey)}</span>
-                  <div className="report-tabs">
-                    {group.tabs.map((tabId) => (
-                      <button
-                        key={tabId}
-                        type="button"
-                        className={tabId === tab ? "active" : ""}
-                        onClick={() => setTab(tabId)}
-                      >
-                        {t(`reports.${tabId}`)}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="report-head">
-              <div className="report-head-copy">
-                <h3>{t(`reports.${tab}`)}</h3>
-                <p>{t(REPORT_HINT[tab])}</p>
-                <span className="report-period-chip">
-                  {periodLabel} · {t("common.afn")}
-                </span>
-              </div>
-              <ExportButton onClick={exportReport} />
-            </div>
-
-            <div className="report-body">
-              {(tab === "inventoryVal" || tab === "stockAging") && (
-                <>
-                  <ErrorMessage error={inventoryError} />
-                  <p className="report-note">{t("reports.stockNote")}</p>
-                  {!inventoryReport?.stock?.length ? (
-                    <Empty title={t("reports.noRows")} />
-                  ) : (
-                    <div className="table-wrap">
-                      <table className="data-table report-table">
-                        <thead>
-                          <tr>
-                            <th>{t("reports.colProduct")}</th>
-                            <th className="num">{t("reports.colQuantity")}</th>
-                            <th className="num">
-                              {t("reports.colInventoryValue")}
-                            </th>
-                            <th>{t("reports.colOldestReceipt")}</th>
-                            <th className="num">{t("reports.colAge")}</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {inventoryReport.stock.map((p: any) => (
-                            <tr key={p.id}>
-                              <td>
-                                <ProductName product={p} />
-                              </td>
-                              <td className="num">{p.stock}</td>
-                              <td className="num money">{af(p.value, 2)}</td>
-                              <td>{p.oldest || EM_DASH}</td>
-                              <td className="num">
-                                {p.oldest
-                                  ? t("reports.ageDays", {
-                                      n: Math.max(
-                                        0,
-                                        Math.floor(
-                                          (Date.parse(businessDate()) -
-                                            Date.parse(p.oldest)) /
-                                            86400000,
-                                        ),
-                                      ),
-                                    })
-                                  : EM_DASH}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </>
-              )}
-
-              {(tab === "receivables" || tab === "payables") && (
-                <>
-                  <ErrorMessage error={inventoryError} />
-                  <p className="report-note">{t("reports.debtNote")}</p>
-                  {!(
-                    tab === "receivables"
-                      ? inventoryReport?.customers
-                      : inventoryReport?.suppliers
-                  )?.length ? (
-                    <Empty title={t("reports.noRows")} />
-                  ) : (
-                    <div className="table-wrap">
-                      <table className="data-table report-table">
-                        <thead>
-                          <tr>
-                            <th>{t("reports.colContact")}</th>
-                            <th>{t("common.phone")}</th>
-                            <th className="num">{t("common.outstanding")}</th>
-                            <th className="num">{t("reports.colOverdue")}</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {(tab === "receivables"
-                            ? inventoryReport.customers
-                            : inventoryReport.suppliers
-                          ).map((p: any) => (
-                            <tr key={p.id}>
-                              <td>
-                                <strong>{p.name}</strong>
-                              </td>
-                              <td>{p.phone || EM_DASH}</td>
-                              <td className="num money">{af(p.balance, 2)}</td>
-                              <td
-                                className={`num money ${p.overdue ? "text-red" : ""}`}
-                              >
-                                {af(p.overdue, 2)}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </>
-              )}
-
-              {tab === "profitLoss" && (
-                <div className="report-statement">
-                  <div className="report-statement-card">
-                    <div className="report-line">
-                      <span>{t("reports.plNetSalesRevenue")}</span>
-                      <strong className="money">
-                        {af(data.totals.sales, 2)}
-                      </strong>
-                    </div>
-                    <div className="report-line muted">
-                      <span>{t("reports.plLessCogs")}</span>
-                      <strong className="money">
-                        ({af(data.totals.cogs, 2)})
-                      </strong>
-                    </div>
-                    <div className="report-line subtotal">
-                      <span>{t("reports.plGrossTrading")}</span>
-                      <strong className="money">
-                        {af(data.totals.gross, 2)}
-                      </strong>
-                    </div>
-                    <div className="report-margin-bar" aria-hidden>
-                      <div style={{ width: `${Math.min(100, marginPct)}%` }} />
-                    </div>
-                    <p className="report-margin-caption">
-                      {t("reports.marginLabel")}: {marginPct}%
-                    </p>
-                    <div className="report-line">
-                      <span>{t("reports.plOtherIncomeStock")}</span>
-                      <strong className="money">
-                        {af(data.totals.other, 2)}
-                      </strong>
-                    </div>
-                    <div className="report-line muted">
-                      <span>{t("reports.plOpExpensesStock")}</span>
-                      <strong className="money">
-                        ({af(data.totals.expenses, 2)})
-                      </strong>
-                    </div>
-                    <div
-                      className={`report-line total ${data.totals.net >= 0 ? "win" : "loss"}`}
-                    >
-                      <span>{t("reports.netProfit")}</span>
-                      <strong className="money">
-                        {af(data.totals.net, 2)}
-                      </strong>
-                    </div>
-                    <p className="report-footnote">{t("reports.plFootnote")}</p>
-                  </div>
-                </div>
-              )}
-
-              {tab === "daily" && (
-                <div className="table-wrap">
-                  {!data.days?.length ? (
-                    <Empty title={t("reports.noRows")} />
-                  ) : (
-                    <table className="data-table report-table">
-                      <thead>
-                        <tr>
-                          <th>{t("common.date")}</th>
-                          <th className="num">{t("reports.colSales")}</th>
-                          <th className="num">{t("reports.colCogsShort")}</th>
-                          <th className="num">{t("reports.grossProfit")}</th>
-                          <th className="num">
-                            {t("reports.operatingExpenses")}
-                          </th>
-                          <th className="num">{t("reports.netProfit")}</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {data.days.map((d: any) => {
-                          const net = d.sales - d.cogs - d.expenses + d.other;
-                          return (
-                            <tr key={d.date}>
-                              <td>{d.date}</td>
-                              <td className="num money">{af(d.sales)}</td>
-                              <td className="num money">{af(d.cogs)}</td>
-                              <td className="num money">
-                                {af(d.sales - d.cogs)}
-                              </td>
-                              <td className="num money">{af(d.expenses)}</td>
-                              <td
-                                className={`num money ${reportMoneyClass(net)}`}
-                              >
-                                <strong>{af(net)}</strong>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  )}
-                </div>
-              )}
-
-              {tab === "productProfit" && (
-                <>
-                  {!data.best?.length ? (
-                    <Empty title={t("reports.noRows")} />
-                  ) : (
-                    <div className="table-wrap">
-                      <table className="data-table report-table">
-                        <thead>
-                          <tr>
-                            <th>{t("reports.colProduct")}</th>
-                            <th className="num">
-                              {t("reports.colUnitsSoldNet")}
-                            </th>
-                            <th className="num">{t("reports.colRevenue")}</th>
-                            <th className="num">{t("reports.colCogsShort")}</th>
-                            <th className="num">{t("reports.grossProfit")}</th>
-                            <th className="num">{t("reports.colMargin")}</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {data.best.map((p: any) => {
-                            const profit = p.revenue - p.cost;
-                            const m = p.revenue
-                              ? (profit / p.revenue) * 100
-                              : 0;
-                            return (
-                              <tr key={p.id}>
-                                <td>
-                                  <ProductName product={p} sub={p.category} />
-                                </td>
-                                <td className="num">{p.quantity}</td>
-                                <td className="num money">{af(p.revenue)}</td>
-                                <td className="num money">{af(p.cost)}</td>
-                                <td
-                                  className={`num money ${reportMoneyClass(profit)}`}
-                                >
-                                  {af(profit)}
-                                </td>
-                                <td className="num">
-                                  <span
-                                    className={`report-margin-pill ${m >= 20 ? "good" : m >= 10 ? "ok" : "low"}`}
-                                  >
-                                    {m.toFixed(1)}%
-                                  </span>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                      <p className="report-note">
-                        {t("reports.topProductsNote")}
-                      </p>
-                    </div>
-                  )}
-                </>
-              )}
-
-              {tab === "trialBalance" && (
-                <div className="table-wrap">
-                  <table className="data-table report-table">
-                    <thead>
-                      <tr>
-                        <th>{t("reports.colAccount")}</th>
-                        <th className="num">{t("reports.colTotalDebits")}</th>
-                        <th className="num">{t("reports.colTotalCredits")}</th>
-                        <th className="num">{t("reports.colNetBalance")}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {data.trial.map((r: any) => (
-                        <tr key={r.account}>
-                          <td>{localizedAccountName(r.account, t)}</td>
-                          <td className="num money">{af(r.debit, 2)}</td>
-                          <td className="num money">{af(r.credit, 2)}</td>
-                          <td
-                            className={`num money ${reportMoneyClass(r.balance)}`}
-                          >
-                            {af(r.balance, 2)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                    <tfoot>
-                      <tr>
-                        <td>{t("common.total")}</td>
-                        <td className="num money">
-                          {af(
-                            data.trial.reduce(
-                              (s: number, r: any) => s + r.debit,
-                              0,
-                            ),
-                            2,
-                          )}
-                        </td>
-                        <td className="num money">
-                          {af(
-                            data.trial.reduce(
-                              (s: number, r: any) => s + r.credit,
-                              0,
-                            ),
-                            2,
-                          )}
-                        </td>
-                        <td className="num money">
-                          {af(
-                            data.trial.reduce(
-                              (s: number, r: any) => s + r.balance,
-                              0,
-                            ),
-                            2,
-                          )}
-                        </td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              )}
-
-              {tab === "balanceSheet" && (
-                <div className="report-bs">
-                  {(() => {
-                    const bal = (a: string) =>
-                      data.trial.find((r: any) => r.account === a)?.balance ||
-                      0;
-                    const profit = -[
-                      "sales",
-                      "cost_of_goods",
-                      "expenses",
-                      "other_income",
-                    ].reduce((s, a) => s + bal(a), 0);
-                    const assets =
-                      bal("cash") + bal("receivables") + bal("inventory");
-                    const liabilities = -bal("payables");
-                    const equity = -bal("equity") + profit;
-                    const balanced = assets === liabilities + equity;
-                    return (
-                      <>
-                        <div className="report-bs-grid">
-                          <div className="report-bs-card">
-                            <header>
-                              <h4>{t("reports.bsAssets")}</h4>
-                            </header>
-                            {["cash", "receivables", "inventory"].map((a) => (
-                              <div className="report-line" key={a}>
-                                <span>{localizedAccountName(a, t)}</span>
-                                <strong className="money">
-                                  {af(bal(a), 2)}
-                                </strong>
-                              </div>
-                            ))}
-                            <div className="report-line subtotal">
-                              <span>{t("capital.totalAssets")}</span>
-                              <strong className="money">{af(assets, 2)}</strong>
-                            </div>
-                          </div>
-                          <div className="report-bs-card">
-                            <header>
-                              <h4>{t("reports.bsLiabilitiesEquity")}</h4>
-                            </header>
-                            <div className="report-line">
-                              <span>{t("reports.bsSupplierPayables")}</span>
-                              <strong className="money">
-                                {af(liabilities, 2)}
-                              </strong>
-                            </div>
-                            <div className="report-line">
-                              <span>{t("reports.bsOwnerEquity")}</span>
-                              <strong className="money">
-                                {af(-bal("equity"), 2)}
-                              </strong>
-                            </div>
-                            <div className="report-line">
-                              <span>{t("reports.bsCumulativeEarnings")}</span>
-                              <strong className="money">{af(profit, 2)}</strong>
-                            </div>
-                            <div className="report-line total">
-                              <span>{t("reports.bsTotalLiabEquity")}</span>
-                              <strong className="money">
-                                {af(liabilities + equity, 2)}
-                              </strong>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="report-bs-status">
-                          <Badge tone={balanced ? "green" : "red"}>
-                            {balanced
-                              ? t("reports.balanced")
-                              : t("reports.reconNeeded")}
-                          </Badge>
-                        </div>
-                      </>
-                    );
-                  })()}
-                </div>
-              )}
-
-              {tab === "capitalNet" && (
-                <>
-                  <ErrorMessage error={capitalError} />
-                  {!capitalReport?.current ? (
-                    <Loading />
-                  ) : (
-                    <>
-                      <div className="report-kpi-row compact">
-                        <div className="report-kpi dark">
-                          <span>{t("capital.netWorth")}</span>
-                          <strong className="money">
-                            {af(capitalReport.current.net_worth)}
-                          </strong>
-                        </div>
-                        <div className="report-kpi">
-                          <span>{t("reports.ownerCapital")}</span>
-                          <strong className="money">
-                            {af(capitalReport.current.capital)}
-                          </strong>
-                        </div>
-                        <div className="report-kpi accent">
-                          <span>{t("reports.earningsKept")}</span>
-                          <strong className="money">
-                            {af(capitalReport.current.earnings)}
-                          </strong>
-                        </div>
-                        <div className="report-kpi">
-                          <span>{t("capital.cash")}</span>
-                          <strong className="money">
-                            {af(capitalReport.current.cash)}
-                          </strong>
-                        </div>
-                      </div>
-                      <p className="report-note">{t("reports.capitalNetNote")}</p>
-                      <div className="table-wrap">
-                        <table className="data-table report-table">
-                          <thead>
-                            <tr>
-                              <th>{t("capital.month")}</th>
-                              <th className="num">{t("reports.colInvested")}</th>
-                              <th className="num">
-                                {t("reports.colWithdrawn")}
-                              </th>
-                              <th className="num">{t("capital.profit")}</th>
-                              <th className="num">{t("capital.netWorth")}</th>
-                              <th className="num">{t("capital.change")}</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {capitalReport.months.map((m: any) => (
-                              <tr key={m.month}>
-                                <td>{monthLabel(m.month, locale)}</td>
-                                <td className="num money">
-                                  {m.invested ? af(m.invested) : EM_DASH}
-                                </td>
-                                <td className="num money">
-                                  {m.withdrawn ? af(m.withdrawn) : EM_DASH}
-                                </td>
-                                <td className="num money">{af(m.profit)}</td>
-                                <td className="num money">
-                                  <strong>{af(m.net_worth)}</strong>
-                                </td>
-                                <td
-                                  className={`num money ${reportMoneyClass(m.change)}`}
-                                >
-                                  {m.change > 0 ? "+" : ""}
-                                  {af(m.change)}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </>
-                  )}
-                </>
-              )}
-
-              {tab === "expenseBreak" && (
-                <div className="report-expense">
-                  {!data.expenses?.length ? (
-                    <Empty title={t("reports.noRows")} />
-                  ) : (
-                    <>
-                      <p className="report-note">
-                        {t("reports.shareOfExpenses")}
-                      </p>
-                      <div className="report-expense-list">
-                        {data.expenses.map((r: any) => {
-                          const pct = expenseTotal
-                            ? Math.round((r.amount / expenseTotal) * 100)
-                            : 0;
-                          return (
-                            <div className="report-expense-row" key={r.category}>
-                              <div className="report-expense-meta">
-                                <strong>{r.category}</strong>
-                                <span className="money">{af(r.amount, 2)}</span>
-                              </div>
-                              <div className="report-expense-track">
-                                <div style={{ width: `${pct}%` }} />
-                              </div>
-                              <small>{pct}%</small>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
-          </section>
-        </>
-      )}
-    </div>
-  );
-}
-
+export { ReportsPage } from "./ReportsPage";
 export function BackupsPage({ refresh, toast }: PageProps) {
   const t = useT();
   const { data, error } = useLoad<any>("backups", {}, refresh);
@@ -2417,8 +1940,7 @@ export function BackupsPage({ refresh, toast }: PageProps) {
   async function schedule() {
     setBusy(true);
     try {
-      if (!window.vault)
-        throw new Error(t("backups.scheduleDesktop"));
+      if (!window.vault) throw new Error(t("backups.scheduleDesktop"));
       await window.vault.installSchedule(getToken());
       toast(t("backups.scheduleInstalled"));
     } catch (e: any) {
@@ -2443,8 +1965,7 @@ export function BackupsPage({ refresh, toast }: PageProps) {
   async function restore() {
     setLocalError("");
     try {
-      if (!window.vault)
-        throw new Error(t("backups.restoreDesktop"));
+      if (!window.vault) throw new Error(t("backups.restoreDesktop"));
       const backup = await window.vault.pickBackup();
       if (!backup) return;
       const result = await window.vault.restore(backup, getToken());
@@ -2631,15 +2152,36 @@ export function BackupsPage({ refresh, toast }: PageProps) {
     </div>
   );
 }
-export function SettingsPage({ refresh, open, toast, user }: PageProps) {
+export function SettingsPage({
+  refresh,
+  open,
+  toast,
+  user,
+  initialTab,
+}: PageProps & {
+  initialTab?: "about" | "support" | "help" | "capital" | "backups";
+}) {
+  const canManage = user.permissions.includes("settings");
   const { t, locale, setLocale } = useI18n();
-  const { data, error } = useLoad<any>("settings", {}, refresh),
+  const { data, error } = useLoad<any>(
+      canManage ? "settings" : "status",
+      {},
+      refresh,
+    ),
     { data: users } = useLoad<any[]>(
       user.permissions.includes("users") ? "users" : "status",
       {},
       refresh,
     );
-  const [tab, setTab] = useState("store"),
+  const [managedCurrency, setManagedCurrency] = useState("AFN");
+  const requestedTab =
+    (initialTab === "capital" && !user.permissions.includes("finance")) ||
+    (initialTab === "backups" && !user.permissions.includes("backups"))
+      ? undefined
+      : initialTab;
+  const [tab, setTab] = useState(
+      requestedTab || (canManage ? "store" : "about"),
+    ),
     [localError, setLocalError] = useState(""),
     [busy, setBusy] = useState(false),
     [audit, setAudit] = useState<any[]>([]),
@@ -2705,28 +2247,38 @@ export function SettingsPage({ refresh, open, toast, user }: PageProps) {
     }
   }
   const settingsTabs = [
-    { id: "store", label: t("settings.tabStore") },
+    ...(canManage ? [{ id: "store", label: t("settings.tabStore") }] : []),
     ...(user.permissions.includes("users")
       ? [
           { id: "users", label: t("settings.tabUsers") },
           { id: "audit", label: t("settings.tabAudit") },
         ]
       : []),
-    { id: "accounting", label: t("settings.tabAccounting") },
+    ...(canManage
+      ? [{ id: "accounting", label: t("settings.tabAccounting") }]
+      : []),
+    ...(user.permissions.includes("finance")
+      ? [{ id: "capital", label: t("nav.capital") }]
+      : []),
+    ...(user.permissions.includes("backups")
+      ? [{ id: "backups", label: t("nav.backups") }]
+      : []),
+    { id: "help", label: t("nav.help") },
+    { id: "about", label: t("nav.about") },
+    { id: "support", label: t("nav.support") },
   ];
   return (
-    <div className="page-content">
-      <PageIntro
-        eyebrow={t("settings.eyebrow")}
-        title={t("settings.title")}
-        description={t("settings.description")}
-      />
+    <div className={"page-content settings-page settings-section-" + tab}>
       <ErrorMessage error={error || localError} />
-      <section className="panel">
-        <div className="report-tabs">
+      <section className="panel settings-shell">
+        <nav
+          className="report-tabs settings-navigation"
+          aria-label={t("nav.settings")}
+        >
           {settingsTabs.map((tabItem) => (
             <button
               key={tabItem.id}
+              aria-current={tab === tabItem.id ? "page" : undefined}
               className={tab === tabItem.id ? "active" : ""}
               onClick={() => {
                 setTab(tabItem.id);
@@ -2739,247 +2291,292 @@ export function SettingsPage({ refresh, open, toast, user }: PageProps) {
               {tabItem.label}
             </button>
           ))}
-        </div>
-        {tab === "store" && data && (
-          <form className="settings-form" onSubmit={save} key={refresh}>
-            <Field label={t("language.label")} hint={t("language.hint")}>
-              <select
-                value={language}
-                onChange={(e) => {
-                  const next = e.target.value as Locale;
-                  setLanguage(next);
-                  setLocale(next);
-                }}
-              >
-                {LOCALES.map((l) => (
-                  <option key={l.id} value={l.id}>
-                    {l.nativeLabel} — {t(`language.${l.id}`)}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <h3>{t("settings.billDesign")}</h3>
-            <p className="muted">{t("settings.billDesignHint")}</p>
-            <Field label={t("settings.businessName")}>
-              <input
-                name="name"
-                defaultValue={data.store.name}
-                required
-                minLength={2}
-              />
-            </Field>
-            <Field label={t("settings.logo")}>
-              <div className="bill-logo-preview">
-                {logo ? (
-                  <img src={logo} alt="" />
-                ) : (
-                  <span className="muted">{t("settings.noLogo")}</span>
-                )}
-              </div>
-              <div className="bill-logo-actions">
-                <label className="button">
-                  {t("settings.chooseImage")}
-                  <input
-                    type="file"
-                    accept="image/png,image/jpeg,image/webp,image/gif"
-                    hidden
-                    onChange={(e) => {
-                      onLogoFile(e.target.files?.[0] || null);
-                      e.target.value = "";
-                    }}
-                  />
-                </label>
-                {logo ? (
-                  <button
-                    type="button"
-                    className="button"
-                    onClick={() => setLogo("")}
-                  >
-                    {t("settings.removeLogo")}
-                  </button>
-                ) : null}
-              </div>
-            </Field>
-            <div className="form-grid">
-              <Field label={t("common.phone")}>
-                <input name="phone" defaultValue={data.store.phone || ""} />
+        </nav>
+        <div className="settings-detail">
+          {tab === "capital" && user.permissions.includes("finance") && (
+            <CapitalPage
+              user={user}
+              refresh={refresh}
+              open={open}
+              toast={toast}
+            />
+          )}
+          {tab === "backups" && user.permissions.includes("backups") && (
+            <BackupsPage
+              user={user}
+              refresh={refresh}
+              open={open}
+              toast={toast}
+            />
+          )}
+          {tab === "help" && <HelpContent permissions={user.permissions} />}
+          {(tab === "about" || tab === "support") && (
+            <CompanyPage
+              kind={tab}
+              navigate={(id) => setTab(id as "about" | "support")}
+              help={() => setTab("help")}
+            />
+          )}
+          {tab === "store" && data && (
+            <form className="settings-form" onSubmit={save} key={refresh}>
+              <Field label={t("language.label")} hint={t("language.hint")}>
+                <select
+                  value={language}
+                  onChange={(e) => {
+                    const next = e.target.value as Locale;
+                    setLanguage(next);
+                    setLocale(next);
+                  }}
+                >
+                  {LOCALES.map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.nativeLabel} — {t(`language.${l.id}`)}
+                    </option>
+                  ))}
+                </select>
               </Field>
-              <Field label={t("common.email")}>
+              <h3>{t("settings.billDesign")}</h3>
+              <p className="muted">{t("settings.billDesignHint")}</p>
+              <Field label={t("settings.businessName")}>
                 <input
-                  name="email"
-                  type="email"
-                  defaultValue={data.store.email || ""}
+                  name="name"
+                  defaultValue={data.store.name}
+                  required
+                  minLength={2}
                 />
               </Field>
-            </div>
-            <Field label={t("common.address")}>
-              <textarea
-                name="address"
-                defaultValue={data.store.address || ""}
-                rows={2}
-              />
-            </Field>
-            <Field
-              label={t("settings.billFooter")}
-              hint={t("settings.billFooterHint")}
-            >
-              <textarea
-                name="bill_footer"
-                defaultValue={data.store.bill_footer || ""}
-                rows={2}
-                placeholder={t("settings.billFooterPh")}
-              />
-            </Field>
-            <div className="form-grid">
-              <Field label={t("common.currency")}>
-                <input value={t("common.afn")} readOnly />
+              <Field label={t("settings.logo")}>
+                <div className="bill-logo-preview">
+                  {logo ? (
+                    <img src={logo} alt="" />
+                  ) : (
+                    <span className="muted">{t("settings.noLogo")}</span>
+                  )}
+                </div>
+                <div className="bill-logo-actions">
+                  <label className="button">
+                    {t("settings.chooseImage")}
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/gif"
+                      hidden
+                      onChange={(e) => {
+                        onLogoFile(e.target.files?.[0] || null);
+                        e.target.value = "";
+                      }}
+                    />
+                  </label>
+                  {logo ? (
+                    <button
+                      type="button"
+                      className="button"
+                      onClick={() => setLogo("")}
+                    >
+                      {t("settings.removeLogo")}
+                    </button>
+                  ) : null}
+                </div>
               </Field>
-            </div>
-            <div className="info-box">
-              <CheckCircleIcon size={18} />
-              <p>{t("settings.taxNote")}</p>
-            </div>
-            <button className="button button-dark" disabled={busy}>
-              {busy ? t("common.saving") : t("settings.saveBill")}
-            </button>
-          </form>
-        )}
-        {tab === "users" && (
-          <>
-            <div className="panel-heading padded">
-              <h3>{t("settings.team")}</h3>
-              <button
-                className="button button-dark"
-                onClick={() => open("user")}
+              <div className="form-grid">
+                <Field label={t("common.phone")}>
+                  <input name="phone" defaultValue={data.store.phone || ""} />
+                </Field>
+                <Field label={t("common.email")}>
+                  <input
+                    name="email"
+                    type="email"
+                    defaultValue={data.store.email || ""}
+                  />
+                </Field>
+              </div>
+              <Field label={t("common.address")}>
+                <textarea
+                  name="address"
+                  defaultValue={data.store.address || ""}
+                  rows={2}
+                />
+              </Field>
+              <Field
+                label={t("settings.billFooter")}
+                hint={t("settings.billFooterHint")}
               >
-                <PlusIcon size={15} />
-                {t("settings.createUser")}
+                <textarea
+                  name="bill_footer"
+                  defaultValue={data.store.bill_footer || ""}
+                  rows={2}
+                  placeholder={t("settings.billFooterPh")}
+                />
+              </Field>
+              <div className="form-grid">
+                <Field label={t("common.currency")}>
+                  <span className="currency-rate-label">
+                    <CurrencyFlag code="AFN" />
+                    {t("common.afn")}
+                  </span>
+                </Field>
+              </div>
+              <Field
+                label={t("currencies.manage")}
+                hint={t("currencies.baseHint")}
+              >
+                <CurrencyPicker
+                  value={managedCurrency}
+                  onChange={setManagedCurrency}
+                />
+              </Field>
+              <div className="info-box">
+                <CheckCircleIcon size={18} />
+                <p>{t("settings.taxNote")}</p>
+              </div>
+              <button className="button button-dark" disabled={busy}>
+                {busy ? t("common.saving") : t("settings.saveBill")}
               </button>
-            </div>
+            </form>
+          )}
+          {tab === "users" && (
+            <>
+              <div className="panel-heading padded">
+                <h3>{t("settings.team")}</h3>
+                <button
+                  className="button button-dark"
+                  onClick={() => open("user")}
+                >
+                  <PlusIcon size={15} />
+                  {t("settings.createUser")}
+                </button>
+              </div>
+              <div className="table-wrap">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>{t("common.name")}</th>
+                      <th>{t("settings.username")}</th>
+                      <th>{t("settings.role")}</th>
+                      <th>{t("settings.permissions")}</th>
+                      <th>{t("common.status")}</th>
+                      <th />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Array.isArray(users) &&
+                      users.map((u) => (
+                        <tr key={u.id}>
+                          <td>
+                            <strong>{u.name}</strong>
+                            {u.id === user.id && (
+                              <small className="block muted">
+                                {t("ui.you")}
+                              </small>
+                            )}
+                          </td>
+                          <td>{u.username}</td>
+                          <td>
+                            <Badge tone="gray">{u.role}</Badge>
+                          </td>
+                          <td className="permissions-cell">
+                            {u.permissions.join(", ").replaceAll("_", " ")}
+                          </td>
+                          <td>
+                            <Badge tone={u.active ? "green" : "gray"}>
+                              {u.active
+                                ? t("settings.active")
+                                : t("settings.disabled")}
+                            </Badge>
+                          </td>
+                          <td>
+                            <button
+                              className="text-button"
+                              onClick={() => open("user", u)}
+                            >
+                              {t("common.edit")}
+                            </button>
+                            {u.id !== user.id && (
+                              <button
+                                className="text-button"
+                                onClick={() => toggle(u)}
+                              >
+                                {u.active
+                                  ? t("settings.disabled")
+                                  : t("settings.active")}
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+          {tab === "audit" && (
             <div className="table-wrap">
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th>{t("common.name")}</th>
-                    <th>{t("settings.username")}</th>
-                    <th>{t("settings.role")}</th>
-                    <th>{t("settings.permissions")}</th>
-                    <th>{t("common.status")}</th>
-                    <th />
+                    <th>{t("settings.auditTime")}</th>
+                    <th>{t("settings.auditUser")}</th>
+                    <th>{t("settings.auditAction")}</th>
+                    <th>{t("settings.auditDetails")}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {Array.isArray(users) &&
-                    users.map((u) => (
-                      <tr key={u.id}>
-                        <td>
-                          <strong>{u.name}</strong>
-                          {u.id === user.id && (
-                            <small className="block muted">{t("ui.you")}</small>
-                          )}
-                        </td>
-                        <td>{u.username}</td>
-                        <td>
-                          <Badge tone="gray">{u.role}</Badge>
-                        </td>
-                        <td className="permissions-cell">
-                          {u.permissions.join(", ").replaceAll("_", " ")}
-                        </td>
-                        <td>
-                          <Badge tone={u.active ? "green" : "gray"}>
-                            {u.active
-                              ? t("settings.active")
-                              : t("settings.disabled")}
-                          </Badge>
-                        </td>
-                        <td>
-                          <button
-                            className="text-button"
-                            onClick={() => open("user", u)}
-                          >
-                            {t("common.edit")}
-                          </button>
-                          {u.id !== user.id && (
-                            <button
-                              className="text-button"
-                              onClick={() => toggle(u)}
-                            >
-                              {u.active
-                                ? t("settings.disabled")
-                                : t("settings.active")}
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
+                  {audit.map((a) => (
+                    <tr key={a.id}>
+                      <td>{new Date(a.created_at).toLocaleString()}</td>
+                      <td>{a.user_name || t("settings.schedulerUser")}</td>
+                      <td>{a.action}</td>
+                      <td className="permissions-cell">
+                        {JSON.stringify(JSON.parse(a.details))}
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
+              <p className="table-note">{t("settings.auditFootnote")}</p>
             </div>
-          </>
-        )}
-        {tab === "audit" && (
-          <div className="table-wrap">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>{t("settings.auditTime")}</th>
-                  <th>{t("settings.auditUser")}</th>
-                  <th>{t("settings.auditAction")}</th>
-                  <th>{t("settings.auditDetails")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {audit.map((a) => (
-                  <tr key={a.id}>
-                    <td>{new Date(a.created_at).toLocaleString()}</td>
-                    <td>{a.user_name || t("settings.schedulerUser")}</td>
-                    <td>{a.action}</td>
-                    <td className="permissions-cell">
-                      {JSON.stringify(JSON.parse(a.details))}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <p className="table-note">{t("settings.auditFootnote")}</p>
-          </div>
-        )}
-        {tab === "accounting" && (
-          <div className="settings-form">
-            <h3>{t("settings.periodLockTitle")}</h3>
-            <p className="muted">{t("settings.periodLockHint")}</p>
-            <p>
-              {t("settings.closedThroughLabel")}:{" "}
-              <strong>
-                {data?.closedThrough || t("settings.noPeriodsLocked")}
-              </strong>
-            </p>
-            <form
-              onSubmit={async (e) => {
-                e.preventDefault();
-                try {
-                  await api("closePeriod", {
-                    date: new FormData(e.currentTarget).get("date"),
-                  });
-                  toast(t("toast.periodLocked"));
-                } catch (e: any) {
-                  setLocalError(e.message);
-                }
-              }}
-            >
-              <Field label={t("settings.lockThroughDate")}>
-                <input type="date" name="date" max={businessDate()} required />
-              </Field>
-              <button className="button button-dark">
-                <LockIcon size={15} />
-                {t("settings.lockPeriodBtn")}
-              </button>
-            </form>
-            <div className="divider" />
-            <h3>{t("settings.policiesTitle")}</h3>
-            <p className="muted">{t("settings.policiesHint")}</p>
-          </div>
-        )}
+          )}
+          {tab === "accounting" && (
+            <div className="settings-form">
+              <h3>{t("settings.periodLockTitle")}</h3>
+              <p className="muted">{t("settings.periodLockHint")}</p>
+              <p>
+                {t("settings.closedThroughLabel")}:{" "}
+                <strong>
+                  {data?.closedThrough || t("settings.noPeriodsLocked")}
+                </strong>
+              </p>
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  try {
+                    await api("closePeriod", {
+                      date: new FormData(e.currentTarget).get("date"),
+                    });
+                    toast(t("toast.periodLocked"));
+                  } catch (e: any) {
+                    setLocalError(e.message);
+                  }
+                }}
+              >
+                <Field label={t("settings.lockThroughDate")}>
+                  <input
+                    type="date"
+                    name="date"
+                    max={businessDate()}
+                    required
+                  />
+                </Field>
+                <button className="button button-dark">
+                  <LockIcon size={15} />
+                  {t("settings.lockPeriodBtn")}
+                </button>
+              </form>
+              <div className="divider" />
+              <h3>{t("settings.policiesTitle")}</h3>
+              <p className="muted">{t("settings.policiesHint")}</p>
+            </div>
+          )}
+        </div>
       </section>
     </div>
   );
@@ -3019,10 +2616,7 @@ export function AlertsDialogContent({
         </div>
       ))}
       {data && !data.rows.length && (
-        <Empty
-          title={t("alerts.allGood")}
-          text={t("alerts.allGoodText")}
-        />
+        <Empty title={t("alerts.allGood")} text={t("alerts.allGoodText")} />
       )}
     </div>
   );

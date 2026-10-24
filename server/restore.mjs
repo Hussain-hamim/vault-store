@@ -27,7 +27,7 @@ export function validateRestore(file) {
     throw new Error("Backup checksum does not match its manifest.");
   const db = new DatabaseSync(file, { readOnly: true });
   try {
-    if (db.prepare("PRAGMA user_version").get().user_version !== 1)
+    if (![1, 2].includes(db.prepare("PRAGMA user_version").get().user_version))
       throw new Error("Database schema is unsupported.");
     if (
       Object.values(db.prepare("PRAGMA integrity_check").get())[0] !== "ok" ||

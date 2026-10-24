@@ -1,0 +1,222 @@
+.currency-control {
+  min-width: 0;
+}
+.currency-picker,
+.currency-country {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.currency-picker select {
+  min-width: 0;
+  flex: 1;
+}
+.currency-picker > .button {
+  flex-shrink: 0;
+  padding-inline: 10px;
+  font-size: 11px;
+}
+.currency-flag {
+  display: inline-block;
+  width: 23px;
+  height: 17px;
+  object-fit: cover;
+  border-radius: 3px;
+  box-shadow: 0 0 0 1px #15283c1a;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+.currency-country select {
+  min-width: 0;
+  flex: 1;
+}
+.purchase-currency-field {
+  grid-column: 1 / -1;
+}
+.currency-rate-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.invoice-return-dialog .invoice-print[hidden] {
+  display: none;
+}
+.invoice-return-dialog .modal-content > form.return-form {
+  overflow: auto;
+  min-height: 220px;
+  gap: 12px;
+}
+.invoice-return-dialog .return-form .button {
+  flex-shrink: 0;
+  align-self: flex-start;
+}
+.invoice-return-dialog .return-form .field {
+  flex-shrink: 0;
+}
+.purchase-party-fields {
+  grid-template-columns: minmax(0, 1fr) minmax(130px, 0.5fr);
+}
+.purchase-party-fields .purchase-rate-field {
+  grid-column: 1 / -1;
+}
+
+/* Purchase fields stay within the existing two-column board. */
+.currency-flag {
+  width: 16px;
+  height: 12px;
+  border-radius: 2px;
+}
+.currency-compact .currency-picker {
+  gap: 6px;
+}
+.currency-compact .currency-picker > .button {
+  width: 28px;
+  min-width: 28px;
+  height: 34px;
+  min-height: 34px;
+  padding: 0;
+  font-size: 20px;
+  line-height: 1;
+}
+.bill-editor .purchase-board .purchase-party-fields {
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: 9px 12px;
+}
+.bill-editor .purchase-board .purchase-currency-field,
+.bill-editor .purchase-board .purchase-rate-field {
+  grid-column: auto;
+}
+.bill-editor .purchase-party-fields input,
+.bill-editor .purchase-party-fields select {
+  height: 34px;
+  min-height: 34px;
+  padding-block: 6px;
+  font-size: 12px;
+}
+.bill-editor .purchase-board .sale-bill-panel .cart-line {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 5px;
+  padding: 7px 9px;
+}
+.bill-editor .purchase-board .cart-line-title {
+  justify-content: space-between;
+}
+.bill-editor .purchase-board .sale-bill-panel .cart-line > .form-grid.three {
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+.bill-editor .purchase-board .cart-line .field > span {
+  white-space: nowrap;
+  font-size: 9px;
+}
+.bill-editor .purchase-board .sale-pay-panel .trade-totals {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
+  align-items: center;
+}
+.bill-editor .purchase-board .trade-totals > div {
+  flex-wrap: wrap;
+  gap: 3px 6px;
+}
+.bill-editor .purchase-board .trade-totals > .field {
+  min-width: 0;
+}
+.bill-editor .purchase-board .trade-totals .field small {
+  color: #61736c;
+}
+.invoice-payment-conversion {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-top: 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 12px;
+}
+.invoice-payment-conversion > span {
+  color: var(--muted);
+}
+.invoice-payment-conversion strong {
+  color: var(--ink);
+}
+.legacy-payment-switch {
+  align-self: flex-end;
+  font-size: 11px;
+}
+/* Sales share the readable identity/amount anatomy of purchase cards. */
+.bill-editor .sale-board:not(.purchase-board) .sale-bill-panel .cart-line {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+  padding: 8px 10px;
+}
+.bill-editor .sale-board:not(.purchase-board) .cart-line-title {
+  justify-content: space-between;
+}
+.bill-editor
+  .sale-board:not(.purchase-board)
+  .sale-bill-panel
+  .cart-line
+  > .form-grid.three {
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.bill-editor .sale-board:not(.purchase-board) .cart-line .field > span {
+  white-space: nowrap;
+  font-size: 10px;
+}
+.supplier-payment-currency {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: 12px;
+}
+.ledger-foreign-payment {
+  margin-top: 4px;
+  color: #2b7c70;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.sale-payment-currency {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: 10px;
+  margin-bottom: 5px;
+}
+.bill-editor .sale-payment-currency .field {
+  margin: 0;
+  gap: 3px;
+}
+.bill-editor .sale-payment-currency .field > span {
+  font-size: 10px;
+}
+.bill-editor .sale-payment-currency input,
+.bill-editor .sale-payment-currency select {
+  height: 32px;
+  min-height: 32px;
+  padding-block: 5px;
+  font-size: 12px;
+}
+.return-refund-controls {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex-shrink: 0;
+}
+.return-refund-summary {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12px;
+}
+.return-refund-controls .field {
+  margin: 0;
+}
