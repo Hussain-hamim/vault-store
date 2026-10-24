@@ -120,3 +120,13 @@ Desktop testing: keep `npm run dev` running, then use `npm run desktop:dev` (not
 - Recovery now signs in using the one-time code alone; changing the password afterward is optional in Settings. Show the shop and username clearly and distinguish used, expired and wrong-store codes. Login prefills the local owner username and offers Show password. Keep the prior reset API compatible with older clients.
 
 - Manually uploaded or previously saved custom product photos persist when category, brand, model or accessory type changes. Only choosing a replacement upload or explicitly using the automatic-photo action may replace them. Product edits that omit image fields preserve the existing photo.
+
+- Remember previously used desktop shops and accounts on this computer. Closing the app retains the selected account session; explicit sign-out revokes that account session but preserves its chooser entry. Switching shops keeps SQLite, activation, recovery identity and protected sessions isolated per profile. Launch the last explicitly selected shop by default; never redirect scheduled backups to another shop.
+
+- Hide the remembered-user picker when only one user is remembered. Hide the shop picker when only one shop is available, and hide the profile-menu switch action when neither has alternatives.
+
+- Sign-in offers Remove for saved shops when multiple exist. Removal forgets the chooser entry persistently without deleting its SQLite, activation, backups or recovery identity. Removing the current shop switches to a remaining shop.
+
+- The saved-shop selector stays available during owner recovery. Switching shops from recovery opens recovery for the chosen installation, even if that shop has a remembered session; references and codes must always belong to that chosen installation.
+
+- Signed-in profile menus switch directly to another saved shop/account. Reuse its valid saved session without showing sign-in first; require credentials only when that destination has no valid session. Keep an explicit recovery-origin shop switch in recovery.

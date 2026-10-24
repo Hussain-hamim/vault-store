@@ -465,7 +465,7 @@ export class Store {
       this.run("DELETE FROM sessions WHERE token=?", token);
       throw new Error("SESSION_EXPIRED: User is disabled.");
     }
-    s.expires = Date.now() + 8 * 3600_000;
+    s.expires = 253402300799000;
     this.run(
       "UPDATE sessions SET expires_at=? WHERE token=?",
       s.expires,
@@ -478,7 +478,7 @@ export class Store {
   }
   session(user) {
     const token = randomBytes(32).toString("hex");
-    const expires = Date.now() + 8 * 3600_000;
+    const expires = 253402300799000;
     this.sessions.set(token, { id: user.id, expires });
     this.run(
       "INSERT INTO sessions(token,user_id,expires_at) VALUES (?,?,?)",

@@ -13,8 +13,49 @@ const fs = require("node:fs");
 const { pathToFileURL } = require("node:url");
 let db, mainWindow, licensing, recovery;
 let serviceRoot;
-let reloadingWorker = false;
+let accounts;
+let recoveryRequested = process.argv.includes("--radefy-recovery");
 const backupMode = process.argv.includes("--backup-mode");
+const { Accounts, profileId } = require("./accounts.cjs");
+const profileRegistryFile = path.join(
+  app.getPath("appData"),
+  "Radefy TechMart profiles.json",
+);
+function readProfiles() {
+  try {
+    const rows = JSON.parse(fs.readFileSync(profileRegistryFile, "utf8"));
+    return Array.isArray(rows)
+      ? rows.filter(
+          (p) =>
+            p &&
+            typeof p.directory === "string" &&
+            p.id === profileId(p.directory),
+        )
+      : [];
+  } catch {
+    return [];
+  }
+}
+const lastProfileFile = profileRegistryFile + ".selected";
+let lastProfileId;
+try {
+  lastProfileId = fs.readFileSync(lastProfileFile, "utf8");
+} catch {}
+const selectedProfileId = process.argv
+  .find((a) => a.startsWith("--radefy-profile="))
+  ?.split("=")[1];
+const selectedProfile = readProfiles().find(
+  (p) =>
+    !p.hidden &&
+    p.id ===
+      (selectedProfileId ||
+        (!backupMode &&
+        !process.env.RADEFY_USER_DATA &&
+        !process.env.REDIFY_USER_DATA
+          ? lastProfileId
+          : undefined)),
+);
+let reloadingWorker = false;
 const uiOrigin = "http://127.0.0.1:4173";
 const { brand, userDataPath } = require("./brand.cjs");
 // Pin the original profile before setting the new display name: upgrades retain data and sessions.
@@ -22,7 +63,9 @@ app.setPath(
   "userData",
   userDataPath(
     app.getPath("appData"),
-    process.env.RADEFY_USER_DATA || process.env.REDIFY_USER_DATA,
+    selectedProfile?.directory ||
+      process.env.RADEFY_USER_DATA ||
+      process.env.REDIFY_USER_DATA,
   ),
 );
 app.setName(brand.name);
@@ -166,13 +209,18 @@ async function start() {
           throw Error("INVALID_INPUT");
         return { ok: true, result: await recovery.sync(args.enrollmentCode) };
       }
-      if (action === "recover")
-        return { ok: true, result: await recovery.recover(args.code) };
-      if (action === "reset")
-        return {
-          ok: true,
-          result: await recovery.reset(args.code, args.password),
-        };
+      if (action === "recover") {
+        const result = await recovery.recover(args.code);
+        accounts.remember(result.user, result.token);
+        recoveryRequested = false;
+        return { ok: true, result };
+      }
+      if (action === "reset") {
+        const result = await recovery.reset(args.code, args.password);
+        accounts.remember(result.user, result.token);
+        recoveryRequested = false;
+        return { ok: true, result };
+      }
       throw Error("INVALID_INPUT");
     } catch (e) {
       return {
@@ -237,6 +285,141 @@ async function start() {
     }
     return;
   }
+  accounts = new Accounts(app.getPath("userData"), safeStorage);
+  const profiles = readProfiles();
+  // Discover established profiles without copying their databases or activation files.
+  const directories = new Set([
+    ...profiles.map((p) => p.directory),
+    app.getPath("userData"),
+    path.join(app.getPath("appData"), "Vault Store"),
+    path.join(app.getPath("appData"), "Radefy TechMart Activation Test"),
+  ]);
+  for (const directory of directories) {
+    if (
+      profiles.some((p) => p.directory === directory && p.hidden) &&
+      directory !== app.getPath("userData")
+    )
+      continue;
+    if (!fs.existsSync(path.join(directory, "vault.sqlite"))) continue;
+    let worker;
+    try {
+      worker =
+        directory === app.getPath("userData")
+          ? db
+          : (
+              await import(
+                pathToFileURL(path.join(serviceRoot, "client.mjs")).href
+              )
+            ).createWorker(path.join(directory, "vault.sqlite"));
+      const status = await worker.request("status");
+      const entry = {
+        id: profileId(directory),
+        directory,
+        name:
+          status.store?.name ||
+          status.store?.storeName ||
+          path.basename(directory),
+        username: status.ownerUsername || "",
+      };
+      const index = profiles.findIndex((p) => p.id === entry.id);
+      if (index < 0) profiles.push(entry);
+      else profiles[index] = entry;
+    } catch {
+    } finally {
+      if (worker && worker !== db) await worker.close();
+    }
+  }
+  fs.writeFileSync(profileRegistryFile + ".tmp", JSON.stringify(profiles), {
+    mode: 0o600,
+  });
+  fs.renameSync(profileRegistryFile + ".tmp", profileRegistryFile);
+  fs.writeFileSync(lastProfileFile, profileId(app.getPath("userData")), {
+    mode: 0o600,
+  });
+  ipcMain.handle("vault:accounts", async (event, action, id) => {
+    trusted(event);
+    if (action === "list")
+      return {
+        users: accounts.list(),
+        profiles: profiles
+          .filter((p) => !p.hidden)
+          .map(({ directory, ...p }) => p),
+        current: profileId(app.getPath("userData")),
+        recovery: recoveryRequested,
+      };
+    if (action === "remove-profile") {
+      const entry = profiles.find((p) => p.id === id && !p.hidden);
+      if (!entry || profiles.filter((p) => !p.hidden).length < 2)
+        throw Error("Cannot remove the only saved shop.");
+      const next = profiles.find((p) => p.id !== id && !p.hidden);
+      const updated = profiles.map((p) =>
+        p.id === id ? { ...p, hidden: true } : p,
+      );
+      fs.writeFileSync(profileRegistryFile + ".tmp", JSON.stringify(updated), {
+        mode: 0o600,
+      });
+      fs.renameSync(profileRegistryFile + ".tmp", profileRegistryFile);
+      entry.hidden = true;
+      if (id === profileId(app.getPath("userData"))) {
+        fs.writeFileSync(lastProfileFile, next.id, { mode: 0o600 });
+        app.relaunch({
+          args: [
+            ...process.argv
+              .slice(1)
+              .filter(
+                (a) =>
+                  !a.startsWith("--radefy-profile=") &&
+                  a !== "--radefy-recovery",
+              ),
+            "--radefy-profile=" + next.id,
+          ],
+        });
+        app.quit();
+      }
+      return true;
+    }
+    if (action === "resume") {
+      if (recoveryRequested) return "";
+      licensing.assertActive();
+      const token = accounts.token();
+      if (!token) return "";
+      try {
+        await db.request("me", {}, token);
+        return token;
+      } catch (error) {
+        if (error.message.includes("SESSION_EXPIRED")) {
+          accounts.logout(token);
+          return "";
+        }
+        throw error;
+      }
+    }
+    if (action === "select") {
+      accounts.select(id);
+      recoveryRequested = false;
+      return true;
+    }
+    if (action === "profile" || action === "profile-recovery") {
+      if (!profiles.some((p) => p.id === id && !p.hidden))
+        throw Error("Unknown shop.");
+      fs.writeFileSync(lastProfileFile, id, { mode: 0o600 });
+      app.relaunch({
+        args: [
+          ...process.argv
+            .slice(1)
+            .filter(
+              (a) =>
+                !a.startsWith("--radefy-profile=") && a !== "--radefy-recovery",
+            ),
+          "--radefy-profile=" + id,
+          ...(action === "profile-recovery" ? ["--radefy-recovery"] : []),
+        ],
+      });
+      app.quit();
+      return true;
+    }
+    throw Error("Unknown operation.");
+  });
   ipcMain.handle("vault:command", async (event, command, args, token) => {
     trusted(event);
     if (typeof command !== "string" || command.startsWith("_"))
@@ -244,6 +427,28 @@ async function start() {
     try {
       licensing.assertActive();
       const result = await db.request(command, args, token);
+      if (result?.token && result?.user) {
+        accounts.remember(result.user, result.token);
+        recoveryRequested = false;
+      }
+      if (command === "me" && token) accounts.remember(result, token);
+      if (command === "logout") accounts.logout(token);
+      if (["setup", "saveSettings"].includes(command)) {
+        const status = await db.request("status");
+        const entry = profiles.find(
+          (p) => p.id === profileId(app.getPath("userData")),
+        );
+        if (entry) {
+          entry.name = status.store.name;
+          entry.username = status.ownerUsername;
+          fs.writeFileSync(
+            profileRegistryFile + ".tmp",
+            JSON.stringify(profiles),
+            { mode: 0o600 },
+          );
+          fs.renameSync(profileRegistryFile + ".tmp", profileRegistryFile);
+        }
+      }
       if (
         recovery &&
         [

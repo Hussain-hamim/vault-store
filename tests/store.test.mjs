@@ -3014,3 +3014,28 @@ test("local login permits immediate retries after repeated incorrect passwords",
   });
   assert.equal(f.s.auth(session.token).username, "owner");
 });
+
+test("remembered login survives multiple days and database reopen; signout revokes it", async (t) => {
+  const directory = mkdtempSync(path.join(os.tmpdir(), "persistent-session-"));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const file = path.join(directory, "store.sqlite");
+  let store = new Store(file);
+  const session = store.setup({
+    name: "Owner",
+    username: "owner",
+    password: "secure-password",
+    storeName: "Shop",
+  });
+  store.close();
+  const realNow = Date.now;
+  try {
+    Date.now = () => realNow() + 30 * 86400000;
+    store = new Store(file);
+    assert.equal(store.auth(session.token).username, "owner");
+    await store.dispatch("logout", {}, session.token);
+    assert.throws(() => store.auth(session.token), /SESSION_EXPIRED/);
+    store.close();
+  } finally {
+    Date.now = realNow;
+  }
+});

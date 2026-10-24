@@ -226,6 +226,27 @@ export function App() {
     [globalOpen, setGlobalOpen] = useState(false),
     [palette, setPalette] = useState(false),
     [saleSeed, setSaleSeed] = useState<Product | undefined>();
+  const [canSwitchAccount, setCanSwitchAccount] = useState(false);
+  const [savedAccounts, setSavedAccounts] = useState<any>(null);
+  useEffect(() => {
+    let active = true;
+    window.vault
+      ?.accounts?.("list")
+      .then((saved) => {
+        if (active) {
+          setSavedAccounts(saved);
+          setCanSwitchAccount(
+            saved.users.length > 1 || saved.profiles.length > 1,
+          );
+        }
+      })
+      .catch(() => {
+        if (active) setCanSwitchAccount(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [user?.id, profile]);
   useUserTheme(user?.id);
   const notifications = useNotificationSummary(user, refresh);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -244,7 +265,12 @@ export function App() {
   }, [page, user?.id]);
   useEffect(() => {
     let active = true;
-    api("status")
+    Promise.resolve(window.vault?.accounts?.("resume"))
+      .catch(() => "")
+      .then((token) => {
+        if (typeof token === "string") setToken(token);
+        return api("status");
+      })
       .then(async (s) => {
         if (!active) return;
         setStatus(s);
@@ -661,6 +687,52 @@ export function App() {
                   ))}
                 </select>
               </label>
+              {canSwitchAccount && savedAccounts && (
+                <label className="profile-lang">
+                  <span>{t("rememberedAccounts.switch")}</span>
+                  <select
+                    aria-label={t("rememberedAccounts.switch")}
+                    value=""
+                    onChange={async (e) => {
+                      const [kind, id] = e.target.value.split(":");
+                      if (!id) return;
+                      try {
+                        if (kind === "shop") {
+                          await window.vault!.accounts!("profile", id);
+                          return;
+                        }
+                        await window.vault!.accounts!("select", id);
+                        const token = await window.vault!.accounts!("resume");
+                        setToken(token || "");
+                        setUser(token ? await api<User>("me") : null);
+                        setProfile(false);
+                        setModal(null);
+                        setPalette(false);
+                        setGlobalOpen(false);
+                        setRefresh((value) => value + 1);
+                      } catch (error: any) {
+                        setMessage(error.message);
+                      }
+                    }}
+                  >
+                    <option value="">{t("rememberedAccounts.switch")}</option>
+                    {savedAccounts.profiles
+                      .filter((p: any) => p.id !== savedAccounts.current)
+                      .map((p: any) => (
+                        <option key={p.id} value={"shop:" + p.id}>
+                          {p.name} · {p.username}
+                        </option>
+                      ))}
+                    {savedAccounts.users
+                      .filter((u: any) => u.id !== user.id)
+                      .map((u: any) => (
+                        <option key={u.id} value={"user:" + u.id}>
+                          {u.name} · {u.username}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+              )}
               <button onClick={signOut}>
                 <SignOutIcon size={16} />
                 {t("nav.signOut")}
@@ -1146,6 +1218,17 @@ function Auth({
   onSuccess: (s: any) => void;
 }) {
   const { t, dir } = useI18n();
+  const [remembered, setRemembered] = useState<any>(null);
+  const [selectedUsername, setSelectedUsername] = useState(ownerUsername || "");
+  useEffect(() => {
+    window.vault
+      ?.accounts?.("list")
+      .then((saved) => {
+        setRemembered(saved);
+        if (saved.recovery) setRecover(true);
+      })
+      .catch(() => {});
+  }, []);
   const [recover, setRecover] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState(""),
@@ -1192,6 +1275,30 @@ function Auth({
         <small>{t("auth.footer")}</small>
       </div>
       <div className="auth-form-container">
+        {remembered && remembered.profiles.length > 1 && (
+          <Field label={t("rememberedAccounts.shop")}>
+            <select
+              value={remembered.current}
+              onChange={async (e) => {
+                try {
+                  await window.vault!.accounts!(
+                    recover ? "profile-recovery" : "profile",
+                    e.target.value,
+                  );
+                } catch (error: any) {
+                  setError(error.message);
+                }
+              }}
+            >
+              {remembered.profiles.map((p: any) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} · {p.username}
+                </option>
+              ))}
+            </select>
+          </Field>
+        )}
+        <ErrorMessage error={recover ? error : ""} />
         {recover ? (
           <OwnerRecovery
             storeName={storeName}
@@ -1209,6 +1316,112 @@ function Auth({
                 ? t("auth.setupHint")
                 : t("auth.signInHint", { store: storeName })}
             </p>
+            {remembered &&
+              (remembered.users.length > 1 ||
+                remembered.profiles.length > 1) && (
+                <div className="remembered-accounts">
+                  {remembered.profiles.length > 1 && (
+                    <div>
+                      <small>{t("rememberedAccounts.removeHint")}</small>
+                      {remembered.profiles.map((p: any) => (
+                        <div
+                          key={p.id}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: 8,
+                            marginTop: 8,
+                          }}
+                        >
+                          <span>
+                            {p.name} · {p.username}
+                          </span>
+                          <button
+                            type="button"
+                            className="button"
+                            disabled={busy}
+                            onClick={async () => {
+                              setBusy(true);
+                              try {
+                                await window.vault!.accounts!(
+                                  "remove-profile",
+                                  p.id,
+                                );
+                                setRemembered(
+                                  await window.vault!.accounts!("list"),
+                                );
+                              } catch (error: any) {
+                                setError(error.message);
+                              } finally {
+                                setBusy(false);
+                              }
+                            }}
+                          >
+                            {t("rememberedAccounts.remove")}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {!setup && remembered.users.length > 1 && (
+                    <Field label={t("rememberedAccounts.user")}>
+                      <select
+                        value={selectedUsername}
+                        onChange={async (e) => {
+                          const account = remembered.users.find(
+                            (u: any) => u.username === e.target.value,
+                          );
+                          setSelectedUsername(e.target.value);
+                          if (account?.signedIn) {
+                            try {
+                              await window.vault!.accounts!(
+                                "select",
+                                account.id,
+                              );
+                              location.reload();
+                            } catch (error: any) {
+                              setError(error.message);
+                            }
+                          }
+                        }}
+                      >
+                        <option value="">
+                          {t("rememberedAccounts.other")}
+                        </option>
+                        {remembered.users.map((u: any) => (
+                          <option key={u.id} value={u.username}>
+                            {u.name} · {u.username} {u.signedIn ? "✓" : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                  )}
+                  {!setup &&
+                    remembered.users.length > 1 &&
+                    remembered.users.some(
+                      (u: any) => u.username === selectedUsername && u.signedIn,
+                    ) && (
+                      <button
+                        type="button"
+                        className="button full"
+                        onClick={async () => {
+                          const account = remembered.users.find(
+                            (u: any) => u.username === selectedUsername,
+                          );
+                          try {
+                            await window.vault!.accounts!("select", account.id);
+                            location.reload();
+                          } catch (error: any) {
+                            setError(error.message);
+                          }
+                        }}
+                      >
+                        {t("recovery.openStore")}
+                      </button>
+                    )}
+                </div>
+              )}
             {setup && (
               <>
                 <Field label={t("auth.storeName")}>
@@ -1227,7 +1440,8 @@ function Auth({
             <Field label={t("auth.username")}>
               <input
                 name="username"
-                defaultValue={setup ? "" : ownerUsername}
+                value={setup ? undefined : selectedUsername}
+                onChange={(e) => setSelectedUsername(e.target.value)}
                 required
                 minLength={3}
                 autoComplete="username"

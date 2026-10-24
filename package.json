@@ -12,7 +12,7 @@
     "desktop": "electron .",
     "desktop:dev": "node scripts/desktop-dev.mjs",
     "build": "tsc --noEmit && vite build && node scripts/prepare-sites-build.mjs",
-    "test": "node --test tests/store.test.mjs tests/preload.test.mjs tests/printing.test.mjs tests/reports.test.mjs tests/brand.test.mjs tests/product-photos.test.mjs tests/appearance.test.mjs tests/licensing.test.mjs tests/licensing-credentials.test.mjs tests/database-worker.test.mjs tests/recovery.test.mjs",
+    "test": "node --test tests/store.test.mjs tests/preload.test.mjs tests/printing.test.mjs tests/reports.test.mjs tests/brand.test.mjs tests/product-photos.test.mjs tests/appearance.test.mjs tests/licensing.test.mjs tests/licensing-credentials.test.mjs tests/database-worker.test.mjs tests/recovery.test.mjs tests/accounts.test.cjs",
     "test:sites": "node --test tests/sites-worker.test.mjs",
     "package:mac": "npm run license:check && npm run build && electron-builder --mac --dir && node scripts/check-packaged.mjs darwin",
     "package:win": "npm run license:check && npm run build && electron-builder --win nsis && node scripts/check-packaged.mjs win32",
@@ -31,7 +31,8 @@
     "test:activation:desktop": "electron tests/activation-electron-smoke.cjs && electron tests/activation-electron-smoke.cjs --legacy",
     "license:recovery": "node scripts/licensing/recovery.mjs",
     "test:recovery:live": "node scripts/licensing/recovery-live.mjs",
-    "test:recovery:desktop": "electron tests/recovery-electron-smoke.cjs"
+    "test:recovery:desktop": "electron tests/recovery-electron-smoke.cjs",
+    "test:accounts:desktop": "electron tests/accounts-electron-smoke.cjs"
   },
   "dependencies": {
     "@fontsource-variable/plus-jakarta-sans": "^5.2.8",

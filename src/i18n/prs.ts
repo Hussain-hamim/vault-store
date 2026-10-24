@@ -2,6 +2,15 @@ import type { MessageTree } from "./types";
 
 /** Dari UI — Afghan shop/accounting terms used in everyday trade. */
 export const prs: MessageTree = {
+  rememberedAccounts: {
+    remove: "حذف از فهرست",
+    removeHint:
+      "فقط از این فهرست حذف می‌شود. معلومات دکان در این کمپیوتر می‌ماند.",
+    switch: "تغییر دکان / کاربر",
+    shop: "دکان در این کمپیوتر",
+    user: "حساب استفاده‌شده قبلی",
+    other: "حساب دیگر",
+  },
   recovery: {
     loginTitle: "ورود با کود بازیابی",
     simpleHint:

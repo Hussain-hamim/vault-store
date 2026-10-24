@@ -1,6 +1,14 @@
 import type { MessageTree } from "./types";
 
 export const en: MessageTree = {
+  rememberedAccounts: {
+    remove: "Remove",
+    removeHint: "Remove from this list only. Shop data stays on this computer.",
+    switch: "Switch shop / user",
+    shop: "Shop on this computer",
+    user: "Previously used account",
+    other: "Another account",
+  },
   recovery: {
     loginTitle: "Sign in with a recovery code",
     simpleHint:

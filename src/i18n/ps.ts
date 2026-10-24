@@ -2,6 +2,15 @@ import type { MessageTree } from "./types";
 
 /** Pashto UI — Afghan electronics-store business terms (not literal English calques). */
 export const ps: MessageTree = {
+  rememberedAccounts: {
+    remove: "لرې کړئ",
+    removeHint:
+      "یوازې له دې لېست څخه لرې کېږي. د پلورنځي معلومات په دې کمپیوټر کې پاتې کېږي.",
+    switch: "پلورنځی / کارن بدل کړئ",
+    shop: "په دې کمپیوټر کې پلورنځی",
+    user: "مخکې کارول شوی حساب",
+    other: "بل حساب",
+  },
   recovery: {
     loginTitle: "د بېرته ترلاسه کولو په کوډ ننوتل",
     simpleHint:

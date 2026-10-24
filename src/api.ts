@@ -98,6 +98,7 @@ export function productDetailLine(product: {
 declare global {
   interface Window {
     vault?: {
+      accounts?: (action: string, id?: string) => Promise<any>;
       recovery?: (
         action: string,
         args?: Record<string, unknown>,

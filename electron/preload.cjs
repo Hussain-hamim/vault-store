@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld(
       if (!reply.ok) throw new Error(reply.error);
       return reply.result;
     },
+    accounts: (action, id) => ipcRenderer.invoke("vault:accounts", action, id),
     recovery: async (action, args) => {
       const reply = await ipcRenderer.invoke("vault:recovery", action, args);
       if (!reply.ok) throw new Error(reply.error);
