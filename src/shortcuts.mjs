@@ -122,7 +122,11 @@ export function shortcutAction(
   const key =
     (event.ctrlKey || event.metaKey) && /^Key[A-Z]$/.test(event.code || "")
       ? event.code.slice(3).toLowerCase()
-      : String(event.key).toLowerCase();
+      : (event.ctrlKey || event.metaKey) && event.code === "Comma"
+        ? ","
+        : (event.ctrlKey || event.metaKey) && event.code === "Slash"
+          ? "/"
+          : String(event.key).toLowerCase();
   if (event.altKey || event.shiftKey || (event.ctrlKey && event.metaKey))
     return null;
   if (

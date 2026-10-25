@@ -38,6 +38,13 @@ function numericKind(
   return "decimal";
 }
 
+// Bypass React's tracked setter so the input event updates controlled state too.
+function setNativeValue(el: HTMLInputElement, value: string) {
+  Object.getOwnPropertyDescriptor(
+    HTMLInputElement.prototype,
+    "value",
+  )!.set!.call(el, value);
+}
 function notifyReact(el: HTMLInputElement) {
   el.dispatchEvent(new Event("input", { bubbles: true }));
 }
@@ -52,7 +59,7 @@ document.addEventListener(
     if (event.isComposing) return;
 
     const data = event.data;
-    if (!data || !EASTERN_DIGIT.test(data)) return;
+    if (!event.cancelable || !data || !EASTERN_DIGIT.test(data)) return;
 
     if (isNumericField(target)) {
       event.preventDefault();
@@ -64,7 +71,7 @@ document.addEventListener(
         target.value.slice(0, start) + inserted + target.value.slice(end),
         kind,
       );
-      target.value = merged;
+      setNativeValue(target, merged);
       try {
         const caret = Math.min(start + inserted.length, merged.length);
         target.setSelectionRange(caret, caret);
@@ -75,12 +82,17 @@ document.addEventListener(
       return;
     }
 
-    // Text fields (barcode, notes): still store Western digits when typed
+    // Normalize identifiers only; passwords and free text must remain exactly as entered.
+    if (target.type !== "text" || !/barcode|sku/i.test(target.name)) return;
     event.preventDefault();
     const start = target.selectionStart ?? target.value.length;
     const end = target.selectionEnd ?? target.value.length;
     const inserted = normalizeDigits(data);
-    target.setRangeText(inserted, start, end, "end");
+    setNativeValue(
+      target,
+      target.value.slice(0, start) + inserted + target.value.slice(end),
+    );
+    target.setSelectionRange(start + inserted.length, start + inserted.length);
     notifyReact(target);
   },
   true,
@@ -90,8 +102,11 @@ document.addEventListener(
   "paste",
   (event) => {
     const target = event.target;
-    if (!(target instanceof HTMLInputElement) || !isNumericField(target))
-      return;
+    if (!(target instanceof HTMLInputElement)) return;
+    const numeric = isNumericField(target);
+    const identifier =
+      target.type === "text" && /barcode|sku/i.test(target.name);
+    if (!numeric && !identifier) return;
     if (target.readOnly || target.disabled) return;
     const text = event.clipboardData?.getData("text");
     if (!text || !EASTERN_DIGIT.test(text)) return;
@@ -99,11 +114,23 @@ document.addEventListener(
     const kind = numericKind(target);
     const start = target.selectionStart ?? target.value.length;
     const end = target.selectionEnd ?? target.value.length;
-    const inserted = sanitizeNumericInput(text, kind);
-    target.value = sanitizeNumericInput(
-      target.value.slice(0, start) + inserted + target.value.slice(end),
-      kind,
+    const inserted = numeric
+      ? sanitizeNumericInput(text, kind)
+      : normalizeDigits(text);
+    const merged =
+      target.value.slice(0, start) + inserted + target.value.slice(end);
+    setNativeValue(
+      target,
+      numeric ? sanitizeNumericInput(merged, kind) : merged,
     );
+    try {
+      target.setSelectionRange(
+        start + inserted.length,
+        start + inserted.length,
+      );
+    } catch {
+      /* native number fields have no selection */
+    }
     notifyReact(target);
   },
   true,

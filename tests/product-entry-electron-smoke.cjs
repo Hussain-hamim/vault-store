@@ -47,6 +47,11 @@ app
       { kind: "customer", name: "Balance customer", opening_balance: 250000 },
       auth.token,
     );
+    await db.request(
+      "partyCreate",
+      { kind: "supplier", name: "RTL supplier", phone: "0700123456" },
+      auth.token,
+    );
     ipcMain.handle("vault:accounts", (_e, action) =>
       action === "resume" ? undefined : { users: [], profiles: [] },
     );
@@ -169,7 +174,9 @@ app
     await win.loadFile(path.resolve("dist/client/index.html"));
     await wait('!!document.querySelector(".sidebar")');
     await openProduct();
-    await js('document.querySelector(".product-entry-modal .modal-actions button:first-child").click()');
+    await js(
+      'document.querySelector(".product-entry-modal .modal-actions button:first-child").click()',
+    );
     await wait('!!document.querySelector(".entry-draft-row")');
     await button("Resume");
     await wait(
@@ -185,20 +192,48 @@ app
     await fill("brand", "HP", true);
     await fill("model", "EliteBook 840 G4");
     await fill("sku", "ENTRY-1");
-    await fill("cost", "100");
-    await fill("rate", "18");
+    for (const [name, data] of [
+      ["cost", "۱۰۰"],
+      ["rate", "۱۸"],
+    ]) {
+      await js(
+        `(()=>{const e=document.querySelector('[name="${name}"]');e.setSelectionRange(0,e.value.length);e.dispatchEvent(new InputEvent('beforeinput',{data:'${data}',inputType:'insertText',bubbles:true,cancelable:true}));})()`,
+      );
+    }
     await fill("price", "2500");
     await fill("opening_quantity", "2");
-    assert.equal(await js('!!document.querySelector(".modal-actions button")?.textContent.includes("Drafts")'), true);
-    assert.equal(await js('document.querySelectorAll(".entry-suggestions").length'), 0);
-    await js('document.querySelector("[name=Storage]").focus(); document.querySelector("[name=Storage]").click()');
-    await wait('document.querySelector("[name=Storage]").getAttribute("aria-expanded")==="true"');
-    for (const key of ['ArrowDown', 'Enter']) {
-      await js(`document.querySelector('[name=Storage]').dispatchEvent(new KeyboardEvent('keydown',{key:'${key}',bubbles:true,cancelable:true}));`);
+    assert.equal(
+      await js(
+        '!!document.querySelector(".modal-actions button")?.textContent.includes("Drafts")',
+      ),
+      true,
+    );
+    assert.equal(
+      await js('document.querySelectorAll(".entry-suggestions").length'),
+      0,
+    );
+    await js(
+      'document.querySelector("[name=Storage]").focus(); document.querySelector("[name=Storage]").click()',
+    );
+    await wait(
+      'document.querySelector("[name=Storage]").getAttribute("aria-expanded")==="true"',
+    );
+    for (const key of ["ArrowDown", "Enter"]) {
+      await js(
+        `document.querySelector('[name=Storage]').dispatchEvent(new KeyboardEvent('keydown',{key:'${key}',bubbles:true,cancelable:true}));`,
+      );
     }
-    assert.equal(await js('document.querySelector("[name=Storage]").value'), '128 GB');
-    assert.equal(await js('document.querySelectorAll(".entry-suggestions").length'), 0);
-    await js('document.querySelector("[name=RAM]").focus(); document.querySelector("[name=RAM]").click()');
+    assert.equal(
+      await js('document.querySelector("[name=Storage]").value'),
+      "128 GB",
+    );
+    assert.equal(
+      await js('document.querySelectorAll(".entry-suggestions").length'),
+      0,
+    );
+    await js(
+      'document.querySelector("[name=RAM]").focus(); document.querySelector("[name=RAM]").click()',
+    );
     await js(
       `[...document.querySelectorAll('.entry-suggestions button')].find(b=>b.textContent==='32 GB').click()`,
     );
@@ -217,6 +252,8 @@ app
     const first = (await db.request("catalog", { q: "ENTRY-1" }, auth.token))
       .rows[0];
     assert.equal(first.stock, 2);
+    assert.equal(first.unit_cost, 180000);
+    assert.equal(first.fx_rate, 180000);
     assert.equal(first.attributes.RAM, "60 GB");
     assert.equal(
       (await db.request("productDraftList", { intent: "catalog" }, auth.token))
@@ -343,7 +380,57 @@ app
       );
       await win.loadFile(path.resolve("dist/client/index.html"));
       await wait('!!document.querySelector(".sidebar")');
+      win.setContentSize(1440, 900);
+      win.webContents.setZoomFactor(1);
+      for (const [index, prefix, rowSelector] of [
+        [1, "inventory", ".inventory-row-main"],
+        [4, "people", ".people-row"],
+        [5, "people", ".people-row"],
+      ]) {
+        await js(
+          `document.querySelectorAll('.sidebar .nav-item')[${index}].click()`,
+        );
+        await wait(`!!document.querySelector('${rowSelector}')`);
+        await js(
+          "new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))",
+        );
+        const alignment = await js(
+          `(()=>{const heads=[...document.querySelector('.${prefix}-list-cols').children], cells=[...document.querySelector('${rowSelector}').children];return heads.filter(h=>h.getAttribute("aria-hidden")!=="true").map((h,i)=>{const a=h.getBoundingClientRect(),b=cells[i].getBoundingClientRect();return {left:Math.abs(a.left-b.left),right:Math.abs(a.right-b.right)}})})()`,
+        );
+        assert.ok(
+          alignment.every((x) => x.left < 3 && x.right < 3),
+          JSON.stringify({ locale, prefix, alignment }),
+        );
+      }
       await openProduct();
+      // Free text must retain its original characters and protected fields must not be intercepted.
+      const protectedInput = await js(
+        `(()=>{const e=document.createElement('input');e.type='password';document.body.append(e);const ev=new InputEvent('beforeinput',{data:'۱۲۳',bubbles:true,cancelable:true});e.dispatchEvent(ev);e.remove();return ev.defaultPrevented;})()`,
+      );
+      assert.equal(protectedInput, false);
+      await js(`(()=>{const e=document.querySelector('[name=barcode]');const data=new DataTransfer();data.setData('text','۱۲۳۴۵');e.dispatchEvent(new ClipboardEvent('paste',{clipboardData:data,bubbles:true,cancelable:true}));})()`);
+      // Exercise the document beforeinput/paste interception, not only native setters.
+      for (const [name, data] of [
+        ["cost", "۱۰۰"],
+        ["rate", "١٨٫٥"],
+      ]) {
+        await js(
+          `(()=>{const e=document.querySelector('[name="${name}"]');e.focus();e.setSelectionRange(0,e.value.length);e.dispatchEvent(new InputEvent('beforeinput',{data:'${data}',inputType:'insertText',bubbles:true,cancelable:true}));})()`,
+        );
+      }
+      await wait(
+        `[...document.querySelectorAll('.product-entry-modal input[readonly]')].some(e=>e.value==='1850.00')`,
+      );
+      await js(
+        `(()=>{const e=document.querySelector('[name=cost]');e.setSelectionRange(0,e.value.length);const data=new DataTransfer();data.setData('text','۱۵۰');e.dispatchEvent(new ClipboardEvent('paste',{clipboardData:data,bubbles:true,cancelable:true}));})()`,
+      );
+      await wait(
+        `[...document.querySelectorAll('.product-entry-modal input[readonly]')].some(e=>e.value==='2775.00')`,
+      );
+      assert.equal(await js('document.querySelector("[name=barcode]").value'), "12345");
+      await fill("barcode", "");
+      await fill("cost", "");
+      await fill("rate", "");
       for (const theme of ["navy", "light", "dark", "ocean", "sand"]) {
         await js(
           `document.documentElement.dataset.theme=${JSON.stringify(theme)}`,
@@ -389,7 +476,7 @@ app
       win.webContents.setZoomFactor(1);
     }
     console.log(
-      "PASS: draft restart/resume, Save & New, Previous updates, keyboard save, purchase integration, and no-scroll desktop layout in 3 languages and 5 themes.",
+      "PASS: draft restart/resume, Save & New, Previous updates, keyboard save, purchase integration, RTL column alignment, Eastern-digit typing/pasting and saved costs, and desktop layout in 3 languages and 5 themes.",
     );
   })
   .then(async () => {

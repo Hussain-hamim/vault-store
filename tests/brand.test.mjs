@@ -46,6 +46,8 @@ test("shortcuts use only Ctrl/Cmd and one key on Windows, Mac and non-Latin keyb
     "purchase",
   );
   assert.equal(shortcutAction(event("k"), options), "palette");
+  assert.equal(shortcutAction(event("و", {code:"Comma"}), options), "settings");
+  assert.equal(shortcutAction(event("ظ", {code:"Slash"}), options), "help");
   assert.equal(
     shortcutAction(event("F1", { ctrlKey: false }), options),
     "support",

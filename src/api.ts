@@ -208,7 +208,7 @@ export function normalizeDigits(value: string): string {
     .replace(/[\u06F0-\u06F9]/g, (d) => String(d.charCodeAt(0) - 0x06f0))
     .replace(/\u066B/g, ".")
     .replace(/\u066C/g, "")
-    .replace(/[\u200E\u200F\u202A-\u202E]/g, "");
+    .replace(/[\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]/g, "");
 }
 
 /** Keep a typed amount/qty string as ASCII digits (and optional sign/dot). */

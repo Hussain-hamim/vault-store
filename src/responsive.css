@@ -408,3 +408,17 @@ textarea {
 .activation-form input[name="activationKey"] { font-family: ui-monospace, monospace; font-size: 12px; letter-spacing: .025em; }
 .activation-form .activation-retry { display: block; margin-top: 14px; }
 .activation-screen .auth-story h1 { max-width: 540px; }
+
+/* Match card content gutters, including the accent border, in either direction. */
+@container workspace (min-width: 600px) {
+  .inventory-list .inventory-list-cols,
+  .people-list .people-list-cols {
+    padding-inline: 24px 21.5px;
+    text-align: start;
+  }
+}
+.people-row,
+.inventory-row { text-align: start; }
+html[dir="rtl"] .people-row-balance,
+html[dir="rtl"] .inventory-row-cost,
+html[dir="rtl"] .inventory-row-price { text-align: right; }
