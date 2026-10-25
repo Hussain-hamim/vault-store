@@ -114,3 +114,13 @@ Settings → Help & shortcuts lists all two-key actions. Ctrl/Cmd + K opens the 
 Dashboard → Customize dashboard supports individual selection, show/hide all, ordering, save/cancel and defaults. Choices are saved per account on this computer and respect the staff permissions. Empty layouts are supported.
 
 Document previews show a white page with actual paper gutters. Standard margins are 16 mm, narrow margins are 10 mm and receipts retain 3 mm. Print and PDF share those values. Automated desktop checks cover margins and ensure tables stay inside them.
+
+## Compact product entry and drafts
+
+Add Product uses a wider, compact form with editable RAM/storage suggestions. Save closes the form; Save & New (Ctrl/Cmd+S) keeps it open and retains category, company, currency and rate. Previous edits products created during the current entry session without repeating opening stock. Back to New restores the unfinished new-product form.
+
+Save Draft stores incomplete forms privately for the current user and shop. Open Drafts to resume or delete them; catalog and purchase drafts are separate. Drafts and compressed photos survive restarts and SQLite backups. Publishing creates the product and any opening stock atomically and removes the draft; retries do not create duplicates. Drafts do not affect stock, accounts or reports.
+
+New photo uploads are resized to at most 640 pixels and adaptively compressed to no more than 150,000 bytes. Existing photos retain their original data. Product and draft lists keep short references rather than photo blobs.
+
+Validation: `npm test`, `npm run build`, and `npm run test:products:desktop`. The last command uses an isolated SQLite store and the compiled desktop UI, checks actual form workflows and DOM geometry across desktop sizes, three languages and five themes, and takes no screenshots.

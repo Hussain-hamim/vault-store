@@ -4,7 +4,7 @@ Product forms automatically select a real product image from a local catalog usi
 
 An exact match means a supported model name, not a guarantee of identical color, storage, generation suffix or condition. Other models can use a clearly labeled reference from the same company and category. An unsupported company/category shows a neutral icon instead of a different company’s product. The form identifies exact matches, references and saved custom photos.
 
-Use Choose photo in Add/Edit product or new resale intake for the exact item. JPG, PNG and WebP are resized locally to a maximum 640-pixel edge and stored as JPEG. The source file limit is 12 MiB. After saving, another product with the same category, company and model can reuse that uploaded photo. Use automatic photo resets the current selection.
+Use Choose photo in Add/Edit product or new resale intake for the exact item. JPG, PNG and WebP are resized locally to a maximum 640-pixel edge and adaptively compressed as JPEG to at most 150,000 bytes. Existing saved photos are not recompressed. The source file limit is 12 MiB. After saving, another product with the same category, company and model can reuse that uploaded photo. Use automatic photo resets the current selection.
 
 Uploaded media is content-addressed and deduplicated in the separate SQLite product_photos table. Product rows keep only a short photo reference; images load near the viewport through a bounded cache. Creation/editing and photo writes commit together. Historical invoice references keep their original photos, and standard SQLite backups/restores include the media without depending on the original upload file.
 

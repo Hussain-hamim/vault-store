@@ -2,6 +2,26 @@ import type { MessageTree } from "./types";
 
 /** Dari UI — Afghan shop/accounting terms used in everyday trade. */
 export const prs: MessageTree = {
+  entry: {
+    previous: "قبلی",
+    backToNew: "برگشت به کالای جدید",
+    saveDraft: "ذخیرهٔ پیش‌نویس",
+    saveNew: "ذخیره و جدید",
+    drafts: "پیش‌نویس‌ها",
+    draftSaved: "پیش‌نویس ذخیره شد",
+    savedDraft: "پیش‌نویس ذخیره‌شده",
+    previousRecord: "ویرایش کالای قبلی {number}",
+    savedNext: "کالا ذخیره شد. کالای بعدی را وارد کنید.",
+    refreshFailed: "ذخیره شد، اما فهرست تازه نشد.",
+    wrongContext: "این پیش‌نویس مربوط به بخش دیگری است.",
+    noDrafts: "پیش‌نویسی ذخیره نشده است",
+    untitled: "کالای بی‌نام",
+    resume: "ادامه",
+    unsaved: "تغییرات ذخیره‌نشده",
+    unsavedQuestion: "پیش از خروج، تغییرات را ذخیره می‌کنید؟",
+    continueEditing: "ادامهٔ ویرایش",
+    discard: "صرف‌نظر",
+  },
   rememberedAccounts: {
     remove: "حذف از فهرست",
     removeHint:
@@ -253,7 +273,7 @@ export const prs: MessageTree = {
     help: "راهنما و میانبرها",
     about: "درباره Radefy TechMart",
     typingHint:
-      "هنگام تایپ یا باز بودن پنجره، میانبر کارها غیرفعال است. Ctrl/Cmd + K این فهرست را باز می‌کند؛ Ctrl/Cmd + + یا − اندازه صفحه را تغییر می‌دهد.",
+      "هنگام تایپ یا باز بودن پنجره، میانبر کارها غیرفعال است. Ctrl/Cmd + K این فهرست را باز می‌کند؛ Ctrl/Cmd + + یا − اندازه صفحه را تغییر می‌دهد. در فورم کالا، Ctrl/Cmd + S کالا را ذخیره و فورم جدید را باز می‌کند؛ هنگام ویرایش کالای قبلی، تغییرات را ذخیره کرده و به پیش‌نویس کالای جدید برمی‌گردد.",
   },
   company: {
     supportTitle: "مرکز پشتیبانی",
@@ -916,6 +936,22 @@ export const prs: MessageTree = {
       "فاکتور برای همیشه حذف شد. موجودی، نقد و حساب مشتری به‌روز شد.",
   },
   productDetail: {
+    stockUnavailable: "معلومات موجودی در دسترس نیست",
+    currentStock: "موجودی فعلی",
+    remainingNow: "تعداد باقی‌مانده در موجودی اکنون",
+    zeroStock: "موجودی تمام شده",
+    lowStock: "موجودی کم",
+    available: "موجود است",
+    information: "معلومات جنس",
+    details: "جزئیات",
+    category: "دسته‌بندی",
+    company: "شرکت / برند",
+    model: "مدل",
+    barcode: "بارکود",
+    location: "محل قفسه",
+    remainingAfter: "موجودی پس از حرکت",
+    noMovements: "هیچ حرکت موجودی ثبت نشده است.",
+
     inStock: "{n} در موجودی",
     noWarranty: "ضمانت تنظیم نشده",
     reorderAt: "سفارش مجدد در {n}",

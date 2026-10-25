@@ -55,6 +55,9 @@ app
         { ...product, price: 300000 },
         auth.token,
       );
+    ipcMain.handle("vault:accounts", (_e, action) =>
+      action === "resume" ? undefined : { users: [], profiles: [] },
+    );
     ipcMain.handle("vault:activation-status", () => ({
       active: true,
       required: false,
@@ -104,7 +107,9 @@ app
     }
     async function open(url, file = false) {
       file ? await win.loadFile(url) : await win.loadURL(url);
-      await wait('!!document.querySelector(".auth-form")');
+      await wait(
+        '!!document.querySelector(".auth-form") || !!document.querySelector(".sidebar")',
+      );
       await js(
         'localStorage.setItem("vault-session",' +
           JSON.stringify(auth.token) +
@@ -113,7 +118,7 @@ app
       file ? await win.loadFile(url) : await win.loadURL(url);
       await wait('!!document.querySelector(".inventory-row")');
     }
-    await open("http://127.0.0.1:4173/");
+    await open(path.resolve("dist/client/index.html"), true);
     await wait(
       '[...document.querySelectorAll(".inventory-row .product-photo img")].length===3 && [...document.querySelectorAll(".inventory-row .product-photo img")].every(i=>i.naturalWidth>0)',
     );
@@ -230,6 +235,8 @@ app
     await js(
       'document.querySelector(".product-photo-picker").closest("form").querySelector(".modal-actions .button").click()',
     );
+    await wait('document.querySelectorAll("[role=dialog]").length===2');
+    await button("Discard");
     await wait('!document.querySelector(".product-photo-picker")');
     // Compiled desktop app must display both bundled and SQLite photos without HTTP access.
     session.defaultSession.webRequest.onBeforeRequest((details, respond) =>

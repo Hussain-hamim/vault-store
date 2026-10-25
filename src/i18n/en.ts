@@ -1,6 +1,26 @@
 import type { MessageTree } from "./types";
 
 export const en: MessageTree = {
+  entry: {
+    previous: "Previous",
+    backToNew: "Back to New",
+    saveDraft: "Save Draft",
+    saveNew: "Save & New",
+    drafts: "Drafts",
+    draftSaved: "Draft saved",
+    savedDraft: "Saved draft",
+    previousRecord: "Editing previous product {number}",
+    savedNext: "Product saved. Ready for the next product.",
+    refreshFailed: "Saved successfully, but the list could not refresh.",
+    wrongContext: "This draft belongs to another entry screen.",
+    noDrafts: "No saved drafts",
+    untitled: "Untitled product",
+    resume: "Resume",
+    unsaved: "Unsaved changes",
+    unsavedQuestion: "Save your changes before leaving this record?",
+    continueEditing: "Continue Editing",
+    discard: "Discard",
+  },
   rememberedAccounts: {
     remove: "Remove",
     removeHint: "Remove from this list only. Shop data stays on this computer.",
@@ -257,7 +277,7 @@ export const en: MessageTree = {
     help: "Help & shortcuts",
     about: "About Radefy TechMart",
     typingHint:
-      "Action shortcuts pause while typing or while a dialog is open. Ctrl/Cmd + K opens this menu; Ctrl/Cmd + + or − keeps normal zoom.",
+      "Action shortcuts pause while typing or while a dialog is open. Ctrl/Cmd + K opens this menu; Ctrl/Cmd + + or − keeps normal zoom. In the product form, Ctrl/Cmd + S saves and starts the next product; when editing Previous, it saves changes and returns to your new-product draft.",
   },
   company: {
     supportTitle: "Support center",
@@ -925,6 +945,22 @@ export const en: MessageTree = {
       "Invoice permanently deleted. Stock, cash and customer ledger updated.",
   },
   productDetail: {
+    stockUnavailable: "Stock unavailable",
+    currentStock: "Current stock",
+    remainingNow: "Remaining units in stock now",
+    zeroStock: "Out of stock",
+    lowStock: "Low stock",
+    available: "In stock",
+    information: "Product information",
+    details: "Details",
+    category: "Category",
+    company: "Company / brand",
+    model: "Model",
+    barcode: "Barcode",
+    location: "Shelf location",
+    remainingAfter: "Stock after movement",
+    noMovements: "No stock movements recorded.",
+
     inStock: "{n} in stock",
     noWarranty: "No warranty set",
     reorderAt: "Reorder at {n}",

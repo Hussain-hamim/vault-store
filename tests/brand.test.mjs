@@ -156,7 +156,13 @@ test("branding, company pages and shortcut labels exist in all three languages",
     assert.equal(catalogs[locale].app.brand, brand.name);
   }
   for (const locale of ["ps", "prs"]) {
-    for (const group of ["company", "shortcuts", "notifications", "photos"]) {
+    for (const group of [
+      "company",
+      "shortcuts",
+      "notifications",
+      "photos",
+      "entry",
+    ]) {
       assert.deepEqual(
         Object.keys(catalogs[locale][group]).sort(),
         Object.keys(catalogs.en[group]).sort(),

@@ -130,3 +130,15 @@ Desktop testing: keep `npm run dev` running, then use `npm run desktop:dev` (not
 - The saved-shop selector stays available during owner recovery. Switching shops from recovery opens recovery for the chosen installation, even if that shop has a remembered session; references and codes must always belong to that chosen installation.
 
 - Signed-in profile menus switch directly to another saved shop/account. Reuse its valid saved session without showing sign-in first; require credentials only when that destination has no valid session. Keep an explicit recovery-origin shop switch in recovery.
+
+- Product details opened from global search or inventory show a prominent current-stock summary on the right of the product header. Use Details and Stock movement history tabs; show remaining stock after each movement, anchored to freshly loaded current stock even when only the latest 100 movements are shown.
+
+## Compact product entry and drafts
+- Add/edit product uses a 1100px compact modal with adjacent identity/specification and pricing panels, two/three-column rows, labels without descriptions, and a persistent action footer. Fit at 1280×720/100%; allow internal scrolling only on smaller/scaled windows. RAM/storage suggestions are focus-triggered selectable lists alongside editable free text.
+- Save closes; Save & New creates once and stays open. Ctrl/Cmd+S invokes Save & New even inside inputs. Retain category, company, currency and rate, but clear product-specific fields and reset opening stock. Previous revisits only products created in this modal session using productUpdate; never repeat opening stock or add a purchase bill line again. Preserve new/edited drafts during navigation and confirm unsaved work before leaving.
+- Save Draft stores multiple incomplete products privately per user/shop and entry context (catalog or purchase), including raw input text and separate compressed photo references. Drafts never affect inventory or accounting. Publishing validates and atomically creates the product/stock, consumes the draft and records an idempotent result. Drafts and photos belong in SQLite backups.
+- Newly uploaded product photos are adaptively compressed to at most 150,000 bytes with a maximum 640px edge; never upscale or rewrite existing photos. Preserve custom photos across identity edits and draft resumes.
+
+- Product entry groups identity, specifications, and pricing in separate softly tinted, theme-aware panels with compact gaps and clear section headings. Keep the form visually contained instead of spreading fields across empty space; RAM/storage suggestions open as a menu only while their editable field is active; allow arbitrary typing, pointer selection and arrow-key/Enter selection. Keep Drafts in the footer with other actions and use compact field/action icons, including barcode.
+
+- Product-entry dialogs use the available viewport height with 16px outside gutters at the top and bottom, keeping the footer anchored and normal compact internal padding.

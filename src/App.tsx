@@ -1038,7 +1038,7 @@ export function App() {
         </div>
       )}
       {modal?.name === "product" && (
-        <ProductForm product={modal.data} close={close} done={done} />
+        <ProductForm product={modal.data} close={close} done={toast} />
       )}
       {["customer", "supplier"].includes(modal?.name || "") && (
         <PartyForm

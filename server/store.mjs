@@ -1,3 +1,4 @@
+import { productDraftCommand } from "./product-drafts.mjs";
 import { saveProductPhoto, readProductPhoto } from "./product-photos.mjs";
 import {
   DEFAULT_CURRENCIES,
@@ -2602,6 +2603,16 @@ export class Store {
       closePeriod: "settings",
     }[command];
     const user = this.auth(token, permission);
+    if (
+      [
+        "productDraftList",
+        "productDraftRead",
+        "productDraftSave",
+        "productDraftDelete",
+        "productDraftPublish",
+      ].includes(command)
+    )
+      return productDraftCommand(this, user, command, args);
     switch (command) {
       case "me":
         return user;
@@ -2725,7 +2736,11 @@ export class Store {
             name: d.name,
             price: d.price,
           });
-          return { id: existing.id };
+          return {
+            id: existing.id,
+            product: this.listProducts({ id: existing.id, limit: 1 }, user)
+              .rows[0],
+          };
         });
       }
       case "reorderReport":
@@ -2907,7 +2922,7 @@ export class Store {
           delete p.fx_rate;
         }
         const movements = this.all(
-          "SELECT m.*,d.number,d.kind FROM movements m JOIN documents d ON d.id=m.document_id WHERE product_id=? ORDER BY m.date DESC,m.id DESC LIMIT 100",
+          "SELECT m.*,d.number,d.kind FROM movements m JOIN documents d ON d.id=m.document_id WHERE product_id=? ORDER BY m.date DESC,m.rowid DESC LIMIT 100",
           p.id,
         );
         return {

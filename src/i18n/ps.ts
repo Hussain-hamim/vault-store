@@ -2,6 +2,26 @@ import type { MessageTree } from "./types";
 
 /** Pashto UI — Afghan electronics-store business terms (not literal English calques). */
 export const ps: MessageTree = {
+  entry: {
+    previous: "مخکینی",
+    backToNew: "نوي توکي ته ستنېدل",
+    saveDraft: "مسوده ساتل",
+    saveNew: "ساتل او نوی",
+    drafts: "مسودې",
+    draftSaved: "مسوده وساتل شوه",
+    savedDraft: "ساتل شوې مسوده",
+    previousRecord: "د مخکیني توکي {number} سمون",
+    savedNext: "توکی وساتل شو. بل توکی ورزیات کړئ.",
+    refreshFailed: "وساتل شو، خو لېست تازه نه شو.",
+    wrongContext: "دا مسوده د بلې برخې ده.",
+    noDrafts: "ساتل شوې مسودې نشته",
+    untitled: "بې نومه توکی",
+    resume: "ادامه",
+    unsaved: "ناساتل شوي بدلونونه",
+    unsavedQuestion: "له وتلو مخکې بدلونونه ساتئ؟",
+    continueEditing: "سمون ته دوام",
+    discard: "پرېښودل",
+  },
   rememberedAccounts: {
     remove: "لرې کړئ",
     removeHint:
@@ -251,7 +271,7 @@ export const ps: MessageTree = {
     help: "لارښود او لنډلارې",
     about: "د Radefy TechMart په اړه",
     typingHint:
-      "د لیکلو یا پرانیستې کړکۍ پر مهال د کارونو لنډلارې غیرفعالې دي. Ctrl/Cmd + K دا لېست پرانیزي؛ Ctrl/Cmd + + یا − د پاڼې اندازه بدلوي.",
+      "د لیکلو یا پرانیستې کړکۍ پر مهال د کارونو لنډلارې غیرفعالې دي. Ctrl/Cmd + K دا لېست پرانیزي؛ Ctrl/Cmd + + یا − د پاڼې اندازه بدلوي. د توکي په فورمه کې Ctrl/Cmd + S توکی ساتي او نوې فورمه پرانیزي؛ د مخکیني توکي د سمون پر مهال بدلونونه ساتي او نوې مسودې ته ستنېږي.",
   },
   company: {
     supportTitle: "د مرستې مرکز",
@@ -912,6 +932,22 @@ export const ps: MessageTree = {
     deletedSale: "بل دایمي ړنګ شو. ذخیره، نغدي او د پیرودونکي حساب تازه شو.",
   },
   productDetail: {
+    stockUnavailable: "د ذخیرې معلومات نشته",
+    currentStock: "اوسنۍ ذخیره",
+    remainingNow: "اوس په ذخیره کې پاتې دانې",
+    zeroStock: "ذخیره نشته",
+    lowStock: "ذخیره کمه ده",
+    available: "په ذخیره کې شته",
+    information: "د توکي معلومات",
+    details: "تفصیل",
+    category: "کټګوري",
+    company: "شرکت / برانډ",
+    model: "ماډل",
+    barcode: "بارکوډ",
+    location: "د المارۍ ځای",
+    remainingAfter: "له حرکت وروسته ذخیره",
+    noMovements: "د ذخیرې هېڅ حرکت نه دی ثبت شوی.",
+
     inStock: "{n} په ذخیره کې",
     noWarranty: "ضمانت نه دی ټاکل شوی",
     reorderAt: "بیا سفارش په {n}",

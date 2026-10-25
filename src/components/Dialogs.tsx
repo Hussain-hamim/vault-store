@@ -1,5 +1,6 @@
+import { movementBalances } from "../product-movements.mjs";
+import "./product-detail.css";
 import { ProductPhoto } from "./ProductPhoto";
-import { ProductPhotoPicker, type PhotoValue } from "./ProductPhotoPicker";
 import { CurrencyPicker, CurrencyFlag } from "./CurrencyPicker";
 import { expenseAccountName } from "../expense-accounts";
 import { useEffect, useState, useRef } from "react";
@@ -52,559 +53,16 @@ type DialogProps = {
   close: () => void;
   done: (message: string, result?: unknown) => void;
 };
-export const PRODUCT_BRANDS = [
-  "Apple",
-  "Dell",
-  "Samsung",
-  "HP",
-  "Lenovo",
-  "Asus",
-  "Acer",
-  "Microsoft",
-  "Sony",
-  "LG",
-  "Xiaomi",
-  "Huawei",
-  "Anker",
-  "Logitech",
-  "Western Digital",
-  "Seagate",
-  "Kingston",
-  "SanDisk",
-  "Corsair",
-  "Razer",
-  "Other",
-];
-const ACCESSORY_TYPES = [
-  "Keyboard",
-  "Mouse",
-  "Headphones",
-  "Charger",
-  "Cable",
-  "Case",
-  "Mouse pad",
-  "Plush",
-  "Hard disk",
-  "Webcam",
-  "Hub",
-  "Speaker",
-  "Other",
-];
-function brandChoices(current?: string) {
-  if (current && !PRODUCT_BRANDS.includes(current))
-    return [current, ...PRODUCT_BRANDS];
-  return PRODUCT_BRANDS;
-}
-function accessoryChoices(current?: string) {
-  if (current && !ACCESSORY_TYPES.includes(current))
-    return [current, ...ACCESSORY_TYPES];
-  return ACCESSORY_TYPES;
-}
-export const PRODUCT_CATEGORIES = [
-  "Computers",
-  "Mobiles",
-  "Tablets",
-  "Storage",
-  "Accessories",
-] as const;
-export function categoryLabel(tr: (key: string) => string, category: string) {
-  const keys: Record<string, string> = {
-    Computers: "inventory.computers",
-    Mobiles: "inventory.mobiles",
-    Tablets: "inventory.tablets",
-    Storage: "inventory.storage",
-    Accessories: "inventory.accessories",
-  };
-  return tr(keys[category] || category);
-}
-export function specFieldLabel(tr: (key: string) => string, key: string) {
-  const map: Record<string, string> = {
-    CPU: "product.cpu",
-    RAM: "product.ram",
-    Storage: "product.storage",
-    GPU: "product.gpu",
-    Display: "product.display",
-    Color: "product.color",
-    Connectivity: "product.connectivity",
-    Interface: "product.interface",
-    Compatibility: "productForm.compatibility",
-    Wattage: "productForm.wattage",
-  };
-  return tr(map[key] || key);
-}
-export function ProductForm({
-  close,
-  done,
-  product,
-  intent = "catalog",
-}: {
-  close: () => void;
-  done: (message: string, result?: unknown) => void;
-  product?: Product;
-  /** From New Purchase: create catalog item with no stock; cost comes from the bill. */
-  intent?: "catalog" | "purchase";
-}) {
-  const t = useT();
-  const forPurchase = intent === "purchase" && !product;
-  const [category, setCategory] = useState(product?.category || "Computers"),
-    [brandPick, setBrandPick] = useState(product?.brand || "Apple"),
-    [brandOther, setBrandOther] = useState(""),
-    [model, setModel] = useState(product?.model || ""),
-    [photo, setPhoto] = useState<PhotoValue>({ image: product?.image || "" }),
-    [photoBusy, setPhotoBusy] = useState(false),
-    [accessoryPick, setAccessoryPick] = useState(
-      product?.attributes?.Type || "Keyboard",
-    ),
-    [accessoryOther, setAccessoryOther] = useState(""),
-    [currency, setCurrency] = useState(product?.currency || "AED"),
-    [costAed, setCostAed] = useState(
-      (product?.cost_foreign ?? product?.cost_aed)
-        ? moneyInput(product?.cost_foreign ?? product?.cost_aed ?? 0)
-        : "",
-    ),
-    [fxRate, setFxRate] = useState(
-      product?.fx_rate ? fxRateInput(product.fx_rate) : "",
-    ),
-    [error, setError] = useState(""),
-    [busy, setBusy] = useState(false);
-  const costAedMinor = (() => {
-    try {
-      return costAed.trim() ? toMoney(costAed) : 0;
-    } catch {
-      return 0;
-    }
-  })();
-  const fxRateScaled = (() => {
-    try {
-      return fxRate.trim() ? toFxRate(fxRate) : 0;
-    } catch {
-      return 0;
-    }
-  })();
-  const unitCostAfn = afnFromAed(costAedMinor, fxRateScaled);
-  async function submit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const f = new FormData(e.currentTarget);
-    setBusy(true);
-    setError("");
-    try {
-      const resolvedBrand =
-        brandPick === "Other" ? brandOther.trim() : brandPick.trim();
-      if (!resolvedBrand) throw new Error(t("productForm.errBrand"));
-      const resolvedAccessory =
-        category !== "Accessories"
-          ? ""
-          : accessoryPick === "Other"
-            ? accessoryOther.trim()
-            : accessoryPick.trim();
-      if (category === "Accessories" && !resolvedAccessory)
-        throw new Error(t("productForm.errAccessory"));
-      let cost_aed = 0,
-        fx_rate = 0;
-      if (forPurchase) {
-        // The purchase bill records currency, supplier cost and rate; catalog starts at zero stock.
-      } else {
-        cost_aed = costAed.trim() ? toMoney(costAed) : 0;
-        fx_rate = fxRate.trim() ? toFxRate(fxRate) : 0;
-        if (!cost_aed || !fx_rate)
-          throw new Error(t("currencies.costRateRequired"));
-      }
-      const attributes: Record<string, string> = {};
-      for (const k of [
-        "CPU",
-        "RAM",
-        "Storage",
-        "GPU",
-        "Display",
-        "Color",
-        "Connectivity",
-        "Interface",
-        "Compatibility",
-        "Wattage",
-      ]) {
-        const v = String(f.get(k) || "");
-        if (v) attributes[k] = v;
-      }
-      if (resolvedAccessory) attributes.Type = resolvedAccessory;
-      const created = await api(product ? "productUpdate" : "productCreate", {
-        id: product?.id,
-        name: f.get("name"),
-        brand: resolvedBrand,
-        model: f.get("model"),
-        sku: f.get("sku"),
-        barcode: f.get("barcode"),
-        category,
-        price: toMoney(f.get("price")),
-        minimum: product?.minimum ?? 0,
-        reorder_level: Number(
-          sanitizeNumericInput(
-            String(f.get("reorder_level") || "0"),
-            "integer",
-          ),
-        ),
-        location: product?.location || "",
-        condition: f.get("condition"),
-        warranty: f.get("warranty"),
-        attributes,
-        currency,
-        cost_foreign: cost_aed,
-        cost_aed: currency === "AED" ? cost_aed : 0,
-        fx_rate,
-        unit_cost: afnFromAed(cost_aed, fx_rate),
-        ...(!product
-          ? {
-              opening_quantity: forPurchase
-                ? 0
-                : Number(
-                    sanitizeNumericInput(
-                      String(f.get("opening_quantity") || "0"),
-                      "integer",
-                    ),
-                  ),
-            }
-          : {}),
-        ...photo,
-      });
-      done(
-        product
-          ? t("productForm.detailsUpdated")
-          : forPurchase
-            ? t("productForm.addedForPurchase")
-            : t("productForm.savedWithStock"),
-        created,
-      );
-    } catch (e: any) {
-      setError(e.message);
-    } finally {
-      setBusy(false);
-    }
-  }
-  const attrs =
-    category === "Computers"
-      ? ["CPU", "RAM", "Storage", "GPU", "Display", "Color"]
-      : ["Mobiles", "Tablets"].includes(category)
-        ? ["RAM", "Storage", "Color", "Connectivity"]
-        : category === "Storage"
-          ? ["Storage", "Interface"]
-          : ["Compatibility", "Wattage", "Color"];
-  const previewAccessory =
-    accessoryPick === "Other" ? accessoryOther.trim() : accessoryPick;
-  return (
-    <Modal
-      title={
-        product
-          ? t("productForm.editTitle")
-          : forPurchase
-            ? t("productForm.newForPurchase")
-            : t("productForm.newTitle")
-      }
-      subtitle={
-        forPurchase
-          ? t("productForm.subtitlePurchase")
-          : t("productForm.subtitleCatalog")
-      }
-      onClose={close}
-      wide
-    >
-      <form onSubmit={submit}>
-        <div className="form-body">
-          <div className="form-section-title">
-            <PackageIcon size={17} />
-            {t("productForm.info")}
-          </div>
-          <ProductPhotoPicker
-            product={{
-              category,
-              brand: brandPick === "Other" ? brandOther : brandPick,
-              model,
-              attributes: {
-                Type: category === "Accessories" ? previewAccessory : "",
-              },
-            }}
-            existingImage={product?.image}
-            onChange={setPhoto}
-            onBusy={setPhotoBusy}
-          />
-          <div className="form-grid">
-            <Field label={t("product.name")}>
-              <input
-                name="name"
-                defaultValue={product?.name}
-                placeholder={t("productForm.namePh")}
-                required
-                minLength={2}
-              />
-            </Field>
-            <Field label={t("product.category")}>
-              <select
-                name="category"
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-              >
-                {PRODUCT_CATEGORIES.map((c) => (
-                  <option key={c} value={c}>
-                    {categoryLabel(t, c)}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            {category === "Accessories" && (
-              <>
-                <Field label={t("product.accessoryType")}>
-                  <select
-                    value={accessoryPick}
-                    onChange={(e) => setAccessoryPick(e.target.value)}
-                    required
-                  >
-                    {accessoryChoices(product?.attributes?.Type).map(
-                      (choice) => (
-                        <option key={choice}>{choice}</option>
-                      ),
-                    )}
-                  </select>
-                </Field>
-                {accessoryPick === "Other" && (
-                  <Field label={t("productForm.customAccessory")}>
-                    <input
-                      value={accessoryOther}
-                      onChange={(e) => setAccessoryOther(e.target.value)}
-                      placeholder={t("productForm.customAccessoryPh")}
-                      required
-                    />
-                  </Field>
-                )}
-              </>
-            )}
-            <Field label={t("productForm.companyBrand")}>
-              <select
-                name="brand"
-                value={brandPick}
-                onChange={(e) => setBrandPick(e.target.value)}
-                required
-              >
-                {brandChoices(product?.brand).map((b) => (
-                  <option key={b} value={b}>
-                    {b === "Other" ? t("common.other") : b}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            {brandPick === "Other" && (
-              <Field label={t("productForm.customBrand")}>
-                <input
-                  value={brandOther}
-                  onChange={(e) => setBrandOther(e.target.value)}
-                  placeholder={t("productForm.customBrandPh")}
-                  required
-                />
-              </Field>
-            )}
-            <Field label={t("product.model")}>
-              <input
-                name="model"
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-                placeholder={t("productForm.modelPh")}
-                required
-              />
-            </Field>
-            <Field label={t("product.sku")}>
-              <input
-                name="sku"
-                defaultValue={product?.sku}
-                placeholder={t("productForm.skuPh")}
-                required
-              />
-            </Field>
-          </div>
-          <div className="form-section-title">
-            {t("productForm.barcodeSection")}{" "}
-            <small>{t("productForm.barcodeScanHint")}</small>
-          </div>
-          <div className="barcode-field-row">
-            <span className="barcode-field-icon" aria-hidden="true">
-              <BarcodeIcon size={22} />
-            </span>
-            <Field
-              label={t("product.barcode")}
-              hint={t("productForm.barcodeHint")}
-            >
-              <input
-                name="barcode"
-                defaultValue={product?.barcode}
-                placeholder={t("productForm.barcodePh")}
-                inputMode="numeric"
-                autoComplete="off"
-              />
-            </Field>
-          </div>
-          <div className="form-section-title">{t("productForm.pricing")}</div>
-          {!forPurchase && (
-            <Field label={t("currencies.choose")}>
-              <CurrencyPicker
-                value={currency}
-                onChange={(code) => {
-                  setCurrency(code);
-                  setCostAed("");
-                  setFxRate(code === "AFN" ? "1" : "");
-                }}
-              />
-            </Field>
-          )}
-          <div className="form-grid">
-            {!forPurchase && (
-              <>
-                <Field
-                  label={t("currencies.unitCost", { code: currency })}
-                  hint={t("currencies.costHint")}
-                >
-                  <NumericInput
-                    min="0"
-                    step="0.01"
-                    value={costAed}
-                    onChange={(e) => setCostAed(e.target.value)}
-                    placeholder="0.00"
-                    required
-                  />
-                </Field>
-                <Field
-                  label={
-                    <span className="currency-rate-label">
-                      <CurrencyFlag code={currency} />
-                      {t("currencies.rate", { code: currency })}
-                      <CurrencyFlag code="AFN" />
-                    </span>
-                  }
-                  hint={t("currencies.rateHint")}
-                >
-                  <NumericInput
-                    min="0"
-                    step="0.0001"
-                    value={fxRate}
-                    readOnly={currency === "AFN"}
-                    onChange={(e) => setFxRate(e.target.value)}
-                    placeholder={t("currencies.ratePlaceholder")}
-                    required
-                  />
-                </Field>
-                <Field
-                  label={t("product.unitCostAf")}
-                  hint={t("currencies.afnCostHint")}
-                >
-                  <input
-                    value={unitCostAfn ? moneyInput(unitCostAfn) : ""}
-                    readOnly
-                    tabIndex={-1}
-                    placeholder="0.00"
-                  />
-                </Field>
-              </>
-            )}
-            <Field label={t("product.sellingPrice")}>
-              <NumericInput
-                name="price"
-                defaultValue={product ? product.price / 100 : undefined}
-                min="0"
-                step="0.01"
-                placeholder="0.00"
-                required
-              />
-            </Field>
-            {!product && !forPurchase && (
-              <Field
-                label={t("productForm.openingQty")}
-                hint={t("productForm.openingQtyHint")}
-              >
-                <NumericInput
-                  kind="integer"
-                  name="opening_quantity"
-                  min="0"
-                  max="100000"
-                  defaultValue="0"
-                  required
-                />
-              </Field>
-            )}
-            {forPurchase && (
-              <Field
-                label={t("productForm.stockOnPurchase")}
-                hint={t("productForm.stockOnPurchaseHint")}
-              >
-                <input
-                  value={t("productForm.stockOnPurchaseValue")}
-                  readOnly
-                  tabIndex={-1}
-                />
-              </Field>
-            )}
-            <Field label={t("product.reorder")}>
-              <NumericInput
-                kind="integer"
-                name="reorder_level"
-                min="0"
-                defaultValue={product?.reorder_level ?? 5}
-                required
-              />
-            </Field>
-            <Field label={t("product.condition")}>
-              <select
-                name="condition"
-                defaultValue={product?.condition || "New"}
-              >
-                <option value="New">{t("productForm.conditionNew")}</option>
-                <option value="Used">{t("productForm.conditionUsed")}</option>
-                <option value="Refurbished">
-                  {t("productForm.conditionRefurb")}
-                </option>
-              </select>
-            </Field>
-            <Field label={t("product.warranty")}>
-              <input
-                name="warranty"
-                defaultValue={product?.warranty}
-                placeholder={t("productForm.warrantyPh")}
-              />
-            </Field>
-          </div>
-          <div className="form-section-title">{t("productForm.specs")}</div>
-          <div className="form-grid">
-            {attrs.map((a) => (
-              <Field key={a} label={specFieldLabel(t, a)}>
-                <input
-                  name={a}
-                  defaultValue={product?.attributes?.[a] || ""}
-                  placeholder={
-                    a === "RAM"
-                      ? t("productForm.specRamPh")
-                      : a === "Storage"
-                        ? t("productForm.specStoragePh")
-                        : ""
-                  }
-                />
-              </Field>
-            ))}
-          </div>
-          <ErrorMessage error={error} />
-        </div>
-        <div className="modal-actions">
-          <button type="button" className="button" onClick={close}>
-            {t("common.cancel")}
-          </button>
-          <button className="button button-dark" disabled={busy || photoBusy}>
-            {busy
-              ? t("common.saving")
-              : product
-                ? t("productForm.saveChanges")
-                : forPurchase
-                  ? t("productForm.addToPurchase")
-                  : t("productForm.addProduct")}
-            <PlusIcon size={16} />
-          </button>
-        </div>
-      </form>
-    </Modal>
-  );
-}
+export {
+  PRODUCT_BRANDS,
+  PRODUCT_CATEGORIES,
+  categoryLabel,
+  specFieldLabel,
+} from "./product-fields";
+import { PRODUCT_CATEGORIES, categoryLabel } from "./product-fields";
+import { ProductForm } from "./ProductForm";
+export { ProductForm } from "./ProductForm";
+
 type CartLine = {
   product: Product;
   quantity: number;
@@ -2067,24 +1525,21 @@ export function TradeForm({
           intent="purchase"
           close={() => setAddingProduct(false)}
           done={async (_message, result) => {
-            setAddingProduct(false);
-            const created = result as { id?: string } | undefined;
-            if (!created?.id) return;
-            try {
-              const d = await api<{ rows: Product[] }>("catalog", {
-                id: created.id,
-                limit: 1,
-              });
-              const p = d.rows[0];
-              if (!p) throw new Error(t("sales.errProductLoad"));
-              setProducts((rows) =>
-                rows.some((r) => r.id === p.id) ? rows : [p, ...rows],
-              );
+            const p = result.product;
+            setProducts((rows) =>
+              rows.some((r) => r.id === p.id)
+                ? rows.map((r) => (r.id === p.id ? p : r))
+                : [p, ...rows],
+            );
+            if (result.operation === "create") {
               setQ("");
               add(p);
-            } catch (e: any) {
-              setError(e.message);
-            }
+            } else
+              setLines((rows) =>
+                rows.map((row) =>
+                  row.product.id === p.id ? { ...row, product: p } : row,
+                ),
+              );
           }}
         />
       )}
@@ -3219,7 +2674,7 @@ export function DeleteInvoiceDialog({
   );
 }
 export function ProductDetail({
-  product,
+  product: initialProduct,
   user,
   close,
   done,
@@ -3236,12 +2691,26 @@ export function ProductDetail({
     [error, setError] = useState(""),
     [adjust, setAdjust] = useState(false),
     [busy, setBusy] = useState(false);
+  const [tab, setTab] = useState<"details" | "movements">("details");
+  const product: Product = data?.product || initialProduct;
+  const movements = data ? movementBalances(product.stock, data.movements) : [];
   const key = useRef(requestKey());
   useEffect(() => {
-    api("productDetail", { id: product.id })
-      .then(setData)
-      .catch((e) => setError(e.message));
-  }, [product.id]);
+    let active = true;
+    setData(null);
+    setError("");
+    setTab("details");
+    api("productDetail", { id: initialProduct.id })
+      .then((result) => {
+        if (active) setData(result);
+      })
+      .catch((e) => {
+        if (active) setError(e.message);
+      });
+    return () => {
+      active = false;
+    };
+  }, [initialProduct.id]);
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
@@ -3273,23 +2742,28 @@ export function ProductDetail({
       subtitle={`${product.sku} · ${product.brand} · ${product.model}`}
       onClose={close}
       wide
+      className="product-detail-modal"
     >
       <div className="form-body">
         <div className="product-detail-top">
           <ProductPhoto product={product} alt={product.name} eager />
-          <div>
-            <Badge
-              tone={product.stock <= product.reorder_level ? "yellow" : "green"}
-            >
-              {t("productDetail.inStock", { n: product.stock })}
-            </Badge>
+          <div className="product-detail-identity">
+            <p>{t("inventory.sellingPrice")}</p>
             <h2>{af(product.price)}</h2>
             <p>
               {product.condition} ·{" "}
               {product.warranty || t("productDetail.noWarranty")}
             </p>
-            <p>{t("productDetail.reorderAt", { n: product.reorder_level })}</p>
-            {(product.cost_foreign || product.cost_aed || product.fx_rate) && (
+            {(user.permissions.includes("view_costs") ||
+              user.permissions.includes("purchases")) &&
+              product.unit_cost != null && (
+                <p>
+                  {t("inventory.unitCost")}: {af(product.unit_cost, 2)}
+                </p>
+              )}
+            {(user.permissions.includes("view_costs") ||
+              user.permissions.includes("purchases")) &&
+            (product.cost_foreign || product.cost_aed || product.fx_rate) ? (
               <p>
                 <CurrencyFlag code={product.currency || "AED"} />{" "}
                 {t("productDetail.dubaiCost", {
@@ -3304,54 +2778,175 @@ export function ProductDetail({
                   afn: af(product.unit_cost || 0, 2),
                 })}
               </p>
-            )}
+            ) : null}
           </div>
+          <section
+            className="product-stock-summary"
+            aria-label={t("productDetail.currentStock")}
+            aria-live="polite"
+          >
+            <span>{t("productDetail.currentStock")}</span>
+            <strong className="numeric">{data ? product.stock : "—"}</strong>
+            <small>{t("productDetail.remainingNow")}</small>
+            <Badge
+              tone={
+                product.stock === 0
+                  ? "red"
+                  : product.stock <= product.reorder_level
+                    ? "yellow"
+                    : "green"
+              }
+            >
+              {!data
+                ? error
+                  ? t("productDetail.stockUnavailable")
+                  : t("common.loading")
+                : product.stock === 0
+                  ? t("productDetail.zeroStock")
+                  : product.stock <= product.reorder_level
+                    ? t("productDetail.lowStock")
+                    : t("productDetail.available")}
+            </Badge>
+            <small>
+              {t("productDetail.reorderAt", { n: product.reorder_level })}
+            </small>
+          </section>
         </div>
-        <div className="spec-grid">
-          {Object.entries(product.attributes || {})
-            .filter(([, v]) => v)
-            .map(([k, v]) => (
-              <div key={k}>
-                <span>{k}</span>
-                <strong>{v}</strong>
-              </div>
-            ))}
+        <div
+          className="report-tabs product-detail-tabs"
+          role="tablist"
+          aria-label={t("productDetail.information")}
+        >
+          {(["details", "movements"] as const).map((id) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              id={`product-${id}-tab`}
+              aria-selected={tab === id}
+              aria-controls={`product-${id}-panel`}
+              tabIndex={tab === id ? 0 : -1}
+              className={tab === id ? "active" : ""}
+              onClick={() => setTab(id)}
+              onKeyDown={(event) => {
+                if (
+                  ["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)
+                ) {
+                  event.preventDefault();
+                  const next =
+                    event.key === "Home"
+                      ? "details"
+                      : event.key === "End"
+                        ? "movements"
+                        : id === "details"
+                          ? "movements"
+                          : "details";
+                  setTab(next);
+                  document.getElementById(`product-${next}-tab`)?.focus();
+                }
+              }}
+            >
+              {t(
+                id === "details"
+                  ? "productDetail.details"
+                  : "productDetail.movementHistory",
+              )}
+            </button>
+          ))}
         </div>
-        <div className="form-section-title">
-          {t("productDetail.movementHistory")}{" "}
-          <small>{t("productDetail.latest100")}</small>
-        </div>
-        <div className="table-wrap">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>{t("productDetail.colDate")}</th>
-                <th>{t("productDetail.colReference")}</th>
-                <th>{t("productDetail.colType")}</th>
-                <th>{t("productDetail.colQuantity")}</th>
-                {user.permissions.includes("view_costs") && (
-                  <th>{t("productDetail.colCostMove")}</th>
-                )}
-              </tr>
-            </thead>
-            <tbody>
-              {data?.movements.map((m: any) => (
-                <tr key={m.id}>
-                  <td>{m.date}</td>
-                  <td>{m.number}</td>
-                  <td>{m.kind.replaceAll("_", " ")}</td>
-                  <td className={m.quantity > 0 ? "text-green" : "text-red"}>
-                    {m.quantity > 0 ? "+" : ""}
-                    {m.quantity}
-                  </td>
+        <section
+          role="tabpanel"
+          tabIndex={0}
+          id="product-details-panel"
+          aria-labelledby="product-details-tab"
+          hidden={tab !== "details"}
+        >
+          <div className="spec-grid product-identity-grid">
+            {[
+              [t("productDetail.category"), product.category],
+              [t("productDetail.company"), product.brand],
+              [t("productDetail.model"), product.model],
+              ["SKU", product.sku],
+              [t("productDetail.barcode"), product.barcode],
+              [t("productDetail.location"), product.location],
+            ]
+              .filter(([, value]) => value)
+              .map(([label, value]) => (
+                <div key={label}>
+                  <span>{label}</span>
+                  <strong>{value}</strong>
+                </div>
+              ))}
+          </div>
+          <div className="spec-grid">
+            {Object.entries(product.attributes || {})
+              .filter(([, v]) => v)
+              .map(([k, v]) => (
+                <div key={k}>
+                  <span>{k}</span>
+                  <strong>{v}</strong>
+                </div>
+              ))}
+          </div>
+        </section>
+        <section
+          role="tabpanel"
+          tabIndex={0}
+          id="product-movements-panel"
+          aria-labelledby="product-movements-tab"
+          hidden={tab !== "movements"}
+        >
+          <div className="form-section-title">
+            {t("productDetail.movementHistory")}{" "}
+            <small>{t("productDetail.latest100")}</small>
+          </div>
+          <div className="table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>{t("productDetail.colDate")}</th>
+                  <th>{t("productDetail.colReference")}</th>
+                  <th>{t("productDetail.colType")}</th>
+                  <th>{t("productDetail.colQuantity")}</th>
+                  <th>{t("productDetail.remainingAfter")}</th>
                   {user.permissions.includes("view_costs") && (
-                    <td>{af(m.cost)}</td>
+                    <th>{t("productDetail.colCostMove")}</th>
                   )}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {movements.map((m: any) => (
+                  <tr key={m.id}>
+                    <td>{m.date}</td>
+                    <td>{m.number}</td>
+                    <td>{m.kind.replaceAll("_", " ")}</td>
+                    <td className={m.quantity > 0 ? "text-green" : "text-red"}>
+                      {m.quantity > 0 ? "+" : ""}
+                      {m.quantity}
+                    </td>
+                    <td className="numeric">
+                      <strong>{m.remaining}</strong>
+                    </td>
+                    {user.permissions.includes("view_costs") && (
+                      <td>{af(m.cost)}</td>
+                    )}
+                  </tr>
+                ))}
+                {!movements.length && (
+                  <tr>
+                    <td
+                      colSpan={user.permissions.includes("view_costs") ? 6 : 5}
+                    >
+                      {!data
+                        ? error || t("common.loading")
+                        : t("productDetail.noMovements")}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
         {adjust && (
           <form onSubmit={submit} className="adjust-form">
             <div className="form-section-title">

@@ -72,3 +72,8 @@ CREATE INDEX IF NOT EXISTS idx_party_totals_account ON party_totals(account,part
 -- Product thumbnails are content-addressed BLOBs so catalog pages remain small.
 CREATE TABLE IF NOT EXISTS product_photos(id TEXT PRIMARY KEY,mime TEXT NOT NULL,data BLOB NOT NULL,created_at TEXT NOT NULL) STRICT;
 CREATE INDEX IF NOT EXISTS idx_product_photo_match ON products(category,brand COLLATE NOCASE,model COLLATE NOCASE) WHERE substr(image,1,6)='photo:';
+
+-- Product drafts are private to one account in this shop and are not inventory.
+CREATE TABLE IF NOT EXISTS product_drafts(id TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id),intent TEXT NOT NULL CHECK(intent IN ('catalog','purchase')),data TEXT NOT NULL,image TEXT NOT NULL DEFAULT '',revision INTEGER NOT NULL DEFAULT 0,updated_at TEXT NOT NULL) STRICT;
+CREATE INDEX IF NOT EXISTS idx_product_drafts_user ON product_drafts(user_id,intent,updated_at DESC,id DESC);
+CREATE TABLE IF NOT EXISTS product_entry_operations(user_id TEXT NOT NULL REFERENCES users(id),request_key TEXT NOT NULL,result TEXT NOT NULL,PRIMARY KEY(user_id,request_key)) STRICT;

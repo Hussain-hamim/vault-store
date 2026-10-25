@@ -15,11 +15,15 @@ export type PhotoValue = { image: string; photo_data?: string };
 export function ProductPhotoPicker({
   product,
   existingImage,
+  initialUpload,
+  compact = false,
   onChange,
   onBusy,
 }: {
   product: PhotoProduct;
   existingImage?: string;
+  initialUpload?: string;
+  compact?: boolean;
   onChange: (value: PhotoValue) => void;
   onBusy: (value: boolean) => void;
 }) {
@@ -34,11 +38,15 @@ export function ProductPhotoPicker({
   const [uploaded, setUploaded] = useState<{
       identity: string;
       src: string;
-    } | null>(null),
+    } | null>(initialUpload ? { identity, src: initialUpload } : null),
     [saved, setSaved] = useState<{ identity: string; src: string } | null>(
       null,
     ),
-    [automatic, setAutomatic] = useState(false),
+    // Reopened drafts/records retain their saved automatic selection instead of
+    // silently learning a different custom photo for the same model.
+    [automatic, setAutomatic] = useState(
+      Boolean(existingImage && !isStoredPhoto(existingImage)),
+    ),
     [error, setError] = useState(""),
     [reading, setReading] = useState(false),
     [searching, setSearching] = useState(false);
@@ -125,7 +133,7 @@ export function ProductPhotoPicker({
         })
       : t("photos.missing");
   return (
-    <div className="product-photo-picker">
+    <div className={"product-photo-picker" + (compact ? " compact" : "")}>
       <div className="product-form-preview">
         <ProductPhoto
           product={{ ...product, image: savedRef || undefined }}
