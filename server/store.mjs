@@ -2569,6 +2569,7 @@ export class Store {
       products: "inventory",
       productCreate: "inventory",
       productUpdate: "inventory",
+      productDelete: "inventory",
       inventoryReports: "reports",
       reorderReport: "reports",
       openingBalance: "finance",
@@ -2680,6 +2681,19 @@ export class Store {
         return readProductPhoto(this, args.ref);
       case "productCreate":
         return this.createProduct(user, args);
+      case "productDelete":
+        return this.transaction(() => {
+          const product = this.one("SELECT * FROM products WHERE id=?", args.id);
+          if (!product) throw new Error("Product not found.");
+          const remaining = this.one("SELECT COALESCE(SUM(remaining),0) n FROM batches WHERE product_id=?", product.id).n;
+          if (product.stock !== 0 || remaining !== 0)
+            throw new Error("Stock remains. This product cannot be deleted until its quantity is zero.");
+          if (product.active) {
+            this.run("UPDATE products SET active=0 WHERE id=?", product.id);
+            this.audit(user, "Delete product", product.id, { sku: product.sku, name: product.name });
+          }
+          return { id: product.id };
+        });
       case "productUpdate": {
         const d = productSchema.parse(args);
         this.validateCurrency(d.currency, d.fx_rate);

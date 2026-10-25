@@ -3039,3 +3039,31 @@ test("remembered login survives multiple days and database reopen; signout revok
     Date.now = realNow;
   }
 });
+
+test("product deletion requires zero stock and preserves invoices; returns restore visibility", async (t) => {
+  const f = fixture(t);
+  purchase(f, 2);
+  await assert.rejects(f.s.dispatch("productDelete", {id:f.product}, f.token), /Stock remains/);
+  assert.equal(f.s.one("SELECT active FROM products WHERE id=?",f.product).active,1);
+  const doc = sale(f, 2, 0);
+  const before = f.s.totals();
+  await f.s.dispatch("productDelete", {id:f.product}, f.token);
+  await f.s.dispatch("productDelete", {id:f.product}, f.token);
+  assert.equal((await f.s.dispatch("catalog", {q:"SSD-01"}, f.token)).rows.length,0);
+  assert.equal(f.s.getDocument(doc.id).lines.length,1);
+  assert.deepEqual(f.s.totals().gross,before.gross);
+  f.s.returnTrade(f.u, {original_id:doc.id,lines:[{line_id:doc.lines[0].id,quantity:1}],note:"Returned",request_key:key()});
+  assert.equal(f.s.one("SELECT active FROM products WHERE id=?",f.product).active,1);
+  assert.equal((await f.s.dispatch("catalog", {q:"SSD-01"}, f.token)).rows[0].stock,1);
+  await assert.rejects(f.s.dispatch("productDelete", {id:f.product}, f.token), /Stock remains/);
+  balanced(f.s);
+});
+test("product deletion is authenticated and requires inventory permission", async (t) => {
+  const f = fixture(t);
+  await assert.rejects(f.s.dispatch("productDelete", {id:f.product}));
+  await f.s.dispatch("userCreate",{name:"Cashier",username:"cashier",password:"cashier-test-pass",role:"Cashier"},f.token);
+  const session = await f.s.dispatch("login",{username:"cashier",password:"cashier-test-pass"});
+  await assert.rejects(f.s.dispatch("productDelete", {id:f.product}, session.token),/Permission/);
+  await f.s.dispatch("productDelete", {id:f.product}, f.token);
+  assert.equal(f.s.one("SELECT active FROM products WHERE id=?",f.product).active,0);
+});

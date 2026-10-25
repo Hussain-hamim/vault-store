@@ -2687,6 +2687,7 @@ export function ProductDetail({
   sell?: () => void;
 } & DialogProps) {
   const t = useT();
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [data, setData] = useState<any>(null),
     [error, setError] = useState(""),
     [adjust, setAdjust] = useState(false),
@@ -2997,9 +2998,30 @@ export function ProductDetail({
             </button>
           </form>
         )}
+        {confirmDelete && (
+          <div className="product-delete-confirm" role="alert">
+            <p>{t("productDetail.deleteConfirm")}</p>
+            <div className="heading-actions">
+              <button className="button" disabled={busy} onClick={() => setConfirmDelete(false)}>{t("common.cancel")}</button>
+              <button className="button button-danger" disabled={busy} onClick={async () => {
+                setBusy(true); setError("");
+                try { await api("productDelete", { id: product.id }); done(t("productDetail.deleted")); }
+                catch (e: any) { setError(e.message); setConfirmDelete(false); }
+                finally { setBusy(false); }
+              }}><TrashIcon size={15} />{t("common.delete")}</button>
+            </div>
+          </div>
+        )}
         <ErrorMessage error={!adjust ? error : ""} />
       </div>
       <div className="modal-actions">
+        {user.permissions.includes("inventory") && (
+          <button className="button button-danger" disabled={busy || !data} onClick={() => {
+            setAdjust(false);
+            if (product.stock !== 0) { setError(t("productDetail.deleteStockRemaining", { n: product.stock })); return; }
+            setError(""); setConfirmDelete(true);
+          }}><TrashIcon size={15} />{t("common.delete")}</button>
+        )}
         {sell && user.permissions.includes("sales") && (
           <button className="button button-dark" onClick={sell}>
             {t("productDetail.sell")} <ArrowRightIcon size={15} />

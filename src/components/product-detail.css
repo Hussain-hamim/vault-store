@@ -59,3 +59,12 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+.product-delete-confirm {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--paint-border-e4e4e0, #e4e4e0);
+  border-radius: 10px;
+  background: var(--paint-bg-fff0f0, #fff0f0);
+}
+.product-delete-confirm p { margin-bottom: 10px; }

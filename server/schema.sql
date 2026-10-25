@@ -77,3 +77,9 @@ CREATE INDEX IF NOT EXISTS idx_product_photo_match ON products(category,brand CO
 CREATE TABLE IF NOT EXISTS product_drafts(id TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id),intent TEXT NOT NULL CHECK(intent IN ('catalog','purchase')),data TEXT NOT NULL,image TEXT NOT NULL DEFAULT '',revision INTEGER NOT NULL DEFAULT 0,updated_at TEXT NOT NULL) STRICT;
 CREATE INDEX IF NOT EXISTS idx_product_drafts_user ON product_drafts(user_id,intent,updated_at DESC,id DESC);
 CREATE TABLE IF NOT EXISTS product_entry_operations(user_id TEXT NOT NULL REFERENCES users(id),request_key TEXT NOT NULL,result TEXT NOT NULL,PRIMARY KEY(user_id,request_key)) STRICT;
+
+-- Historical returns/reversals must never leave positive stock hidden from inventory.
+CREATE TRIGGER IF NOT EXISTS product_stock_reactivate AFTER UPDATE OF stock ON products
+WHEN NEW.stock>0 AND NEW.active=0 BEGIN
+  UPDATE products SET active=1 WHERE id=NEW.id;
+END;

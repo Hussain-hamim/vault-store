@@ -642,6 +642,11 @@ kbd {
   margin: 0;
   box-sizing: border-box;
 }
+.dashboard-widget > .recent-panel,
+.dashboard-widget > .restock-panel,
+.dashboard-widget > .balances-panel {
+  padding: 17px;
+}
 .dashboard-widget .stat-card {
   min-height: 190px;
 }

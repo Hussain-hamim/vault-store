@@ -144,3 +144,7 @@ Desktop testing: keep `npm run dev` running, then use `npm run desktop:dev` (not
 - Product-entry dialogs use the available viewport height with 16px outside gutters at the top and bottom, keeping the footer anchored and normal compact internal padding.
 
 - RTL inventory/customer/supplier headers share the exact card content gutters; align card text to logical start while isolating money digits LTR. Eastern-digit keyboard/paste interception must use the native input setter before dispatching input so React state and live AF conversions stay synchronized. Never rewrite password/free-text input; normalize only numeric fields and explicit barcode/SKU identifiers. Test actual beforeinput/paste events in English, Pashto and Dari, including saved amounts.
+
+- Product details offer Delete with inventory permission and explicit confirmation. Enforce zero product stock and zero remaining batch quantity atomically on the server. Remove from active catalogs while retaining historical IDs/invoices/ledgers; a later return or reversal restoring positive stock automatically reactivates visibility. Show a translated stock-remaining message when deletion is blocked.
+
+- Dashboard Sales & orders, Restock recommendations, and Stock by category cards retain 17px inner padding in the customizable widget layout, matching the surrounding panels.

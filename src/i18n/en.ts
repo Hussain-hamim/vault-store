@@ -945,6 +945,10 @@ export const en: MessageTree = {
       "Invoice permanently deleted. Stock, cash and customer ledger updated.",
   },
   productDetail: {
+    deleteConfirm: "Delete this product from the catalog? Existing invoices and stock history will be kept.",
+    deleted: "Product deleted.",
+    deleteStockRemaining: "This product has {n} units remaining. You can delete it only when stock is zero.",
+
     stockUnavailable: "Stock unavailable",
     currentStock: "Current stock",
     remainingNow: "Remaining units in stock now",

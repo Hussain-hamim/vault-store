@@ -373,6 +373,29 @@ app
     );
     await button("Cancel");
     await wait('!document.querySelector(".product-entry-modal")');
+    // Delete through the actual product detail UI; nonzero stock stays protected.
+    const removable = await db.request("productCreate", {name:"Delete test item",brand:"HP",model:"Test",sku:"DELETE-UI",category:"Computers",price:10000},auth.token);
+    await win.loadFile(path.resolve("dist/client/index.html"));
+    await wait('!!document.querySelector(".sidebar")');
+    await js(`document.querySelectorAll('.sidebar .nav-item')[1].click()`);
+    await wait('!!document.querySelector(".inventory-list .search-input input")');
+    async function findProduct(text) {
+      await js(`(()=>{const e=document.querySelector('.inventory-list .search-input input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(e,${JSON.stringify(text)});e.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+      await wait(`document.querySelector('.inventory-row')?.textContent.includes(${JSON.stringify(text)})`);
+      await js(`document.querySelector('.inventory-row').click()`);
+      await wait('!!document.querySelector(".product-detail-modal")');
+    }
+    await findProduct("Delete test item");
+    await button("Delete");
+    await wait('!!document.querySelector(".product-delete-confirm")');
+    await button("Delete", ".product-delete-confirm");
+    await wait('!document.querySelector(".product-detail-modal")');
+    assert.equal((await db.request("catalog",{q:"DELETE-UI"},auth.token)).rows.length,0);
+    await findProduct("Alert laptop");
+    await button("Delete");
+    await wait(`document.querySelector('.product-detail-modal').textContent.includes('12 units remaining')`);
+    assert.equal(await js('!!document.querySelector(".product-delete-confirm")'),false);
+    await button("Done");
     // Actual locale/theme rendering and DOM geometry; no screenshots.
     for (const locale of ["en", "ps", "prs"]) {
       await js(

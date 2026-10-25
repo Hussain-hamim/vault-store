@@ -932,6 +932,10 @@ export const ps: MessageTree = {
     deletedSale: "بل دایمي ړنګ شو. ذخیره، نغدي او د پیرودونکي حساب تازه شو.",
   },
   productDetail: {
+    deleteConfirm: "دا توکی له لېست څخه ړنګ کړئ؟ پخواني بلونه او د زېرمې تاریخچه به خوندي پاتې شي.",
+    deleted: "توکی ړنګ شو.",
+    deleteStockRemaining: "د دې توکي {n} دانې په زېرمه کې پاتې دي. یوازې هغه وخت یې ړنګولی شئ چې زېرمه صفر وي.",
+
     stockUnavailable: "د ذخیرې معلومات نشته",
     currentStock: "اوسنۍ ذخیره",
     remainingNow: "اوس په ذخیره کې پاتې دانې",
