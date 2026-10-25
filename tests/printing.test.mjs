@@ -589,3 +589,12 @@ test("purchase return print/PDF separates refund currency from original purchase
   assert.match(html, /USD 10.00/);
   assert.match(html, /AF 300.00/);
 });
+
+test("invoice device identities remain printed when optional specifications are hidden", () => {
+  const doc=invoicePrintModel({...invoice,lines:[{...invoice.lines[0],units:[{id:'unit-1',code:'TM-00000001',serial:'SERIAL-DEVICE',condition:'Used',notes:'Small scratch'}]}]}, {name:'Device store'}, context);
+  for(const paper of ['A4','receipt80']) {
+    const html=renderPrintDocument(doc,{paper,showSpecs:false});
+    assert.match(html,/SERIAL-DEVICE/);
+    assert.doesNotMatch(html,/Small scratch/);
+  }
+});

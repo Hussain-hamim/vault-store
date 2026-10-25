@@ -33,6 +33,7 @@ app
         brand: "Samsung",
         model: "Galaxy S24",
         category: "Mobiles",
+        serialized: false,
         sku: "PHONE-SAMSUNG",
       },
       {
@@ -40,6 +41,7 @@ app
         brand: "Apple",
         model: "iPhone 15 Pro",
         category: "Mobiles",
+        serialized: false,
         sku: "PHONE-APPLE",
       },
       {
@@ -47,6 +49,7 @@ app
         brand: "HP",
         model: "EliteBook 840 G4",
         category: "Computers",
+        serialized: false,
         sku: "LAPTOP-HP",
       },
     ])

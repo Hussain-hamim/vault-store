@@ -1,3 +1,14 @@
+import {
+  trackedCategory,
+  unitFields,
+  receiveUnits,
+  migrateUnits,
+  consumeUnits,
+  documentUnits,
+  returnSelection,
+  returnUnits,
+  unitCommand,
+} from "./inventory-units.mjs";
 import { productDraftCommand } from "./product-drafts.mjs";
 import { saveProductPhoto, readProductPhoto } from "./product-photos.mjs";
 import {
@@ -199,12 +210,15 @@ const productSchema = z
     ...currencyFields,
     cost_aed: money.default(0),
     fx_rate: fxRate.default(0),
+    serialized: z.boolean().optional(),
+    ...unitFields,
     opening_quantity: z.number().int().min(0).max(100000).default(0),
   })
   .transform(normalizeForeign);
 const lineSchema = z
   .object({
     product_id: z.string(),
+    ...unitFields,
     quantity: positive,
     price: money,
     discount: money.default(0),
@@ -383,6 +397,7 @@ export class Store {
         this.saveSetting("quantityOnlyStock", true);
       });
     if (demo && !this.one("SELECT id FROM users LIMIT 1")) this.seed();
+    migrateUnits(this);
   }
   all(sql, ...params) {
     return this.db.prepare(sql).all(...params);
@@ -651,6 +666,11 @@ export class Store {
     if (line.quantity - remainder)
       costs.push({ qty: line.quantity - remainder, cost: base });
     if (remainder) costs.push({ qty: remainder, cost: base + 1 });
+    if (product.serialized && line.quantity > 1000)
+      throw new Error("Receive at most 1,000 individual devices per line.");
+    if (line.units && line.units.length !== line.quantity)
+      throw new Error("Enter details for each received device.");
+    let unitOffset = 0;
     for (const c of costs) {
       const bid = id();
       this.run(
@@ -670,6 +690,18 @@ export class Store {
         bid,
       );
       this.saveForeign("batches", bid, line);
+      if (product.serialized)
+        receiveUnits(
+          this,
+          product,
+          bid,
+          c.qty,
+          line,
+          doc.kind,
+          line.units?.slice(unitOffset, unitOffset + c.qty),
+          line._restoreUnits,
+        );
+      unitOffset += c.qty;
     }
     this.move(doc, product, line.quantity, line.cost);
   }
@@ -682,6 +714,7 @@ export class Store {
       throw new Error(
         "Stock transactions must follow the most recent stock movement date for this product.",
       );
+    if (product.serialized) return consumeUnits(this, product, line, doc);
     // Strict FIFO: oldest receipt first; rowid breaks same-timestamp ties.
     const batches = this.all(
       "SELECT * FROM batches WHERE product_id=? AND remaining>0 AND SUBSTR(received_at,1,10)<=? ORDER BY received_at ASC, rowid ASC",
@@ -759,6 +792,12 @@ export class Store {
       );
     if (d.fx_rate && !d.cost_foreign)
       throw new Error("Enter the supplier unit cost in the selected currency.");
+    if (
+      trackedCategory(d.category) &&
+      d.serialized !== false &&
+      d.opening_quantity > 1000
+    )
+      throw new Error("Receive at most 1,000 individual devices per entry.");
     const unitCost =
       d.cost_foreign && d.fx_rate
         ? afnFromAed(d.cost_foreign, d.fx_rate)
@@ -782,7 +821,7 @@ export class Store {
         d.condition,
         d.warranty,
         JSON.stringify(d.attributes),
-        0,
+        trackedCategory(d.category) && d.serialized !== false ? 1 : 0,
         productPhoto,
         now(),
       );
@@ -809,6 +848,7 @@ export class Store {
           cost_foreign: d.cost_foreign,
           cost_aed: d.cost_aed || 0,
           fx_rate: d.fx_rate || 0,
+          units: d.units,
           note: "Opening stock at product creation",
           opening: true,
           request_key: `product-opening-${pid}`,
@@ -931,6 +971,7 @@ export class Store {
           );
         const line = {
           ...l,
+          _restoreUnits: identity.unitRestore?.get(p.id),
           id: id(),
           cost: d.kind === "purchase" ? l.price * l.quantity - l.discount : 0,
           cost_aed: d.kind === "purchase" ? l.cost_aed || 0 : 0,
@@ -1063,6 +1104,18 @@ export class Store {
           "SELECT * FROM allocations WHERE line_id=?",
           line.id,
         );
+        const tracked = this.one(
+          "SELECT serialized FROM products WHERE id=?",
+          line.product_id,
+        )?.serialized;
+        const historicalDevices = this.one(
+          "SELECT 1 FROM unit_lines WHERE line_id=? LIMIT 1",
+          line.id,
+        );
+        if (tracked && !historicalDevices && action === "edit")
+          throw new Error(
+            "This older quantity invoice has no device identities. Return it and create a new device sale instead.",
+          );
         for (const allocation of allocations) {
           if (allocation.returned)
             throw new Error("Returned allocations cannot be changed.");
@@ -1071,6 +1124,15 @@ export class Store {
             allocation.quantity,
             allocation.batch_id,
           );
+          if (tracked && !historicalDevices)
+            receiveUnits(
+              this,
+              this.one("SELECT * FROM products WHERE id=?", line.product_id),
+              allocation.batch_id,
+              allocation.quantity,
+              null,
+              "legacy_reversal",
+            );
         }
         this.run(
           "UPDATE devices SET status='in_stock',sale_line_id=NULL WHERE sale_line_id=?",
@@ -1081,6 +1143,11 @@ export class Store {
           line.quantity,
           line.product_id,
         );
+        this.run(
+          "UPDATE inventory_units SET status='available',sale_line_id=NULL WHERE sale_line_id=?",
+          line.id,
+        );
+        this.run("DELETE FROM unit_lines WHERE line_id=?", line.id);
         this.run("DELETE FROM allocations WHERE line_id=?", line.id);
         this.run(
           "DELETE FROM document_product_snapshots WHERE line_id=?",
@@ -1202,6 +1269,7 @@ export class Store {
         throw new Error(
           "Type the exact invoice number to confirm hard deletion.",
         );
+      const unitRestore = new Map();
       // Reverse received stock only while every batch from this purchase is still intact.
       for (const line of old.lines) {
         const batches = this.all(
@@ -1218,8 +1286,31 @@ export class Store {
           throw new Error(
             "Some of this purchase has already been sold. Return that stock first, or keep the original purchase unchanged.",
           );
-        for (const b of batches)
+        for (const b of batches) {
+          if (
+            this.one(
+              "SELECT 1 FROM unit_lines e JOIN inventory_units u ON u.id=e.unit_id WHERE u.batch_id=? AND e.line_id<>? LIMIT 1",
+              b.id,
+              line.id,
+            )
+          )
+            throw new Error(
+              "Device history exists for this purchase. Use purchase returns instead.",
+            );
+          unitRestore.set(line.product_id, [
+            ...(unitRestore.get(line.product_id) || []),
+            ...this.all(
+              "SELECT * FROM inventory_units WHERE batch_id=? ORDER BY rowid",
+              b.id,
+            ),
+          ]);
+          this.run(
+            "DELETE FROM unit_lines WHERE unit_id IN (SELECT id FROM inventory_units WHERE batch_id=?)",
+            b.id,
+          );
+          this.run("DELETE FROM inventory_units WHERE batch_id=?", b.id);
           this.run("DELETE FROM batches WHERE id=?", b.id);
+        }
         const stockUpdate = this.run(
           "UPDATE products SET stock=stock-? WHERE id=? AND stock>=?",
           line.quantity,
@@ -1251,6 +1342,7 @@ export class Store {
             created_at: old.created_at,
             user_id: old.user_id,
             editDate: old.date,
+            unitRestore,
           },
         );
         this.run(
@@ -1310,6 +1402,8 @@ export class Store {
           ? JSON.parse(line.attributes || "{}")
           : line.attributes || {},
     }));
+    for (const line of doc.lines)
+      line.units = documentUnits(this, line, doc.kind);
     if (doc.kind === "purchase")
       for (const line of doc.lines)
         line.return_batches = this.all(
@@ -1570,6 +1664,7 @@ export class Store {
           .array(
             z.object({
               line_id: z.string(),
+              unit_ids: unitFields.unit_ids,
               quantity: positive,
             }),
           )
@@ -1607,7 +1702,10 @@ export class Store {
             (value * (ol.returned_quantity + l.quantity)) / ol.quantity,
           );
         let amount = after - before;
-        if (original.kind === "purchase") {
+        const selectedUnits = returnSelection(this, original, ol, l);
+        if (original.kind === "purchase" && selectedUnits)
+          amount = selectedUnits.reduce((n, u) => n + u.unit_cost, 0);
+        else if (original.kind === "purchase") {
           let remaining = l.quantity;
           amount = 0;
           const batches = this.all(
@@ -1684,7 +1782,16 @@ export class Store {
           ol.fx_rate || 0,
           lid,
         );
-        if (kind === "sale_return") {
+        const exact = returnUnits(this, p, original, ol, r, { id: lid }, doc);
+        if (exact) {
+          lineCost = exact.cost;
+          lineOwnerCost = exact.ownerCost;
+          for (const [owner, amount] of exact.owners)
+            ownerReversals.set(
+              owner,
+              (ownerReversals.get(owner) || 0) + amount,
+            );
+        } else if (kind === "sale_return") {
           let remaining = r.quantity;
           // Undo sale allocations in the same FIFO order they were consumed.
           const allocations = this.all(
@@ -1704,6 +1811,8 @@ export class Store {
               q,
               a.batch_id,
             );
+            if (p.serialized)
+              receiveUnits(this, p, a.batch_id, q, { id: lid }, kind);
             const restored =
               q * (a.owner_id ? a.owner_unit_amount : a.unit_cost);
             lineCost += restored;
@@ -1734,6 +1843,20 @@ export class Store {
               q,
               b.id,
             );
+            if (p.serialized) {
+              const units = this.all(
+                "SELECT * FROM inventory_units WHERE batch_id=? AND status='available' LIMIT ?",
+                b.id,
+                q,
+              );
+              if (units.length !== q)
+                throw new Error("Device inventory does not match batch stock.");
+              for (const u of units)
+                this.run(
+                  "UPDATE inventory_units SET status='returned_supplier' WHERE id=?",
+                  u.id,
+                );
+            }
             lineCost += q * b.unit_cost;
             remaining -= q;
           }
@@ -1791,6 +1914,7 @@ export class Store {
     const d = z
       .object({
         product_id: z.string(),
+        ...unitFields,
         quantity: z
           .number()
           .int()
@@ -1837,6 +1961,8 @@ export class Store {
       const l = {
         id: id(),
         quantity: Math.abs(d.quantity),
+        units: d.units,
+        unit_ids: d.unit_ids,
         cost: Math.abs(d.quantity) * d.cost,
         currency: d.currency,
         cost_foreign: d.cost_foreign,
@@ -2683,14 +2809,25 @@ export class Store {
         return this.createProduct(user, args);
       case "productDelete":
         return this.transaction(() => {
-          const product = this.one("SELECT * FROM products WHERE id=?", args.id);
+          const product = this.one(
+            "SELECT * FROM products WHERE id=?",
+            args.id,
+          );
           if (!product) throw new Error("Product not found.");
-          const remaining = this.one("SELECT COALESCE(SUM(remaining),0) n FROM batches WHERE product_id=?", product.id).n;
+          const remaining = this.one(
+            "SELECT COALESCE(SUM(remaining),0) n FROM batches WHERE product_id=?",
+            product.id,
+          ).n;
           if (product.stock !== 0 || remaining !== 0)
-            throw new Error("Stock remains. This product cannot be deleted until its quantity is zero.");
+            throw new Error(
+              "Stock remains. This product cannot be deleted until its quantity is zero.",
+            );
           if (product.active) {
             this.run("UPDATE products SET active=0 WHERE id=?", product.id);
-            this.audit(user, "Delete product", product.id, { sku: product.sku, name: product.name });
+            this.audit(user, "Delete product", product.id, {
+              sku: product.sku,
+              name: product.name,
+            });
           }
           return { id: product.id };
         });
@@ -2699,6 +2836,10 @@ export class Store {
         this.validateCurrency(d.currency, d.fx_rate);
         const existing = this.one("SELECT * FROM products WHERE id=?", args.id);
         if (!existing) throw new Error("Product not found.");
+        if (existing.serialized && !trackedCategory(d.category))
+          throw new Error(
+            "A device model cannot be changed into quantity-based accessories.",
+          );
         if (d.minimum > d.price)
           throw new Error("Minimum price cannot exceed selling price.");
         return this.transaction(() => {
@@ -2707,7 +2848,7 @@ export class Store {
             image: args.image === undefined ? existing.image : d.image,
           });
           this.run(
-            "UPDATE products SET sku=?,barcode=?,name=?,brand=?,model=?,category=?,price=?,minimum=?,reorder_level=?,location=?,condition=?,warranty=?,attributes=?,serialized=0,image=? WHERE id=?",
+            "UPDATE products SET sku=?,barcode=?,name=?,brand=?,model=?,category=?,price=?,minimum=?,reorder_level=?,location=?,condition=?,warranty=?,attributes=?,image=? WHERE id=?",
             d.sku,
             d.barcode,
             d.name,
@@ -2746,6 +2887,28 @@ export class Store {
             existing.id,
           );
           this.saveForeign("products", existing.id, d);
+          if (
+            !existing.serialized &&
+            trackedCategory(d.category) &&
+            d.serialized
+          ) {
+            this.run(
+              "UPDATE products SET serialized=1 WHERE id=?",
+              existing.id,
+            );
+            for (const b of this.all(
+              "SELECT * FROM batches WHERE product_id=? AND remaining>0",
+              existing.id,
+            ))
+              receiveUnits(
+                this,
+                { ...existing, ...d },
+                b.id,
+                b.remaining,
+                null,
+                "migration",
+              );
+          }
           this.audit(user, "Update product", existing.id, {
             name: d.name,
             price: d.price,
@@ -2832,9 +2995,11 @@ export class Store {
           return doc;
         });
       }
+      case "unitLookup":
+      case "unitUpdate":
       case "deviceCatalog":
       case "devices":
-        return [];
+        return unitCommand(this, user, command, args);
       case "globalSearch": {
         const d = z
           .object({
@@ -3688,6 +3853,7 @@ export class Store {
         storage,
       ] = items[i];
       const p = this.createProduct(user, {
+        serialized: false,
         name,
         brand,
         model,

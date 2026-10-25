@@ -23,6 +23,7 @@ const product = () => ({
   model: "840 G4",
   sku: randomUUID(),
   category: "Computers",
+  serialized: false,
   price: 100000,
   unit_cost: 50000,
   opening_quantity: 3,

@@ -2,7 +2,34 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { saveProductPhoto } from "./product-photos.mjs";
 const intentSchema = z.enum(["catalog", "purchase"]);
-const dataSchema = z.record(z.string().max(80), z.string().max(1000));
+const dataSchema = z
+  .record(z.string().max(80), z.string().max(200000))
+  .superRefine((data, ctx) => {
+    for (const [key, value] of Object.entries(data))
+      if (key !== "unit_data" && value.length > 1000)
+        ctx.addIssue({
+          code: "custom",
+          message: "Draft field is too long.",
+          path: [key],
+        });
+    if (data.unit_data) {
+      try {
+        const rows = JSON.parse(data.unit_data);
+        if (
+          !Array.isArray(rows) ||
+          rows.length > 1000 ||
+          rows.some((r) => !r || typeof r !== "object" || Array.isArray(r))
+        )
+          throw new Error();
+      } catch {
+        ctx.addIssue({
+          code: "custom",
+          message: "Invalid device details in draft.",
+          path: ["unit_data"],
+        });
+      }
+    }
+  });
 function owned(s, user, id) {
   const row = s.one(
     "SELECT * FROM product_drafts WHERE id=? AND user_id=?",
@@ -65,7 +92,7 @@ export function productDraftCommand(s, user, command, args) {
     }
     if (command === "productDraftSave") {
       const data = dataSchema.parse(args.data);
-      if (JSON.stringify(data).length > 16000)
+      if (JSON.stringify(data).length > 250000)
         throw new Error("Product draft is too large.");
       const intent = intentSchema.parse(args.intent);
       const old = args.id ? owned(s, user, args.id) : null;

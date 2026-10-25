@@ -1,0 +1,65 @@
+.device-receipt,
+.device-selection {
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid var(--paint-border-e2e4da, #dce3e6);
+  border-radius: 10px;
+  background: var(--paint-bg-f7f8f2, #f2f7f7);
+  min-width: 0;
+}
+.device-detail-row {
+  padding-block: 8px;
+  border-bottom: 1px solid var(--paint-border-e2e4da, #dce3e6);
+}
+.device-detail-row > strong,
+.device-selection > strong {
+  display: block;
+  font-size: 12px;
+  margin-bottom: 7px;
+}
+.device-options {
+  max-height: 190px;
+  overflow: auto;
+}
+.device-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 2px;
+  border-bottom: 1px solid var(--paint-border-e2e4da, #dce3e6);
+  font-size: 11px;
+}
+.device-option > input {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  min-height: 0;
+  margin-top: 3px;
+}
+.device-option span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.device-option small {
+  display: block;
+  opacity: 0.8;
+  margin-top: 3px;
+}
+.device-selection > input {
+  width: 100%;
+  margin-bottom: 6px;
+}
+.device-edit {
+  padding-top: 10px;
+}
+.unit-invoice {
+  font-size: 10px;
+  overflow-wrap: anywhere;
+  margin-top: 5px;
+}
+
+.device-receipt:has(.device-detail-row) {
+  max-height: 260px;
+  overflow: auto;
+  scrollbar-width: thin;
+}

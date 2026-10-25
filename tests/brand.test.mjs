@@ -164,6 +164,7 @@ test("branding, company pages and shortcut labels exist in all three languages",
       "notifications",
       "photos",
       "entry",
+      "devices",
     ]) {
       assert.deepEqual(
         Object.keys(catalogs[locale][group]).sort(),

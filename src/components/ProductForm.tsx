@@ -1,3 +1,4 @@
+import { ReceiveDevices } from "./DeviceInventory";
 import {
   BarcodeIcon,
   PackageIcon,
@@ -19,7 +20,14 @@ import {
   XIcon,
   type Icon,
 } from "@phosphor-icons/react";
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   api,
   moneyInput,
@@ -206,6 +214,14 @@ export function ProductForm({
   const d = entry.data,
     editing = !!entry.original,
     dirty = signature(entry) !== entry.baseline;
+  const unitDetails = useMemo(() => {
+    try {
+      const rows = JSON.parse(d.unit_data || "[]");
+      return Array.isArray(rows) ? rows : [];
+    } catch {
+      return [];
+    }
+  }, [d.unit_data]);
   function value(name: string, value: string) {
     setEntry((e) => ({ ...e, data: { ...e.data, [name]: value } }));
     setNotice("");
@@ -332,6 +348,13 @@ export function ProductForm({
       sku: d.sku,
       barcode: d.barcode,
       category: d.category,
+      serialized: ["Computers", "Mobiles", "Tablets"].includes(d.category),
+      units: d.unit_data
+        ? Array.from(
+            { length: Math.min(1000, Number(d.opening_quantity) || 0) },
+            (_, i) => unitDetails[i] || {},
+          )
+        : undefined,
       price: toMoney(d.price),
       minimum: entry.original?.minimum ?? 0,
       location: entry.original?.location || "",
@@ -763,6 +786,17 @@ export function ProductForm({
                 </div>
               </section>
             </div>
+            {!editing &&
+              intent !== "purchase" &&
+              ["Computers", "Mobiles", "Tablets"].includes(d.category) &&
+              Number(d.opening_quantity) > 0 && (
+                <ReceiveDevices
+                  defaultCondition={d.condition}
+                  quantity={Number(d.opening_quantity)}
+                  values={unitDetails}
+                  onChange={(rows) => value("unit_data", JSON.stringify(rows))}
+                />
+              )}
             <ErrorMessage error={error} />
             {notice && (
               <p className="entry-notice" role="status">

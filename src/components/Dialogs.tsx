@@ -1,3 +1,10 @@
+import {
+  DeviceSelection,
+  ReceiveDevices,
+  ProductDevices,
+  type Device,
+  type DeviceDetails,
+} from "./DeviceInventory";
 import { movementBalances } from "../product-movements.mjs";
 import "./product-detail.css";
 import { ProductPhoto } from "./ProductPhoto";
@@ -64,6 +71,9 @@ import { ProductForm } from "./ProductForm";
 export { ProductForm } from "./ProductForm";
 
 type CartLine = {
+  key?: string;
+  units?: DeviceDetails[];
+  selectedUnits?: Device[];
   product: Product;
   quantity: number;
   price: string;
@@ -214,6 +224,9 @@ export function TradeForm({
             if (!found)
               throw new Error(t("sales.errProductGone", { name: line.name }));
             return {
+              key: line.id,
+              units: line.units || [],
+              selectedUnits: line.units || [],
               product: { ...found, stock: found.stock + line.quantity },
               quantity: line.quantity,
               price: String(line.price / 100),
@@ -267,20 +280,22 @@ export function TradeForm({
     }
   }
   function add(p: Product) {
-    if (lines.some((l) => l.product.id === p.id)) return;
+    if (!p.serialized && lines.some((l) => l.product.id === p.id)) return;
     const sourceCost =
       p.currency === currency || (!p.currency && currency === "AED")
         ? (p.cost_foreign ?? p.cost_aed ?? 0)
         : 0;
     const costAedMajor = sourceCost ? moneyInput(sourceCost) : "";
     setLines((ls) =>
-      ls.some((l) => l.product.id === p.id)
+      !p.serialized && ls.some((l) => l.product.id === p.id)
         ? ls
         : [
             ...ls,
             {
+              key: requestKey(),
               product: p,
-              quantity: 1,
+              selectedUnits: [],
+              quantity: p.serialized && !purchase ? 0 : 1,
               price: purchase
                 ? afnPriceFromAed(costAedMajor, fxRate) || ""
                 : String(p.price / 100),
@@ -297,15 +312,40 @@ export function TradeForm({
     setScanBusy(true);
     setError("");
     try {
-      const d = await api<{ rows: Product[] }>("catalog", {
-        barcode: code,
-        limit: 1,
-      });
-      const p = d.rows[0];
+      const d =
+        code.length > 80
+          ? { rows: [] as Product[] }
+          : await api<{ rows: Product[] }>("catalog", {
+              barcode: code,
+              limit: 1,
+            });
+      let p = d.rows[0];
+      if (!p && !purchase) {
+        const result = await api<{ unit: Device; product: Product }>(
+          "unitLookup",
+          { code },
+        );
+        p = result.product;
+        if (p) {
+          setLines((rows) => [
+            ...rows,
+            {
+              key: requestKey(),
+              product: p,
+              quantity: 1,
+              price: moneyInput(result.unit.price ?? p.price),
+              discount: "0",
+              selectedUnits: [result.unit],
+            },
+          ]);
+          setScanCode("");
+          return;
+        }
+      }
       if (!p) throw new Error(t("sales.errBarcode", { code }));
       if (!purchase && p.stock <= 0)
         throw new Error(t("sales.errOutOfStock", { name: p.name }));
-      if (lines.some((l) => l.product.id === p.id))
+      if (!p.serialized && lines.some((l) => l.product.id === p.id))
         throw new Error(t("sales.errOnBill", { name: p.name }));
       add(p);
       setScanCode("");
@@ -435,6 +475,18 @@ export function TradeForm({
         }
         return {
           product_id: l.product.id,
+          ...(l.product.serialized
+            ? purchase
+              ? {
+                  units: l.units?.length
+                    ? Array.from(
+                        { length: l.quantity },
+                        (_, i) => l.units?.[i] || {},
+                      )
+                    : undefined,
+                }
+              : { unit_ids: (l.selectedUnits || []).map((u) => u.id) }
+            : {}),
           quantity: l.quantity,
           price,
           discount: toMoney(l.discount),
@@ -717,7 +769,8 @@ export function TradeForm({
                               scanBarcode();
                             }
                           }}
-                          inputMode="numeric"
+                          name="barcode_scan"
+                          inputMode="text"
                           autoComplete="off"
                         />
                         <button
@@ -757,9 +810,9 @@ export function TradeForm({
                             ]
                               .filter(Boolean)
                               .join(" · ");
-                            const added = lines.some(
-                              (l) => l.product.id === p.id,
-                            );
+                            const added =
+                              !p.serialized &&
+                              lines.some((l) => l.product.id === p.id);
                             const out = !purchase && p.stock === 0;
                             return (
                               <button
@@ -849,7 +902,7 @@ export function TradeForm({
                     </div>
                     <div className="cart-lines">
                       {lines.map((l, i) => (
-                        <div className="cart-line" key={l.product.id}>
+                        <div className="cart-line" key={l.key || l.product.id}>
                           <div className="cart-line-title">
                             <ProductName product={l.product} />
                             <button
@@ -865,6 +918,41 @@ export function TradeForm({
                               <TrashIcon size={17} />
                             </button>
                           </div>
+                          {l.product.serialized ? (
+                            purchase ? (
+                              <ReceiveDevices
+                                defaultCondition={l.product.condition}
+                                quantity={l.quantity}
+                                values={l.units}
+                                onChange={(v) => update(i, "units", v)}
+                              />
+                            ) : (
+                              <DeviceSelection
+                                product={l.product}
+                                saleId={documentId}
+                                selected={l.selectedUnits || []}
+                                onChange={(v) =>
+                                  setLines((rows) =>
+                                    rows.map((row, j) =>
+                                      j === i
+                                        ? {
+                                            ...row,
+                                            selectedUnits: v,
+                                            quantity: v.length,
+                                            ...(!row.selectedUnits?.length &&
+                                            v[0]?.price !== undefined
+                                              ? {
+                                                  price: moneyInput(v[0].price),
+                                                }
+                                              : {}),
+                                          }
+                                        : row,
+                                    ),
+                                  )
+                                }
+                              />
+                            )
+                          ) : null}
                           <div className="form-grid three">
                             <Field label={t("common.quantity")}>
                               <NumericInput
@@ -875,6 +963,7 @@ export function TradeForm({
                                 min="1"
                                 max={purchase ? 100000 : l.product.stock}
                                 value={l.quantity}
+                                readOnly={!!l.product.serialized && !purchase}
                                 onChange={(e) =>
                                   update(
                                     i,
@@ -1214,7 +1303,8 @@ export function TradeForm({
                                 scanBarcode();
                               }
                             }}
-                            inputMode="numeric"
+                            name="barcode_scan"
+                            inputMode="text"
                             autoComplete="off"
                           />
                           <button
@@ -1251,9 +1341,9 @@ export function TradeForm({
                                 .slice(0, 3)
                                 .map(([k, v]) => `${k}: ${v}`)
                                 .join(" · ");
-                              const added = lines.some(
-                                (l) => l.product.id === p.id,
-                              );
+                              const added =
+                                !p.serialized &&
+                                lines.some((l) => l.product.id === p.id);
                               return (
                                 <button
                                   key={p.id}
@@ -1330,7 +1420,10 @@ export function TradeForm({
                       </div>
                       <div className="cart-lines">
                         {lines.map((l, i) => (
-                          <div className="cart-line" key={l.product.id}>
+                          <div
+                            className="cart-line"
+                            key={l.key || l.product.id}
+                          >
                             <div className="cart-line-title">
                               <ProductName product={l.product} />
                               <button
@@ -1346,6 +1439,43 @@ export function TradeForm({
                                 <TrashIcon size={17} />
                               </button>
                             </div>
+                            {l.product.serialized ? (
+                              purchase ? (
+                                <ReceiveDevices
+                                  defaultCondition={l.product.condition}
+                                  quantity={l.quantity}
+                                  values={l.units}
+                                  onChange={(v) => update(i, "units", v)}
+                                />
+                              ) : (
+                                <DeviceSelection
+                                  product={l.product}
+                                  saleId={documentId}
+                                  selected={l.selectedUnits || []}
+                                  onChange={(v) =>
+                                    setLines((rows) =>
+                                      rows.map((row, j) =>
+                                        j === i
+                                          ? {
+                                              ...row,
+                                              selectedUnits: v,
+                                              quantity: v.length,
+                                              ...(!row.selectedUnits?.length &&
+                                              v[0]?.price !== undefined
+                                                ? {
+                                                    price: moneyInput(
+                                                      v[0].price,
+                                                    ),
+                                                  }
+                                                : {}),
+                                            }
+                                          : row,
+                                      ),
+                                    )
+                                  }
+                                />
+                              )
+                            ) : null}
                             <div className="form-grid three">
                               <Field label={t("common.quantity")}>
                                 <NumericInput
@@ -1356,6 +1486,7 @@ export function TradeForm({
                                   min="1"
                                   max={100000}
                                   value={l.quantity}
+                                  readOnly={!!l.product.serialized && !purchase}
                                   onChange={(e) =>
                                     update(
                                       i,
@@ -1997,6 +2128,9 @@ export function InvoiceDialog({
     [printOpen, setPrintOpen] = useState(false),
     [busy, setBusy] = useState(false),
     [quantities, setQuantities] = useState<Record<string, number>>({});
+  const [returnDevices, setReturnDevices] = useState<Record<string, string[]>>(
+    {},
+  );
   const ownerKindKeys: Record<string, string> = {
     consignment_receipt: "resale.receive",
     consignment_return: "resale.returnOwner",
@@ -2027,6 +2161,13 @@ export function InvoiceDialog({
   const returnTotal = (doc?.lines || []).reduce((sum: number, l: any) => {
     const quantity = quantities[l.id] || 0;
     if (!quantity) return sum;
+    if (doc.kind === "purchase" && l.units?.length)
+      return (
+        sum +
+        l.units
+          .filter((u: any) => (returnDevices[l.id] || []).includes(u.id))
+          .reduce((n: number, u: any) => n + (u.return_cost || 0), 0)
+      );
     if (doc.kind === "purchase" && Array.isArray(l.return_batches)) {
       let remaining = quantity,
         amount = 0;
@@ -2092,6 +2233,7 @@ export function InvoiceDialog({
           .filter((l: any) => quantities[l.id] > 0)
           .map((l: any) => ({
             line_id: l.id,
+            unit_ids: returnDevices[l.id],
             quantity: quantities[l.id],
           })),
         ...(["sale", "purchase"].includes(doc.kind)
@@ -2218,6 +2360,14 @@ export function InvoiceDialog({
                       <tr key={l.id}>
                         <td>
                           <ProductName product={l} sub={identity || l.sku} />
+                          {l.units?.map((u: any) => (
+                            <div className="unit-invoice" key={u.id}>
+                              <bdi dir="ltr">{u.serial || u.code}</bdi> ·{" "}
+                              {[u.condition, u.battery, u.notes, u.accessories]
+                                .filter(Boolean)
+                                .join(" · ")}
+                            </div>
+                          ))}
                           {l.owner_unit_amount !== undefined && (
                             <small>
                               {t("resale.ownerUnitAmount")}:{" "}
@@ -2357,28 +2507,71 @@ export function InvoiceDialog({
               </div>
               {doc.lines
                 .filter((l: any) => l.quantity > l.returned_quantity)
-                .map((l: any) => (
-                  <Field
-                    key={l.id}
-                    label={t("invoiceActions.remaining", {
-                      name: l.name,
-                      n: l.quantity - l.returned_quantity,
-                    })}
-                  >
-                    <NumericInput
-                      kind="integer"
-                      min="0"
-                      max={l.quantity - l.returned_quantity}
-                      value={quantities[l.id] || 0}
-                      onChange={(e) =>
-                        setQuantities({
-                          ...quantities,
-                          [l.id]: Number(e.target.value) || 0,
-                        })
-                      }
-                    />
-                  </Field>
-                ))}
+                .map((l: any) =>
+                  l.units?.length ? (
+                    <section className="device-selection" key={l.id}>
+                      <strong>
+                        {l.name} · {t("devices.chooseReturn")}
+                      </strong>
+                      {l.units
+                        .filter((u: any) => u.returnable)
+                        .map((u: any) => (
+                          <label className="device-option" key={u.id}>
+                            <input
+                              type="checkbox"
+                              checked={(returnDevices[l.id] || []).includes(
+                                u.id,
+                              )}
+                              onChange={(e) => {
+                                const ids = e.target.checked
+                                  ? [...(returnDevices[l.id] || []), u.id]
+                                  : (returnDevices[l.id] || []).filter(
+                                      (id) => id !== u.id,
+                                    );
+                                setReturnDevices((v) => ({
+                                  ...v,
+                                  [l.id]: ids,
+                                }));
+                                setQuantities((v) => ({
+                                  ...v,
+                                  [l.id]: ids.length,
+                                }));
+                              }}
+                            />
+                            <span>
+                              <b>{u.serial || u.code}</b>
+                              <small>
+                                {[u.condition, u.battery, u.notes]
+                                  .filter(Boolean)
+                                  .join(" · ")}
+                              </small>
+                            </span>
+                          </label>
+                        ))}
+                    </section>
+                  ) : (
+                    <Field
+                      key={l.id}
+                      label={t("invoiceActions.remaining", {
+                        name: l.name,
+                        n: l.quantity - l.returned_quantity,
+                      })}
+                    >
+                      <NumericInput
+                        kind="integer"
+                        min="0"
+                        max={l.quantity - l.returned_quantity}
+                        value={quantities[l.id] || 0}
+                        onChange={(e) =>
+                          setQuantities({
+                            ...quantities,
+                            [l.id]: Number(e.target.value) || 0,
+                          })
+                        }
+                      />
+                    </Field>
+                  ),
+                )}
               {["sale", "purchase"].includes(doc.kind) && (
                 <section className="return-refund-controls">
                   <div className="return-refund-summary">
@@ -2518,6 +2711,7 @@ export function InvoiceDialog({
                   setRefundRate("1");
                   setRefundAmount("");
                   setQuantities({});
+                  setReturnDevices({});
                   setPrintReturn(false);
                   setError("");
                 }
@@ -2687,6 +2881,9 @@ export function ProductDetail({
   sell?: () => void;
 } & DialogProps) {
   const t = useT();
+  const [adjustQty, setAdjustQty] = useState("1");
+  const [adjustUnits, setAdjustUnits] = useState<Device[]>([]);
+  const [receiveUnits, setReceiveUnits] = useState<DeviceDetails[]>([]);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [data, setData] = useState<any>(null),
     [error, setError] = useState(""),
@@ -2719,6 +2916,14 @@ export function ProductDetail({
     try {
       await api("adjust", {
         product_id: product.id,
+        unit_ids: adjustUnits.map((u) => u.id),
+        units:
+          Number(adjustQty) > 0 && receiveUnits.length
+            ? Array.from(
+                { length: Number(adjustQty) },
+                (_, i) => receiveUnits[i] || {},
+              )
+            : undefined,
         quantity: Number(
           sanitizeNumericInput(
             String(f.get("quantity") || "0"),
@@ -2862,6 +3067,9 @@ export function ProductDetail({
           aria-labelledby="product-details-tab"
           hidden={tab !== "details"}
         >
+          {!!product.serialized && user.permissions.includes("inventory") && (
+            <ProductDevices product={product} />
+          )}
           <div className="spec-grid product-identity-grid">
             {[
               [t("productDetail.category"), product.category],
@@ -2961,8 +3169,9 @@ export function ProductDetail({
                 <NumericInput
                   kind="signed-integer"
                   name="quantity"
+                  value={adjustQty}
+                  onChange={(e) => setAdjustQty(e.target.value)}
                   required
-                  defaultValue="1"
                 />
               </Field>
               <Field label={t("productDetail.unitCostAdd")}>
@@ -2991,6 +3200,20 @@ export function ProductDetail({
                 </span>
               </label>
             )}
+            {!!product.serialized &&
+              (Number(adjustQty) < 0 ? (
+                <DeviceSelection
+                  product={product}
+                  selected={adjustUnits}
+                  onChange={setAdjustUnits}
+                />
+              ) : (
+                <ReceiveDevices
+                  quantity={Number(adjustQty)}
+                  values={receiveUnits}
+                  onChange={setReceiveUnits}
+                />
+              ))}
             <p className="help-note">{t("productDetail.adjustHelp")}</p>
             <ErrorMessage error={error} />
             <button className="button button-dark" disabled={busy}>
@@ -3002,13 +3225,33 @@ export function ProductDetail({
           <div className="product-delete-confirm" role="alert">
             <p>{t("productDetail.deleteConfirm")}</p>
             <div className="heading-actions">
-              <button className="button" disabled={busy} onClick={() => setConfirmDelete(false)}>{t("common.cancel")}</button>
-              <button className="button button-danger" disabled={busy} onClick={async () => {
-                setBusy(true); setError("");
-                try { await api("productDelete", { id: product.id }); done(t("productDetail.deleted")); }
-                catch (e: any) { setError(e.message); setConfirmDelete(false); }
-                finally { setBusy(false); }
-              }}><TrashIcon size={15} />{t("common.delete")}</button>
+              <button
+                className="button"
+                disabled={busy}
+                onClick={() => setConfirmDelete(false)}
+              >
+                {t("common.cancel")}
+              </button>
+              <button
+                className="button button-danger"
+                disabled={busy}
+                onClick={async () => {
+                  setBusy(true);
+                  setError("");
+                  try {
+                    await api("productDelete", { id: product.id });
+                    done(t("productDetail.deleted"));
+                  } catch (e: any) {
+                    setError(e.message);
+                    setConfirmDelete(false);
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+              >
+                <TrashIcon size={15} />
+                {t("common.delete")}
+              </button>
             </div>
           </div>
         )}
@@ -3016,11 +3259,24 @@ export function ProductDetail({
       </div>
       <div className="modal-actions">
         {user.permissions.includes("inventory") && (
-          <button className="button button-danger" disabled={busy || !data} onClick={() => {
-            setAdjust(false);
-            if (product.stock !== 0) { setError(t("productDetail.deleteStockRemaining", { n: product.stock })); return; }
-            setError(""); setConfirmDelete(true);
-          }}><TrashIcon size={15} />{t("common.delete")}</button>
+          <button
+            className="button button-danger"
+            disabled={busy || !data}
+            onClick={() => {
+              setAdjust(false);
+              if (product.stock !== 0) {
+                setError(
+                  t("productDetail.deleteStockRemaining", { n: product.stock }),
+                );
+                return;
+              }
+              setError("");
+              setConfirmDelete(true);
+            }}
+          >
+            <TrashIcon size={15} />
+            {t("common.delete")}
+          </button>
         )}
         {sell && user.permissions.includes("sales") && (
           <button className="button button-dark" onClick={sell}>

@@ -100,9 +100,22 @@ export function invoicePrintModel(
     ],
     lines: (doc.lines || []).map((l) => ({
       name: l.name,
-      identity: [l.brand, l.model, l.sku].filter(Boolean).join(" · "),
+      identity: [
+        l.brand,
+        l.model,
+        l.sku,
+        ...(l.units || []).map((u) => u.serial || u.code),
+      ]
+        .filter(Boolean)
+        .join(" · "),
       specs: [
         ...specs(l).map((s) => s.key + ": " + s.value),
+        ...(l.units || []).map((u) =>
+          [u.serial || u.code, u.condition, u.battery, u.notes, u.accessories]
+            .filter(Boolean)
+            .join(" · "),
+        ),
+
         ...(l.owner_unit_amount !== undefined
           ? [t("resale.ownerUnitAmount") + ": " + money(l.owner_unit_amount, 2)]
           : []),

@@ -196,6 +196,7 @@ test("overselling the same unit is blocked after stock is consumed", (t) => {
     model: "15",
     sku: "PHONE",
     category: "Mobiles",
+    serialized: false,
     price: 100000,
   }).id;
   f.s.postTrade(f.u, {
@@ -352,6 +353,7 @@ test("partial sale returns restore FIFO cost for the returned quantity", (t) => 
     model: "15",
     sku: "QTY-RETURN",
     category: "Mobiles",
+    serialized: false,
     price: 100000,
   }).id;
   for (const cost of [60000, 80000])
@@ -631,6 +633,7 @@ test("creating a product with opening quantity posts inventory and equity at the
     model: "Precision",
     sku: "OPEN-PC",
     category: "Computers",
+    serialized: false,
     price: 150000,
     unit_cost: 90000,
     opening_quantity: 3,
@@ -652,6 +655,7 @@ test("creating a product with opening quantity posts inventory and equity at the
           model: "X",
           sku: "BLOCK-OPEN",
           category: "Computers",
+          serialized: false,
           price: 200,
           unit_cost: 100,
           opening_quantity: 2,
@@ -670,6 +674,7 @@ test("one purchase accepts multiple products without losing cost or return track
     model: "S",
     sku: "OPT-QTY",
     category: "Mobiles",
+    serialized: false,
     price: 200000,
   }).id;
   const doc = purchase(f, 2, 80000, {
@@ -775,6 +780,7 @@ test("hard delete removes an invoice and restores stock and financial totals, wi
     model: "Phone",
     sku: "DEL-PHONE",
     category: "Mobiles",
+    serialized: false,
     price: 200000,
     unit_cost: 100000,
     opening_quantity: 2,
@@ -947,6 +953,7 @@ test("invoice editing preserves cost after a catalog SKU change", async (t) => {
     model: "QA",
     sku: "TRACK-OLD",
     category: "Computers",
+    serialized: false,
     price: 200000,
     unit_cost: 120000,
     opening_quantity: 2,
@@ -1280,6 +1287,7 @@ test("reorder report includes zero-stock and threshold items, orders urgency fir
       model: sku,
       sku,
       category: "Computers",
+      serialized: false,
       price: 10000,
       unit_cost: cost,
       reorder_level: level,
@@ -1562,6 +1570,7 @@ test("zero-stock report contains only active empty products and its counts exclu
     model: "E",
     sku: "EMPTY",
     category: "Computers",
+    serialized: false,
     price: 100000,
     reorder_level: 0,
   }).id;
@@ -1571,6 +1580,7 @@ test("zero-stock report contains only active empty products and its counts exclu
     model: "I",
     sku: "INACTIVE",
     category: "Computers",
+    serialized: false,
     price: 100000,
   }).id;
   f.s.run("UPDATE products SET active=0 WHERE id=?", inactive);
@@ -2115,6 +2125,7 @@ test("unlisted customer resale creates owner and product atomically, then record
       brand: "Dell",
       model: "Latitude 7400",
       category: "Computers",
+      serialized: false,
       attributes: { CPU: "Core i7", RAM: "16 GB", Storage: "512 GB" },
       price: 0,
     },
@@ -2195,6 +2206,7 @@ test("inline resale creation rolls back on invalid products, closed periods or m
       brand: "Dell",
       model: "Used",
       category: "Computers",
+      serialized: false,
       sku: "SSD-01",
     },
     quantity: 1,
@@ -2414,6 +2426,7 @@ test("product opening costs support selected currency without changing historica
     brand: "Dell",
     model: "Test",
     category: "Computers",
+    serialized: false,
     sku: "USD-1",
     price: 100000,
     currency: "USD",

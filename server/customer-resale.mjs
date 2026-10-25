@@ -1,3 +1,4 @@
+import { unitFields, receiveUnits, link } from "./inventory-units.mjs";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 const id = () => randomUUID();
@@ -35,6 +36,7 @@ export function receiveConsignment(s, user, input) {
   const d = z
     .object({
       owner_id: z.string().optional(),
+      ...unitFields,
       new_owner: z
         .object({
           name: z.string().trim().min(2).max(500),
@@ -55,6 +57,7 @@ export function receiveConsignment(s, user, input) {
             "Storage",
             "Accessories",
           ]),
+          serialized: z.boolean().optional(),
           price: amount.default(0),
           image: z.string().max(500).default(""),
           photo_data: z.string().max(500000).optional(),
@@ -128,6 +131,19 @@ export function receiveConsignment(s, user, input) {
       d.owner_id,
       d.owner_unit_amount,
     );
+    if (product.serialized) {
+      if (d.units && d.units.length !== d.quantity)
+        throw new Error("Enter device details for the received quantity.");
+      receiveUnits(
+        s,
+        product,
+        batchId,
+        d.quantity,
+        { id: lineId },
+        doc.kind,
+        d.units,
+      );
+    }
     s.move(doc, product, d.quantity, 0);
     s.audit(user, "Receive customer-owned stock", doc.id, {
       owner_id: d.owner_id,
@@ -142,6 +158,7 @@ export function returnConsignment(s, user, input) {
   const d = z
     .object({
       batch_id: z.string(),
+      ...unitFields,
       quantity,
       date: date.optional(),
       note: z.string().trim().max(500).default(""),
@@ -167,6 +184,28 @@ export function returnConsignment(s, user, input) {
       "SELECT * FROM products WHERE id=?",
       batch.product_id,
     );
+    const returnLineId = id(),
+      returnedUnits = [];
+    if (product.serialized) {
+      const ids = d.unit_ids || [];
+      if (ids.length !== d.quantity || new Set(ids).size !== ids.length)
+        throw new Error(
+          "Select the exact customer-owned devices to hand back.",
+        );
+      for (const id of ids) {
+        returnedUnits.push(
+          s.one("SELECT * FROM inventory_units WHERE id=?", id),
+        );
+        if (
+          s.run(
+            "UPDATE inventory_units SET status='returned_supplier' WHERE id=? AND batch_id=? AND status='available'",
+            id,
+            batch.id,
+          ).changes !== 1
+        )
+          throw new Error("Selected customer-owned device is unavailable.");
+      }
+    }
     s.run(
       "UPDATE batches SET remaining=remaining-?,quantity=quantity-? WHERE id=?",
       d.quantity,
@@ -175,11 +214,13 @@ export function returnConsignment(s, user, input) {
     );
     s.run(
       "INSERT INTO document_lines(id,document_id,product_id,quantity,price,cost) VALUES (?,?,?,?,0,0)",
-      id(),
+      returnLineId,
       doc.id,
       product.id,
       d.quantity,
     );
+    for (const unit of returnedUnits)
+      link(s, { id: returnLineId }, unit, doc.kind);
     s.move(doc, product, -d.quantity, 0);
     s.audit(user, "Return unsold stock to customer", doc.id, {
       batch_id: batch.id,
@@ -290,7 +331,7 @@ export function consignments(s, input = {}) {
     );
   else
     rows = s.all(
-      `SELECT b.id,b.owner_id,b.product_id,b.quantity,b.remaining,b.owner_unit_amount,SUBSTR(b.received_at,1,10) received_date,p.name,p.brand,p.model,p.sku,p.price,p.category,p.attributes,p.stock,p.image,p.barcode,o.name owner_name
+      `SELECT b.id,b.owner_id,b.product_id,b.quantity,b.remaining,b.owner_unit_amount,SUBSTR(b.received_at,1,10) received_date,p.name,p.brand,p.model,p.sku,p.price,p.category,p.attributes,p.stock,p.serialized,p.image,p.barcode,o.name owner_name
     FROM batches b JOIN products p ON p.id=b.product_id JOIN parties o ON o.id=b.owner_id WHERE b.owner_id IS NOT NULL AND b.remaining>0 AND b.id>? ORDER BY b.id LIMIT ?`,
       d.after,
       d.limit + 1,

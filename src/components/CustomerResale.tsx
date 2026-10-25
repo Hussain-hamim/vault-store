@@ -1,3 +1,9 @@
+import {
+  DeviceSelection,
+  ReceiveDevices,
+  type Device,
+  type DeviceDetails,
+} from "./DeviceInventory";
 import { ProductPhotoPicker, type PhotoValue } from "./ProductPhotoPicker";
 import {
   PRODUCT_BRANDS,
@@ -318,6 +324,8 @@ export function ResaleReceiveDialog({
     [busy, setBusy] = useState(false);
   const owners = useChoices("parties", ownerSearch, "customer", !newOwner),
     products = useChoices("catalog", productSearch, undefined, !newProduct);
+  const [receiptQty, setReceiptQty] = useState("1"),
+    [receiptUnits, setReceiptUnits] = useState<DeviceDetails[]>([]);
   const key = useRef(requestKey());
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -347,6 +355,9 @@ export function ResaleReceiveDialog({
                 brand: brand === "Other" ? form.get("custom_brand") : brand,
                 model: form.get("model"),
                 category,
+                serialized: ["Computers", "Mobiles", "Tablets"].includes(
+                  category,
+                ),
                 price: toMoney(form.get("selling_price")),
                 condition: form.get("condition"),
                 attributes,
@@ -354,6 +365,12 @@ export function ResaleReceiveDialog({
             }
           : { product_id: product }),
         quantity: Number(form.get("quantity")),
+        units: receiptUnits.length
+          ? Array.from(
+              { length: Number(receiptQty) },
+              (_, i) => receiptUnits[i] || {},
+            )
+          : undefined,
         owner_unit_amount: toMoney(form.get("amount")),
         date: form.get("date"),
         note: form.get("note"),
@@ -607,7 +624,8 @@ export function ResaleReceiveDialog({
               <Field label={t("invoice.quantity")}>
                 <NumericInput
                   name="quantity"
-                  defaultValue="1"
+                  value={receiptQty}
+                  onChange={(e) => setReceiptQty(e.target.value)}
                   min="1"
                   max="100000"
                   step="1"
@@ -630,6 +648,15 @@ export function ResaleReceiveDialog({
                 <input name="note" maxLength={500} />
               </Field>
             </div>
+            {(newProduct
+              ? ["Computers", "Mobiles", "Tablets"].includes(category)
+              : products.rows.find((p) => p.id === product)?.serialized) && (
+              <ReceiveDevices
+                quantity={Number(receiptQty)}
+                values={receiptUnits}
+                onChange={setReceiptUnits}
+              />
+            )}
             <p className="help-note">{t("resale.intakeNote")}</p>
           </section>
           <ErrorMessage error={error || owners.error || products.error} />
@@ -744,6 +771,7 @@ export function ResaleReturnDialog({
   const { t } = useI18n();
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
+  const [selectedUnits, setSelectedUnits] = useState<Device[]>([]);
   const key = useRef(requestKey());
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -752,7 +780,10 @@ export function ResaleReturnDialog({
     try {
       await api("consignmentReturn", {
         batch_id: batch.id,
-        quantity: Number(form.get("quantity")),
+        quantity: batch.serialized
+          ? selectedUnits.length
+          : Number(form.get("quantity")),
+        unit_ids: selectedUnits.map((u) => u.id),
         date: form.get("date"),
         note: form.get("note"),
         request_key: key.current,
@@ -773,16 +804,25 @@ export function ResaleReturnDialog({
       <form onSubmit={submit}>
         <div className="form-body">
           <p className="help-note">{t("resale.unsoldHint")}</p>
-          <Field label={t("invoice.quantity")}>
-            <NumericInput
-              name="quantity"
-              min="1"
-              max={batch.remaining}
-              step="1"
-              defaultValue="1"
-              required
+          {batch.serialized ? (
+            <DeviceSelection
+              product={{ ...batch, id: batch.product_id }}
+              batchId={batch.id}
+              selected={selectedUnits}
+              onChange={setSelectedUnits}
             />
-          </Field>
+          ) : (
+            <Field label={t("invoice.quantity")}>
+              <NumericInput
+                name="quantity"
+                min="1"
+                max={batch.remaining}
+                step="1"
+                defaultValue="1"
+                required
+              />
+            </Field>
+          )}
           <Field label={t("common.date")}>
             <input
               type="date"

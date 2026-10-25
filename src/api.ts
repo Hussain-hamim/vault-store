@@ -17,6 +17,7 @@ export type Product = {
   minimum: number;
   reorder_level: number;
   stock: number;
+  serialized?: number;
   consignment_stock?: number;
   image: string;
   barcode: string;

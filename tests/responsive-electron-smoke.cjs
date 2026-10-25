@@ -34,6 +34,7 @@ app
         brand: "Dell",
         model: "Test",
         category: "Computers",
+        serialized: false,
         sku: "ALERT-1",
         price: 300000,
         unit_cost: 100000,

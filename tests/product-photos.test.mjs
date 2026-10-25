@@ -33,6 +33,7 @@ const product = (extra) => ({
   model: "EliteBook 840 G4",
   sku: randomUUID(),
   category: "Computers",
+  serialized: false,
   price: 100000,
   ...extra,
 });

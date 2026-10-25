@@ -83,3 +83,16 @@ CREATE TRIGGER IF NOT EXISTS product_stock_reactivate AFTER UPDATE OF stock ON p
 WHEN NEW.stock>0 AND NEW.active=0 BEGIN
   UPDATE products SET active=1 WHERE id=NEW.id;
 END;
+
+CREATE TABLE IF NOT EXISTS inventory_units(
+ id TEXT PRIMARY KEY, code TEXT NOT NULL UNIQUE, product_id TEXT NOT NULL REFERENCES products(id),
+ batch_id TEXT NOT NULL REFERENCES batches(id), serial TEXT, condition TEXT NOT NULL DEFAULT 'New',
+ battery TEXT NOT NULL DEFAULT '',notes TEXT NOT NULL DEFAULT '',accessories TEXT NOT NULL DEFAULT '',
+ price INTEGER NOT NULL DEFAULT 0 CHECK(price>=0),status TEXT NOT NULL CHECK(status IN ('available','sold','returned_supplier','adjusted_out')),
+ sale_line_id TEXT REFERENCES document_lines(id)
+) STRICT;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_unit_serial_ci ON inventory_units(serial COLLATE NOCASE) WHERE serial IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_unit_available ON inventory_units(product_id,status);
+CREATE INDEX IF NOT EXISTS idx_unit_batch ON inventory_units(batch_id,status);
+CREATE INDEX IF NOT EXISTS idx_unit_sale ON inventory_units(sale_line_id);
+CREATE TABLE IF NOT EXISTS unit_lines(line_id TEXT NOT NULL REFERENCES document_lines(id),unit_id TEXT NOT NULL REFERENCES inventory_units(id),kind TEXT NOT NULL,snapshot TEXT NOT NULL,PRIMARY KEY(line_id,unit_id)) STRICT;

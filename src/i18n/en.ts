@@ -944,10 +944,27 @@ export const en: MessageTree = {
     deletedSale:
       "Invoice permanently deleted. Stock, cash and customer ledger updated.",
   },
+  devices: {
+    details: "Device details",
+    serialOptional:
+      "Serial number is optional. Each device receives an internal ID. Cost comes from this receipt; use separate bill lines for devices with different costs or selling prices.",
+    device: "Device",
+    serial: "Serial / IMEI (optional)",
+    battery: "Battery health",
+    notes: "Condition / cosmetic notes",
+    accessories: "Included accessories",
+    choose: "Choose exact devices",
+    search: "Search serial or internal ID",
+    none: "No available devices found.",
+    chooseReturn: "Select devices to return",
+    tracked: "Individual devices",
+  },
   productDetail: {
-    deleteConfirm: "Delete this product from the catalog? Existing invoices and stock history will be kept.",
+    deleteConfirm:
+      "Delete this product from the catalog? Existing invoices and stock history will be kept.",
     deleted: "Product deleted.",
-    deleteStockRemaining: "This product has {n} units remaining. You can delete it only when stock is zero.",
+    deleteStockRemaining:
+      "This product has {n} units remaining. You can delete it only when stock is zero.",
 
     stockUnavailable: "Stock unavailable",
     currentStock: "Current stock",
