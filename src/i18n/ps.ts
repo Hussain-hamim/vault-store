@@ -680,6 +680,7 @@ export const ps: MessageTree = {
     productSpecs: "توکی او مشخصات",
     qty: "شمېر",
     unitCost: "د واحد لګښت",
+    purchaseRate: "د پیرود نرخ",
     sellingPrice: "د پلور بیه",
     loadMore: "نور وښایاست",
     computers: "کمپیوټرونه",

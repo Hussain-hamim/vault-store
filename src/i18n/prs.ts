@@ -683,6 +683,7 @@ export const prs: MessageTree = {
     productSpecs: "جنس و مشخصات",
     qty: "تعداد",
     unitCost: "هزینه واحد",
+    purchaseRate: "نرخ خرید",
     sellingPrice: "قیمت فروش",
     loadMore: "بیشتر نشان بده",
     computers: "کمپیوترها",

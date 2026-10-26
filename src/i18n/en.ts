@@ -690,6 +690,7 @@ export const en: MessageTree = {
     productSpecs: "Product & specs",
     qty: "Qty",
     unitCost: "Unit cost",
+    purchaseRate: "Purchase rate",
     sellingPrice: "Selling price",
     loadMore: "Load more",
     computers: "Computers",

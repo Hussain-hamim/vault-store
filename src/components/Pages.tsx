@@ -27,6 +27,7 @@ import {
   af,
   foreignMoney,
   afnFromAed,
+  fxRateLabel,
   exportCSV,
   businessDate,
   getToken,
@@ -53,6 +54,7 @@ import {
   Metric,
   Field,
   ExportButton,
+  FilterSelect,
   NumericInput,
 } from "./ui";
 export type PageProps = {
@@ -187,6 +189,80 @@ export function ProductsPage({
   function productSpecs(p: Product) {
     return productSpecEntries(p);
   }
+  function productUnitCost(p: Product) {
+    return p.stock ? (p.cost || 0) / p.stock : p.unit_cost || 0;
+  }
+  function productPurchaseRate(p: Product) {
+    if (!p.fx_rate || (p.currency || "AED") === "AFN") return "";
+    return fxRateLabel(p.fx_rate, p.currency || "AED");
+  }
+  function inventoryDocument() {
+    const totalUnits = rows.reduce((sum, p) => sum + (p.stock || 0), 0);
+    const stockValue = showCost
+      ? rows.reduce((sum, p) => sum + (p.cost || 0), 0)
+      : 0;
+    const categoryLabel =
+      INVENTORY_CATEGORIES.find(([value]) => value === category)?.[1] ||
+      "allProducts";
+    return {
+      kind: "report" as const,
+      locale,
+      title: t("inventory.title"),
+      source: { type: "report" as const, permission: "inventory" as const },
+      subtitle: [
+        t("printing.loadedRows", { n: rows.length }),
+        t(`inventory.${categoryLabel}`),
+        filter === "low" ? t("inventory.lowStock") : t("inventory.allStock"),
+      ].join(" · "),
+      emptyLabel: t("reports.noRows"),
+      summary: [
+        { label: t("inventory.showingProducts", { n: rows.length }), value: rows.length },
+        { label: t("inventory.qty"), value: totalUnits },
+        ...(showCost
+          ? [
+              {
+                label: t("reports.colInventoryValue"),
+                value: af(stockValue, 2),
+              },
+            ]
+          : []),
+      ],
+      sections: [
+        {
+          note: t("printing.loadedOnly"),
+          columns: [
+            { label: t("invoice.product") },
+            { label: t("inventory.category") },
+            { label: t("invoice.quantity"), numeric: true },
+            ...(showCost
+              ? [
+                  { label: t("invoice.unitCostAf"), numeric: true },
+                  { label: t("inventory.purchaseRate") },
+                ]
+              : []),
+            { label: t("product.sellingPrice"), numeric: true },
+          ],
+          rows: rows.map((p) => [
+            [
+              p.name,
+              [p.brand, p.model, p.sku].filter(Boolean).join(" · "),
+              productSpecEntries(p)
+                .map((s) => `${s.key}: ${s.value}`)
+                .join(" · "),
+            ]
+              .filter(Boolean)
+              .join("\n"),
+            p.category,
+            p.stock,
+            ...(showCost
+              ? [af(productUnitCost(p), 2), productPurchaseRate(p) || EM_DASH]
+              : []),
+            af(p.price, 2),
+          ]),
+        },
+      ],
+    };
+  }
   return (
     <div className="page-content inventory-page">
       <PageIntro
@@ -215,71 +291,33 @@ export function ProductsPage({
               placeholder={t("inventory.searchPh")}
             />
             <div className="toolbar-right">
-              <select
+              <FilterSelect
                 aria-label={t("inventory.category")}
                 value={category}
-                onChange={(e) => setCategory(e.target.value)}
+                onChange={setCategory}
               >
                 {INVENTORY_CATEGORIES.map(([value, key]) => (
                   <option key={value} value={value}>
                     {t(`inventory.${key}`)}
                   </option>
                 ))}
-              </select>
-              <select
+              </FilterSelect>
+              <FilterSelect
                 aria-label={t("inventory.stockFilter")}
                 value={filter}
-                onChange={(e) => setFilter(e.target.value)}
+                onChange={setFilter}
               >
                 <option value="all">{t("inventory.allStock")}</option>
                 <option value="low">{t("inventory.lowStock")}</option>
-              </select>
+              </FilterSelect>
               <ReportPrintButton
                 disabled={loading || !!error}
-                getDocument={() => ({
-                  kind: "report",
-                  locale,
-                  title: t("inventory.title"),
-                  source: { type: "report", permission: "inventory" },
-                  subtitle: t("printing.loadedRows", { n: rows.length }),
-                  emptyLabel: t("reports.noRows"),
-                  sections: [
-                    {
-                      note: t("printing.loadedOnly"),
-                      columns: [
-                        { label: t("invoice.product") },
-                        { label: t("invoice.quantity"), numeric: true },
-                        ...(showCost
-                          ? [{ label: t("invoice.unitCostAf"), numeric: true }]
-                          : []),
-                        { label: t("product.sellingPrice"), numeric: true },
-                      ],
-                      rows: rows.map((p) => [
-                        [
-                          p.name,
-                          [p.brand, p.model, p.sku].filter(Boolean).join(" · "),
-                          productSpecEntries(p)
-                            .map((s) => `${s.key}: ${s.value}`)
-                            .join(" · "),
-                        ]
-                          .filter(Boolean)
-                          .join("\n"),
-                        p.stock,
-                        ...(showCost
-                          ? [
-                              af(
-                                p.stock
-                                  ? (p.cost || 0) / p.stock
-                                  : p.unit_cost || 0,
-                                2,
-                              ),
-                            ]
-                          : []),
-                        af(p.price, 2),
-                      ]),
-                    },
-                  ],
-                })}
+                getDocument={() => inventoryDocument()}
+              />
+              <ReportPrintButton
+                disabled={loading || !!error}
+                intent="pdf"
+                getDocument={() => inventoryDocument()}
               />
               <ExportButton
                 onClick={() => {
@@ -296,6 +334,8 @@ export function ProductsPage({
                         price,
                         cost,
                         unit_cost,
+                        currency,
+                        fx_rate,
                         attributes,
                       }) => ({
                         name,
@@ -309,6 +349,10 @@ export function ProductsPage({
                           ? {
                               unit_cost_AF:
                                 (stock ? cost / stock : unit_cost || 0) / 100,
+                              purchase_rate:
+                                fx_rate && (currency || "AED") !== "AFN"
+                                  ? fxRateLabel(fx_rate, currency || "AED")
+                                  : "",
                             }
                           : {}),
                         ...Object.fromEntries(
@@ -388,6 +432,11 @@ export function ProductsPage({
                       {showCost && (
                         <div className="inventory-row-meta inventory-row-cost">
                           <strong>{af(unitCost, 2)}</strong>
+                          {productPurchaseRate(p) ? (
+                            <small className="inventory-cost-rate">
+                              {productPurchaseRate(p)}
+                            </small>
+                          ) : null}
                           <small>
                             {p.stock
                               ? t("inventory.fifoAvg")
@@ -627,10 +676,10 @@ export function DocumentsPage({
                     <span>{t("expenses.monthTotal")}</span>
                     <strong>{af(monthTotal || 0)}</strong>
                   </div>
-                  <select
+                  <FilterSelect
                     aria-label={t("expenses.accountFilter")}
                     value={accountId}
-                    onChange={(e) => setAccountId(e.target.value)}
+                    onChange={setAccountId}
                   >
                     <option value="">{t("expenses.allAccounts")}</option>
                     {accounts.map((a) => (
@@ -638,7 +687,7 @@ export function DocumentsPage({
                         {expenseAccountName(a.name, t)}
                       </option>
                     ))}
-                  </select>
+                  </FilterSelect>
                 </>
               )}
               <ReportPrintButton

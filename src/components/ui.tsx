@@ -349,6 +349,28 @@ export function ExportButton({ onClick }: { onClick: () => void }) {
     </button>
   );
 }
+/** Themed toolbar / filter dropdown used across list screens. */
+export function FilterSelect({
+  value,
+  onChange,
+  children,
+  className = "",
+  ...props
+}: Omit<React.ComponentProps<"select">, "onChange"> & {
+  onChange: (value: string) => void;
+}) {
+  return (
+    <span className={`filter-select ${className}`.trim()}>
+      <select
+        {...props}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      >
+        {children}
+      </select>
+    </span>
+  );
+}
 export function LinkButton({
   children,
   onClick,
