@@ -2,45 +2,72 @@
   max-width: 1080px;
   margin: 0 auto;
 }
-.resale-header {
+.resale-topbar {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  gap: 14px;
-  flex-wrap: wrap;
-}
-.resale-header h2 {
-  margin: 0 0 7px;
-  font-size: 20px;
-  color: var(--paint-fg-374b50, #374b50);
-}
-.resale-header p {
-  margin: 0;
-  color: var(--paint-fg-697c7c, #697c7c);
-  font-size: 11px;
+  gap: 10px;
+  flex-wrap: nowrap;
+  margin: 0 0 10px;
+  min-width: 0;
 }
 .resale-summary {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-  margin: 15px 0;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
 }
 .resale-summary article {
-  padding: 16px;
+  padding: 7px 10px;
   border: 1px solid var(--paint-border-cfe2e4, #cfe2e4);
   background: var(--paint-bg-f0f8f7, #f0f8f7);
-  border-radius: 12px;
+  border-radius: 9px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 2px;
+  min-width: 0;
 }
 .resale-summary span {
-  font-size: 11px;
+  font-size: 9px;
+  line-height: 1.25;
   color: var(--paint-fg-536f70, #536f70);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .resale-summary strong {
-  font-size: 22px;
+  font-size: 14px;
+  line-height: 1.2;
   font-variant-numeric: tabular-nums;
+}
+.resale-top-tabs {
+  flex: 0 1 auto;
+  margin: 0;
+  white-space: nowrap;
+}
+.resale-receive-btn {
+  flex: none;
+  white-space: nowrap;
+}
+.resale-page .resale-top-tabs.sales-tabs {
+  gap: 4px;
+  padding: 3px;
+}
+.resale-page .resale-top-tabs.sales-tabs button {
+  padding: 7px 10px;
+  font-size: 10px;
+}
+@media (max-width: 1100px) {
+  .resale-topbar {
+    flex-wrap: wrap;
+  }
+  .resale-summary {
+    flex: 1 1 100%;
+  }
+  .resale-top-tabs {
+    flex: 1 1 auto;
+  }
 }
 .resale-list {
   display: flex;

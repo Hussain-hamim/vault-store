@@ -275,6 +275,62 @@ export function returnConsignment(s, user, input) {
     return s.getDocument(doc.id);
   });
 }
+function postOwnerSettlement(s, doc, ownerId, amount, direction) {
+  const latest = s.one(
+    "SELECT MAX(date) date FROM journal WHERE party_id=? AND account='consignment_payables' AND document_id<>?",
+    ownerId,
+    doc.id,
+  ).date;
+  if (latest && doc.date < latest)
+    throw new Error(
+      "Owner settlements must follow the latest owner-ledger date.",
+    );
+  if (direction === "pay") {
+    let left = amount;
+    const invoices = s.all(
+      `SELECT d.id,SUM(j.credit-j.debit)
+      -COALESCE((SELECT SUM(rj.debit-rj.credit) FROM journal rj JOIN documents r ON r.id=rj.document_id WHERE r.original_id=d.id AND rj.party_id=? AND rj.account='consignment_payables'),0)
+      -COALESCE((SELECT SUM(a.amount) FROM consignment_payout_allocations a WHERE a.sale_id=d.id AND a.owner_id=? AND a.payment_id<>?),0) due
+      FROM documents d JOIN journal j ON j.document_id=d.id WHERE d.kind='sale' AND j.party_id=? AND j.account='consignment_payables' AND d.date<=? GROUP BY d.id HAVING due>0 ORDER BY d.date,d.created_at,d.id`,
+      ownerId,
+      ownerId,
+      doc.id,
+      ownerId,
+      doc.date,
+    );
+    for (const invoice of invoices) {
+      const pay = Math.min(left, invoice.due);
+      if (pay)
+        s.run(
+          "INSERT INTO consignment_payout_allocations VALUES (?,?,?,?,?)",
+          id(),
+          doc.id,
+          invoice.id,
+          ownerId,
+          pay,
+        );
+      left -= pay;
+      if (!left) break;
+    }
+    if (left)
+      throw new Error("Owner settlements could not be matched to sold stock.");
+    s.ledger(doc, [
+      ["consignment_payables", amount, 0, ownerId],
+      ["cash", 0, amount],
+    ]);
+  } else
+    s.ledger(doc, [
+      ["cash", amount, 0],
+      ["consignment_payables", 0, amount, ownerId],
+    ]);
+}
+function clearOwnerSettlement(s, paymentId) {
+  s.run(
+    "DELETE FROM consignment_payout_allocations WHERE payment_id=?",
+    paymentId,
+  );
+  s.run("DELETE FROM journal WHERE document_id=?", paymentId);
+}
 export function payConsignment(s, user, input) {
   const d = z
     .object({
@@ -301,54 +357,86 @@ export function payConsignment(s, user, input) {
       total: d.amount,
       paid: d.amount,
     });
-    const latest = s.one(
-      "SELECT MAX(date) date FROM journal WHERE party_id=? AND account='consignment_payables'",
-      d.owner_id,
-    ).date;
-    if (latest && doc.date < latest)
-      throw new Error(
-        "Owner settlements must follow the latest owner-ledger date.",
-      );
-    if (d.direction === "pay") {
-      let left = d.amount;
-      const invoices = s.all(
-        `SELECT d.id,SUM(j.credit-j.debit)
-        -COALESCE((SELECT SUM(rj.debit-rj.credit) FROM journal rj JOIN documents r ON r.id=rj.document_id WHERE r.original_id=d.id AND rj.party_id=? AND rj.account='consignment_payables'),0)
-        -COALESCE((SELECT SUM(a.amount) FROM consignment_payout_allocations a WHERE a.sale_id=d.id AND a.owner_id=?),0) due
-        FROM documents d JOIN journal j ON j.document_id=d.id WHERE d.kind='sale' AND j.party_id=? AND j.account='consignment_payables' AND d.date<=? GROUP BY d.id HAVING due>0 ORDER BY d.date,d.created_at,d.id`,
-        d.owner_id,
-        d.owner_id,
-        d.owner_id,
-        doc.date,
-      );
-      for (const invoice of invoices) {
-        const pay = Math.min(left, invoice.due);
-        if (pay)
-          s.run(
-            "INSERT INTO consignment_payout_allocations VALUES (?,?,?,?,?)",
-            id(),
-            doc.id,
-            invoice.id,
-            d.owner_id,
-            pay,
-          );
-        left -= pay;
-        if (!left) break;
-      }
-      if (left)
-        throw new Error(
-          "Owner settlements could not be matched to sold stock.",
-        );
-      s.ledger(doc, [
-        ["consignment_payables", d.amount, 0, d.owner_id],
-        ["cash", 0, d.amount],
-      ]);
-    } else
-      s.ledger(doc, [
-        ["cash", d.amount, 0],
-        ["consignment_payables", 0, d.amount, d.owner_id],
-      ]);
+    postOwnerSettlement(s, doc, d.owner_id, d.amount, d.direction);
     s.audit(user, kind, doc.id, { owner_id: d.owner_id, amount: d.amount });
+    return s.getDocument(doc.id);
+  });
+}
+export function editConsignmentPay(s, user, input) {
+  if (
+    !user.permissions.includes("finance") ||
+    !["Owner", "Manager"].includes(user.role)
+  )
+    throw new Error(
+      "Editing owner settlements requires an owner or manager with finance permission.",
+    );
+  const d = z
+    .object({
+      id: z.string(),
+      revision: z.number().int().min(0),
+      amount: amount.refine((v) => v > 0),
+      date: date.optional(),
+      note: z.string().trim().max(500).default(""),
+      request_key,
+    })
+    .parse(input);
+  return s.transaction(() => {
+    const previous = s.one(
+      "SELECT * FROM invoice_operations WHERE request_key=?",
+      d.request_key,
+    );
+    if (previous) {
+      if (previous.user_id !== user.id || previous.action !== "consignment_pay_edit")
+        throw new Error("Request key already used.");
+      const result = JSON.parse(previous.result);
+      if (result.id !== d.id)
+        throw new Error("Request key already used for another payment.");
+      return s.getDocument(result.id);
+    }
+    const old = s.getDocument(d.id);
+    if (!["consignment_payment", "consignment_recovery"].includes(old.kind))
+      throw new Error("Only owner payouts and recoveries can be edited here.");
+    if (old.revision !== d.revision)
+      throw new Error("This payment changed. Reload it before continuing.");
+    const closed = s.setting("closedThrough");
+    if (closed && (old.date <= closed || (d.date || old.date) <= closed))
+      throw new Error("This accounting period is closed.");
+    party(s, old.party_id);
+    clearOwnerSettlement(s, old.id);
+    const direction = old.kind === "consignment_payment" ? "pay" : "recover";
+    const balance = ownerBalance(s, old.party_id);
+    if (direction === "pay" ? d.amount > balance : d.amount > -balance)
+      throw new Error("Amount exceeds the current owner balance.");
+    const nextDate = d.date || old.date;
+    s.run(
+      "UPDATE documents SET date=?,total=?,paid=?,note=? WHERE id=?",
+      nextDate,
+      d.amount,
+      d.amount,
+      d.note,
+      old.id,
+    );
+    s.run("DELETE FROM invoice_revisions WHERE document_id=?", old.id);
+    s.run(
+      "INSERT INTO invoice_revisions VALUES (?,?)",
+      old.id,
+      old.revision + 1,
+    );
+    const doc = s.getDocument(old.id);
+    postOwnerSettlement(s, doc, old.party_id, d.amount, direction);
+    s.audit(user, "Edit owner settlement", doc.id, {
+      owner_id: old.party_id,
+      amount: d.amount,
+      previous: old.total,
+    });
+    const result = { id: doc.id };
+    s.run(
+      "INSERT INTO invoice_operations VALUES (?,?,?,?)",
+      d.request_key,
+      user.id,
+      "consignment_pay_edit",
+      JSON.stringify(result),
+    );
     return s.getDocument(doc.id);
   });
 }
@@ -357,7 +445,7 @@ export function consignments(s, input = {}) {
     .object({
       after: z.string().default(""),
       limit: z.number().int().min(1).max(100).default(10),
-      view: z.enum(["stock", "owners"]).default("stock"),
+      view: z.enum(["stock", "owners", "payments"]).default("stock"),
       q: z.string().max(100).default(""),
     })
     .parse(input);
@@ -369,7 +457,47 @@ export function consignments(s, input = {}) {
     ? "%" + d.q.trim().replace(/[\\%_]/g, "\\$&") + "%"
     : "%";
   let rows;
-  if (d.view === "owners")
+  let next = null;
+  if (d.view === "payments") {
+    const clauses = [
+      "d.kind IN ('consignment_payment','consignment_recovery')",
+      "(p.name LIKE ? ESCAPE '\\' OR IFNULL(p.phone,'') LIKE ? ESCAPE '\\' OR d.number LIKE ? ESCAPE '\\' OR IFNULL(d.note,'') LIKE ? ESCAPE '\\')",
+    ];
+    const params = [like, like, like, like];
+    if (d.after) {
+      let cursor;
+      try {
+        cursor = z
+          .tuple([z.string(), z.string()])
+          .parse(
+            JSON.parse(Buffer.from(d.after, "base64url").toString("utf8")),
+          );
+      } catch {
+        throw new Error("Invalid pagination cursor.");
+      }
+      clauses.push("(d.created_at<? OR (d.created_at=? AND d.id<?))");
+      params.push(cursor[0], cursor[0], cursor[1]);
+    }
+    rows = s.all(
+      `SELECT d.id,d.number,d.kind,d.date,d.total,d.paid,d.note,d.party_id,d.created_at,
+      COALESCE(r.revision,0) revision,
+      p.name party_name,p.phone,
+      COALESCE((SELECT SUM(credit-debit) FROM party_totals t WHERE t.party_id=d.party_id AND t.account='consignment_payables'),0) owner_balance
+      FROM documents d JOIN parties p ON p.id=d.party_id
+      LEFT JOIN invoice_revisions r ON r.document_id=d.id
+      WHERE ${clauses.join(" AND ")}
+      ORDER BY d.created_at DESC,d.id DESC LIMIT ?`,
+      ...params,
+      d.limit + 1,
+    );
+    const more = rows.length > d.limit;
+    if (more) rows.pop();
+    next = more
+      ? Buffer.from(
+          JSON.stringify([rows.at(-1).created_at, rows.at(-1).id]),
+        ).toString("base64url")
+      : null;
+  } else if (d.view === "owners") {
     rows = s.all(
       `SELECT p.id,p.name,p.phone,COALESCE(t.credit-t.debit,0) balance,
     COALESCE((SELECT SUM(remaining) FROM batches WHERE owner_id=p.id),0) held_units
@@ -382,7 +510,10 @@ export function consignments(s, input = {}) {
       like,
       d.limit + 1,
     );
-  else
+    const more = rows.length > d.limit;
+    if (more) rows.pop();
+    next = more ? rows.at(-1).id : null;
+  } else {
     rows = s.all(
       `SELECT b.id,b.owner_id,b.product_id,b.quantity,b.remaining,b.owner_unit_amount,SUBSTR(b.received_at,1,10) received_date,p.name,p.brand,p.model,p.sku,p.price,p.category,p.attributes,p.stock,p.serialized,p.image,p.barcode,o.name owner_name
     FROM batches b JOIN products p ON p.id=b.product_id JOIN parties o ON o.id=b.owner_id
@@ -399,9 +530,11 @@ export function consignments(s, input = {}) {
       like,
       d.limit + 1,
     );
-  const more = rows.length > d.limit;
-  if (more) rows.pop();
-  return { rows, summary, next: more ? rows.at(-1).id : null };
+    const more = rows.length > d.limit;
+    if (more) rows.pop();
+    next = more ? rows.at(-1).id : null;
+  }
+  return { rows, summary, next };
 }
 
 export function consignmentSnapshot(s, asOf) {

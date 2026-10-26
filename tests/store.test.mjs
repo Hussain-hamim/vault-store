@@ -1657,6 +1657,84 @@ test("customer resale recognises only the retained margin; payout and recovery d
   assert.equal(f.s.totals().net, 0);
   assetReconciled(f);
 });
+test("customer resale payments can be listed, edited and hard-deleted", async (t) => {
+  const f = fixture(t),
+    owner = f.s.createParty(f.u, {
+      kind: "customer",
+      name: "Settlement owner",
+    }).id;
+  await intake(f, owner);
+  sale(f, 1, 100000);
+  assert.equal(ownerClaim(f, owner), 60000);
+  const paid = await f.s.dispatch(
+    "consignmentPay",
+    { owner_id: owner, amount: 40000, request_key: key() },
+    f.token,
+  );
+  assert.equal(ownerClaim(f, owner), 20000);
+  const listed = await f.s.dispatch(
+    "consignments",
+    { view: "payments" },
+    f.token,
+  );
+  assert.equal(listed.rows.length, 1);
+  assert.equal(listed.rows[0].id, paid.id);
+  assert.equal(listed.rows[0].kind, "consignment_payment");
+  const edited = await f.s.dispatch(
+    "consignmentPayEdit",
+    {
+      id: paid.id,
+      revision: paid.revision,
+      amount: 60000,
+      note: "Full payout",
+      request_key: key(),
+    },
+    f.token,
+  );
+  assert.equal(edited.total, 60000);
+  assert.equal(edited.note, "Full payout");
+  assert.equal(ownerClaim(f, owner), 0);
+  assert.equal(f.s.totals().net, 40000);
+  const delKey = key();
+  const deleted = await f.s.dispatch(
+    "paymentDelete",
+    {
+      id: edited.id,
+      revision: edited.revision,
+      request_key: delKey,
+    },
+    f.token,
+  );
+  assert.equal(deleted.deleted, true);
+  assert.equal(ownerClaim(f, owner), 60000);
+  assert.equal(
+    f.s.one("SELECT id FROM documents WHERE id=?", edited.id),
+    undefined,
+  );
+  assert.equal(
+    f.s.one(
+      "SELECT id FROM consignment_payout_allocations WHERE payment_id=?",
+      edited.id,
+    ),
+    undefined,
+  );
+  assert.equal(
+    (
+      await f.s.dispatch(
+        "paymentDelete",
+        {
+          id: edited.id,
+          revision: edited.revision,
+          request_key: delKey,
+        },
+        f.token,
+      )
+    ).id,
+    deleted.id,
+  );
+  balanced(f.s);
+  assetReconciled(f);
+});
 test("mixed owned and customer-owned FIFO batches restore exact costs and distinct owners on partial returns", async (t) => {
   const f = fixture(t),
     owner = f.s.createParty(f.u, { kind: "customer", name: "First owner" }).id,

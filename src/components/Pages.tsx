@@ -2409,7 +2409,7 @@ export function SettingsPage({
   user,
   initialTab,
 }: PageProps & {
-  initialTab?: "about" | "support" | "help" | "capital" | "backups";
+  initialTab?: "about" | "support" | "help" | "backups";
 }) {
   const canManage = user.permissions.includes("settings");
   const { t, locale, setLocale } = useI18n();
@@ -2425,8 +2425,7 @@ export function SettingsPage({
     );
   const [managedCurrency, setManagedCurrency] = useState("AFN");
   const requestedTab =
-    (initialTab === "capital" && !user.permissions.includes("finance")) ||
-    (initialTab === "backups" && !user.permissions.includes("backups"))
+    initialTab === "backups" && !user.permissions.includes("backups")
       ? undefined
       : initialTab;
   const [tab, setTab] = useState(
@@ -2511,9 +2510,6 @@ export function SettingsPage({
     ...(canManage
       ? [{ id: "accounting", label: t("settings.tabAccounting") }]
       : []),
-    ...(user.permissions.includes("finance")
-      ? [{ id: "capital", label: t("nav.capital") }]
-      : []),
     ...(user.permissions.includes("backups")
       ? [{ id: "backups", label: t("nav.backups") }]
       : []),
@@ -2552,14 +2548,6 @@ export function SettingsPage({
           )}
           {tab === "appearance" && (
             <AppearanceSettings key={user.id} userId={user.id} />
-          )}
-          {tab === "capital" && user.permissions.includes("finance") && (
-            <CapitalPage
-              user={user}
-              refresh={refresh}
-              open={open}
-              toast={toast}
-            />
           )}
           {tab === "backups" && user.permissions.includes("backups") && (
             <BackupsPage

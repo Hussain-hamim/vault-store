@@ -2795,13 +2795,26 @@ export function InvoiceDialog({
               </button>
             </>
           )}
-        {["receipt", "payment"].includes(doc?.kind) &&
+        {["receipt", "payment", "consignment_payment", "consignment_recovery"].includes(
+          doc?.kind,
+        ) &&
           ["Owner", "Manager"].includes(user.role) &&
-          user.permissions.includes("finance") &&
-          remove && (
-            <button className="button danger-text" onClick={remove}>
-              {t("invoiceActions.deletePayment")}
-            </button>
+          user.permissions.includes("finance") && (
+            <>
+              {["consignment_payment", "consignment_recovery"].includes(
+                doc.kind,
+              ) &&
+                edit && (
+                  <button className="button" onClick={edit}>
+                    {t("resale.editPayment")}
+                  </button>
+                )}
+              {remove && (
+                <button className="button danger-text" onClick={remove}>
+                  {t("invoiceActions.deletePayment")}
+                </button>
+              )}
+            </>
           )}
         {doc &&
           ["sale", "purchase"].includes(doc.kind) &&
@@ -2895,7 +2908,12 @@ export function DeleteInvoiceDialog({
     };
   }, [documentId]);
   const purchase = doc?.kind === "purchase";
-  const settlement = ["receipt", "payment"].includes(doc?.kind);
+  const settlement = [
+    "receipt",
+    "payment",
+    "consignment_payment",
+    "consignment_recovery",
+  ].includes(doc?.kind);
   const command = settlement
     ? "paymentDelete"
     : purchase
@@ -2924,7 +2942,11 @@ export function DeleteInvoiceDialog({
             });
             done(
               settlement
-                ? t("deleteInvoice.deletedPayment")
+                ? ["consignment_payment", "consignment_recovery"].includes(
+                    doc.kind,
+                  )
+                  ? t("resale.paymentDeleted")
+                  : t("deleteInvoice.deletedPayment")
                 : purchase
                   ? t("deleteInvoice.deletedPurchase")
                   : t("deleteInvoice.deletedSale"),

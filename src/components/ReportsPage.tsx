@@ -84,10 +84,15 @@ export function ReportsPage({
   const [exportBusy, setExportBusy] = useState(false);
   const [visible, setVisible] = useState(10);
   const [reload, setReload] = useState(0);
+  const [search, setSearch] = useState("");
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
   useEffect(() => {
     if (isReportTab(initialTab)) setTab(initialTab);
   }, [initialTab]);
+  useEffect(() => {
+    setSearch("");
+    setVisible(10);
+  }, [tab]);
   const current = CURRENT.has(tab),
     asOf = AS_OF.has(tab);
   const invalid =
@@ -174,9 +179,26 @@ export function ReportsPage({
   }
   const report = ready ? model() : null;
   const section = report?.sections?.[0];
-  const count = section?.rows.length || 0;
-  const rows = section?.rows.slice(0, visible) || [];
-  const canExport = ready && count > 0 && !exportBusy && !moreBusy;
+  const searchQuery = search.trim().toLowerCase();
+  const matched = (section?.rows || [])
+    .map((row, index) => ({
+      row,
+      tones: section?.tones?.[index],
+      index,
+    }))
+    .filter(({ row }) =>
+      !searchQuery
+        ? true
+        : row.some((cell: unknown) =>
+            String(cell ?? "")
+              .toLowerCase()
+              .includes(searchQuery),
+          ),
+    );
+  const count = matched.length;
+  const rows = matched.slice(0, visible);
+  const canExport =
+    ready && (section?.rows.length || 0) > 0 && !exportBusy && !moreBusy;
   async function loadMore() {
     if (!stockAlert || !data.next) {
       setVisible((v) => v + 10);
@@ -336,7 +358,17 @@ export function ReportsPage({
             </div>
           )}
           <div className="report-toolbar-actions">
-            <span className="report-afn-note">{t("invoice.afnNote")}</span>
+            <input
+              type="search"
+              className="report-search"
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setVisible(10);
+              }}
+              placeholder={t("reports.search")}
+              aria-label={t("reports.search")}
+            />
             <button
               className="button button-icon"
               aria-label={t("reports.refresh")}
@@ -435,10 +467,10 @@ export function ReportsPage({
                   </div>
                 </div>
                 <div role="rowgroup" className="report-list-body">
-                  {rows.map((row, index) => (
+                  {rows.map(({ row, tones, index }, shown) => (
                     <div
                       role="row"
-                      aria-rowindex={index + 2}
+                      aria-rowindex={shown + 2}
                       className="report-list-row"
                       key={index}
                     >
@@ -447,7 +479,7 @@ export function ReportsPage({
                           role="cell"
                           key={cell}
                           data-label={column.label}
-                          className={`${column.numeric ? "report-number" : ""} report-tone-${section.tones?.[index]?.[cell] || "neutral"}`}
+                          className={`${column.numeric ? "report-number" : ""} report-tone-${tones?.[cell] || "neutral"}`}
                         >
                           {column.numeric ? (
                             <bdi dir="ltr">{row[cell]}</bdi>
@@ -461,16 +493,25 @@ export function ReportsPage({
                 </div>
               </div>
             ) : (
-              <Empty title={t("reports.noRows")} />
+              <Empty
+                title={t(
+                  searchQuery ? "reports.noSearchMatch" : "reports.noRows",
+                )}
+              />
             )}
             <div className="report-list-footer">
               <span>
                 {t("reports.showingRows", {
                   shown: rows.length,
-                  total: stockAlert ? data.summary.products : count,
+                  total: searchQuery
+                    ? count
+                    : stockAlert
+                      ? data.summary.products
+                      : section?.rows.length || 0,
                 })}
               </span>
-              {(visible < count || (stockAlert && data.next)) && (
+              {(visible < count ||
+                (!searchQuery && stockAlert && data.next)) && (
                 <button
                   className="button"
                   disabled={moreBusy || exportBusy}

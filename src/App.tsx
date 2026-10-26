@@ -39,6 +39,7 @@ import {
   ChartBarIcon,
   BookOpenTextIcon,
   ReceiptIcon,
+  CoinsIcon,
   GearSixIcon,
   SignOutIcon,
   ArrowUpRightIcon,
@@ -62,6 +63,7 @@ import {
   PeoplePage,
   DayBookPage,
   ReportsPage,
+  CapitalPage,
   SettingsPage,
   AlertsDialogContent,
 } from "./components/Pages";
@@ -190,6 +192,12 @@ const general = [
     id: "expenses" as PageId,
     labelKey: "nav.expenses",
     icon: ReceiptIcon,
+    permission: "finance",
+  },
+  {
+    id: "capital" as PageId,
+    labelKey: "nav.capital",
+    icon: CoinsIcon,
     permission: "finance",
   },
   {
@@ -555,9 +563,7 @@ export function App() {
     );
   const props = { user, refresh, open, toast, globalSearch: search };
   const cost = user.permissions.includes("view_costs");
-  const current = ["about", "support", "help", "capital", "backups"].includes(
-    page,
-  )
+  const current = ["about", "support", "help", "backups"].includes(page)
     ? "settings"
     : page;
   return (
@@ -997,6 +1003,14 @@ export function App() {
             <DayBookPage {...props} />
           ) : page === "expenses" ? (
             <DocumentsPage {...props} kind="expense" />
+          ) : page === "capital" ? (
+            user.permissions.includes("finance") ? (
+              <CapitalPage {...props} />
+            ) : (
+              <div className="page-content">
+                <h2>{t("nav.capital")}</h2>
+              </div>
+            )
           ) : page === "reports" ? (
             cost || user.permissions.includes("reports") ? (
               <ReportsPage
@@ -1017,7 +1031,6 @@ export function App() {
                 page === "about" ||
                 page === "support" ||
                 page === "help" ||
-                page === "capital" ||
                 page === "backups"
                   ? page
                   : undefined
@@ -1116,12 +1129,35 @@ export function App() {
               });
           }}
           autoPrint={modal.data.autoPrint === true}
-          edit={() =>
+          edit={async () => {
+            if (
+              ["consignment_payment", "consignment_recovery"].includes(
+                modal.data.kind,
+              )
+            ) {
+              try {
+                const doc = await api<any>("document", { id: modal.data.id });
+                const detail = await api<any>("partyDetail", {
+                  id: doc.party_id,
+                  view: "resale",
+                  limit: 1,
+                });
+                open("consignmentSettlement", {
+                  id: doc.party_id,
+                  name: doc.party_name,
+                  balance: detail.party?.consignment_balance ?? 0,
+                  payment: doc,
+                });
+              } catch (e: any) {
+                toast(e.message);
+              }
+              return;
+            }
             open(
               modal.data.kind === "purchase" ? "purchaseEdit" : "saleEdit",
               modal.data,
-            )
-          }
+            );
+          }}
           remove={() =>
             open(
               modal.data.kind === "purchase"

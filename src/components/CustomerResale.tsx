@@ -59,9 +59,10 @@ function blankIntakeLine(): IntakeLine {
     units: [],
   };
 }
+type ResaleView = "stock" | "owners" | "payments";
 export function CustomerResalePage({ refresh, open, user }: PageProps) {
   const { t } = useI18n();
-  const [view, setView] = useState<"stock" | "owners">("stock"),
+  const [view, setView] = useState<ResaleView>("stock"),
     [q, setQ] = useState(""),
     [rows, setRows] = useState<any[]>([]),
     [summary, setSummary] = useState<any>(null),
@@ -73,6 +74,15 @@ export function CustomerResalePage({ refresh, open, user }: PageProps) {
   const query = q.trim();
   const signature = view + "-" + query + "-" + refresh;
   activeKey.current = signature;
+  const canManagePayments =
+    ["Owner", "Manager"].includes(user.role) &&
+    user.permissions.includes("finance");
+  function switchView(nextView: ResaleView) {
+    if (view === nextView) return;
+    setLoading(true);
+    setQ("");
+    setView(nextView);
+  }
   useEffect(() => {
     let active = true;
     setLoading(true);
@@ -122,67 +132,63 @@ export function CustomerResalePage({ refresh, open, user }: PageProps) {
   }
   return (
     <div className="page-content resale-page">
-      <div className="resale-header">
-        <div className="inline-actions">
-          {user.permissions.includes("inventory") && (
-            <button
-              className="button button-dark"
-              onClick={() => open("consignmentReceive")}
-            >
-              <PlusIcon size={16} />
-              {t("resale.receive")}
-            </button>
-          )}
-        </div>
-      </div>
-      <p className="help-note">{t("resale.explainer")}</p>
-      {summary && (
+      <div className="resale-topbar">
         <div className="resale-summary">
           <article>
             <span>{t("resale.stockHeld")}</span>
-            <strong>{summary.held_units}</strong>
+            <strong>{summary ? summary.held_units : "—"}</strong>
           </article>
           <article>
             <span>{t("resale.owedToOwners")}</span>
             <strong className="text-red">
-              <bdi dir="ltr">{af(summary.due, 2)}</bdi>
+              <bdi dir="ltr">{summary ? af(summary.due, 2) : "—"}</bdi>
             </strong>
           </article>
           <article>
             <span>{t("resale.recoverable")}</span>
             <strong className="text-green">
-              <bdi dir="ltr">{af(summary.recoverable, 2)}</bdi>
+              <bdi dir="ltr">
+                {summary ? af(summary.recoverable, 2) : "—"}
+              </bdi>
             </strong>
           </article>
         </div>
-      )}
-      <div className="sales-tabs" role="tablist" aria-label={t("resale.title")}>
-        <button
-          role="tab"
-          aria-selected={view === "stock"}
-          onClick={() => {
-            if (view !== "stock") {
-              setLoading(true);
-              setQ("");
-              setView("stock");
-            }
-          }}
+        <div
+          className="sales-tabs resale-top-tabs"
+          role="tablist"
+          aria-label={t("resale.title")}
         >
-          {t("resale.stockHeld")}
-        </button>
-        <button
-          role="tab"
-          aria-selected={view === "owners"}
-          onClick={() => {
-            if (view !== "owners") {
-              setLoading(true);
-              setQ("");
-              setView("owners");
-            }
-          }}
-        >
-          {t("resale.ownerBalances")}
-        </button>
+          <button
+            role="tab"
+            aria-selected={view === "stock"}
+            onClick={() => switchView("stock")}
+          >
+            {t("resale.stockHeld")}
+          </button>
+          <button
+            role="tab"
+            aria-selected={view === "owners"}
+            onClick={() => switchView("owners")}
+          >
+            {t("resale.ownerBalances")}
+          </button>
+          <button
+            role="tab"
+            aria-selected={view === "payments"}
+            onClick={() => switchView("payments")}
+          >
+            {t("resale.paymentHistory")}
+          </button>
+        </div>
+        {user.permissions.includes("inventory") && (
+          <button
+            className="button button-dark resale-receive-btn"
+            onClick={() => open("consignmentReceive")}
+          >
+            <PlusIcon size={16} />
+            {t("resale.receive")}
+          </button>
+        )}
       </div>
       <div className="resale-toolbar">
         <input
@@ -192,12 +198,16 @@ export function CustomerResalePage({ refresh, open, user }: PageProps) {
           placeholder={
             view === "stock"
               ? t("resale.searchStock")
-              : t("resale.searchOwners")
+              : view === "owners"
+                ? t("resale.searchOwners")
+                : t("resale.searchPayments")
           }
           aria-label={
             view === "stock"
               ? t("resale.searchStock")
-              : t("resale.searchOwners")
+              : view === "owners"
+                ? t("resale.searchOwners")
+                : t("resale.searchPayments")
           }
         />
       </div>
@@ -262,7 +272,7 @@ export function CustomerResalePage({ refresh, open, user }: PageProps) {
                   </button>
                 )}
               </article>
-            ) : (
+            ) : view === "owners" ? (
               <article className="resale-row" key={row.id}>
                 <div>
                   <strong className="resale-owner-name">{row.name}</strong>
@@ -309,12 +319,92 @@ export function CustomerResalePage({ refresh, open, user }: PageProps) {
                   </button>
                 )}
               </article>
+            ) : (
+              <article className="resale-row" key={row.id}>
+                <div>
+                  <strong>{row.number}</strong>
+                  <small>
+                    {row.date} ·{" "}
+                    {t(
+                      row.kind === "consignment_recovery"
+                        ? "resale.recovery"
+                        : "resale.pay",
+                    )}
+                  </small>
+                  <div className="resale-owner-line">
+                    <strong className="resale-owner-name">
+                      {row.party_name}
+                    </strong>
+                    <small>{row.phone || "—"}</small>
+                  </div>
+                  {row.note ? <small>{row.note}</small> : null}
+                </div>
+                <div>
+                  <small>{t("expense.amount")}</small>
+                  <strong
+                    className={
+                      row.kind === "consignment_recovery"
+                        ? "text-green"
+                        : "text-red"
+                    }
+                  >
+                    <bdi dir="ltr">{af(row.total, 2)}</bdi>
+                  </strong>
+                </div>
+                <button
+                  className="button"
+                  onClick={() =>
+                    open("invoice", { id: row.id, kind: row.kind })
+                  }
+                >
+                  {t("common.view")}
+                </button>
+                {canManagePayments && (
+                  <>
+                    <button
+                      className="button"
+                      onClick={() =>
+                        open("consignmentSettlement", {
+                          id: row.party_id,
+                          name: row.party_name,
+                          phone: row.phone,
+                          balance: row.owner_balance,
+                          payment: row,
+                        })
+                      }
+                    >
+                      {t("resale.editPayment")}
+                    </button>
+                    <button
+                      className="button danger-text"
+                      onClick={() =>
+                        open("paymentDelete", {
+                          id: row.id,
+                          kind: row.kind,
+                        })
+                      }
+                    >
+                      <TrashIcon size={15} />
+                      {t("resale.deletePayment")}
+                    </button>
+                  </>
+                )}
+              </article>
             ),
           )}
         </div>
       )}
       {!loading && !rows.length && !error && (
-        <Empty title={t("resale.empty")} text={t("resale.emptyHint")} />
+        <Empty
+          title={t(
+            view === "payments" ? "resale.emptyPayments" : "resale.empty",
+          )}
+          text={t(
+            view === "payments"
+              ? "resale.emptyPaymentsHint"
+              : "resale.emptyHint",
+          )}
+        />
       )}
       {next && (
         <button className="button" disabled={busy} onClick={more}>
@@ -765,21 +855,40 @@ export function ResaleSettlementDialog({
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
   const key = useRef(requestKey());
-  const recovery = owner.balance < 0;
+  const payment = owner.payment;
+  const editing = !!payment?.id;
+  const recovery = editing
+    ? payment.kind === "consignment_recovery"
+    : owner.balance < 0;
+  const available = editing
+    ? Math.abs(owner.balance || 0) + (payment.total || 0)
+    : Math.abs(owner.balance || 0);
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
     setBusy(true);
     try {
-      await api("consignmentPay", {
-        owner_id: owner.id,
-        amount: toMoney(form.get("amount")),
-        direction: recovery ? "recover" : "pay",
-        date: form.get("date"),
-        note: form.get("note"),
-        request_key: key.current,
-      });
-      done(t("resale.settled"));
+      if (editing) {
+        await api("consignmentPayEdit", {
+          id: payment.id,
+          revision: payment.revision,
+          amount: toMoney(form.get("amount")),
+          date: form.get("date"),
+          note: form.get("note"),
+          request_key: key.current,
+        });
+        done(t("resale.paymentUpdated"));
+      } else {
+        await api("consignmentPay", {
+          owner_id: owner.id,
+          amount: toMoney(form.get("amount")),
+          direction: recovery ? "recover" : "pay",
+          date: form.get("date"),
+          note: form.get("note"),
+          request_key: key.current,
+        });
+        done(t("resale.settled"));
+      }
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -788,7 +897,13 @@ export function ResaleSettlementDialog({
   }
   return (
     <Modal
-      title={t(recovery ? "resale.recover" : "resale.payOwner")}
+      title={t(
+        editing
+          ? "resale.editPayment"
+          : recovery
+            ? "resale.recover"
+            : "resale.payOwner",
+      )}
       subtitle={owner.name}
       onClose={close}
     >
@@ -799,15 +914,17 @@ export function ResaleSettlementDialog({
           </p>
           <p>
             {t("common.outstanding")}:{" "}
-            <bdi dir="ltr">{af(Math.abs(owner.balance), 2)}</bdi>
+            <bdi dir="ltr">{af(available, 2)}</bdi>
           </p>
           <Field label={t("expense.amount")}>
             <NumericInput
               name="amount"
               min="0.01"
-              max={Math.abs(owner.balance) / 100}
+              max={available / 100}
               step="0.01"
-              defaultValue={(Math.abs(owner.balance) / 100).toFixed(2)}
+              defaultValue={(
+                (editing ? payment.total : available) / 100
+              ).toFixed(2)}
               required
               autoFocus
             />
@@ -816,13 +933,18 @@ export function ResaleSettlementDialog({
             <input
               type="date"
               name="date"
-              defaultValue={businessDate()}
+              defaultValue={editing ? payment.date : businessDate()}
               max={businessDate()}
               required
             />
           </Field>
           <Field label={t("resale.agreementNote")}>
-            <textarea name="note" maxLength={500} rows={2} />
+            <textarea
+              name="note"
+              maxLength={500}
+              rows={2}
+              defaultValue={editing ? payment.note || "" : ""}
+            />
           </Field>
           <ErrorMessage error={error} />
         </div>

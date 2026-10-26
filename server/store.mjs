@@ -20,6 +20,7 @@ import {
   receiveConsignment,
   returnConsignment,
   payConsignment,
+  editConsignmentPay,
   consignments,
   consignmentCredits,
   ownerBalance,
@@ -1721,32 +1722,44 @@ export class Store {
         return result;
       }
       const old = this.getDocument(d.id);
-      if (!["receipt", "payment"].includes(old.kind))
+      const ownerSettlement = [
+        "consignment_payment",
+        "consignment_recovery",
+      ].includes(old.kind);
+      if (!["receipt", "payment"].includes(old.kind) && !ownerSettlement)
         throw new Error(
-          "Only customer receipts and supplier payments can be deleted here.",
+          "Only customer receipts, supplier payments, and owner settlements can be deleted here.",
         );
       if (old.revision !== d.revision)
         throw new Error("This payment changed. Reload it before continuing.");
       const closed = this.setting("closedThrough");
       if (closed && old.date <= closed)
         throw new Error("This accounting period is closed.");
-      const allocations = this.all(
-        "SELECT * FROM payment_allocations WHERE payment_id=?",
-        old.id,
-      );
-      for (const allocation of allocations) {
-        const reversed = this.run(
-          "UPDATE documents SET paid=paid-? WHERE id=? AND paid>=?",
-          allocation.amount,
-          allocation.invoice_id,
-          allocation.amount,
+      if (ownerSettlement) {
+        this.run(
+          "DELETE FROM consignment_payout_allocations WHERE payment_id=?",
+          old.id,
         );
-        if (reversed.changes !== 1)
-          throw new Error(
-            "Could not reverse a linked invoice payment. Reload and try again.",
+      } else {
+        const allocations = this.all(
+          "SELECT * FROM payment_allocations WHERE payment_id=?",
+          old.id,
+        );
+        for (const allocation of allocations) {
+          const reversed = this.run(
+            "UPDATE documents SET paid=paid-? WHERE id=? AND paid>=?",
+            allocation.amount,
+            allocation.invoice_id,
+            allocation.amount,
           );
+          if (reversed.changes !== 1)
+            throw new Error(
+              "Could not reverse a linked invoice payment. Reload and try again.",
+            );
+        }
+        this.run("DELETE FROM payment_allocations WHERE payment_id=?", old.id);
       }
-      this.run("DELETE FROM payment_allocations WHERE payment_id=?", old.id);
+      this.run("DELETE FROM invoice_revisions WHERE document_id=?", old.id);
       this.run("DELETE FROM journal WHERE document_id=?", old.id);
       this.run("DELETE FROM documents WHERE id=?", old.id);
       const result = { id: old.id, number: old.number, deleted: true };
@@ -2977,6 +2990,7 @@ export class Store {
       consignmentReceive: "finance",
       consignmentReturn: "finance",
       consignmentPay: "finance",
+      consignmentPayEdit: "finance",
       reports: "reports",
       dayBook: "finance",
       users: "users",
@@ -3594,7 +3608,8 @@ export class Store {
       case "consignments":
       case "consignmentReceive":
       case "consignmentReturn":
-      case "consignmentPay": {
+      case "consignmentPay":
+      case "consignmentPayEdit": {
         if (!user.permissions.includes("view_costs"))
           throw new Error("Permission required: view_costs");
         if (
@@ -3607,6 +3622,7 @@ export class Store {
           consignmentReceive: receiveConsignment,
           consignmentReturn: returnConsignment,
           consignmentPay: payConsignment,
+          consignmentPayEdit: editConsignmentPay,
         }[command](
           this,
           ...(command === "consignments" ? [args] : [user, args]),

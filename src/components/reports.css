@@ -92,10 +92,19 @@
   font-size: 10px;
   white-space: nowrap;
 }
-.report-afn-note {
-  color: var(--paint-fg-6a7460, #6a7460);
-  font-size: 10px;
-  margin-inline-end: 4px;
+.report-search {
+  width: min(220px, 42vw);
+  min-height: 32px;
+  padding: 6px 10px;
+  border: 1px solid var(--paint-border-d8dfcf, #d8dfcf);
+  border-radius: 9px;
+  background: var(--paint-bg-fff, #fff);
+  font: inherit;
+  font-size: 11px;
+  color: var(--paint-fg-394236, #394236);
+}
+.report-search::placeholder {
+  color: var(--paint-fg-7a8470, #7a8470);
 }
 .report-scope-current {
   display: inline-flex;
