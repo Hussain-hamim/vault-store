@@ -62,6 +62,7 @@ function blankIntakeLine(): IntakeLine {
 export function CustomerResalePage({ refresh, open, user }: PageProps) {
   const { t } = useI18n();
   const [view, setView] = useState<"stock" | "owners">("stock"),
+    [q, setQ] = useState(""),
     [rows, setRows] = useState<any[]>([]),
     [summary, setSummary] = useState<any>(null),
     [next, setNext] = useState<string | null>(null),
@@ -69,7 +70,8 @@ export function CustomerResalePage({ refresh, open, user }: PageProps) {
     [loading, setLoading] = useState(true),
     [error, setError] = useState("");
   const activeKey = useRef("");
-  const signature = view + "-" + refresh;
+  const query = q.trim();
+  const signature = view + "-" + query + "-" + refresh;
   activeKey.current = signature;
   useEffect(() => {
     let active = true;
@@ -78,30 +80,35 @@ export function CustomerResalePage({ refresh, open, user }: PageProps) {
     setNext(null);
     setError("");
     setBusy(false);
-    api("consignments", { view })
-      .then((d) => {
-        if (active) {
-          setRows(d.rows);
-          setNext(d.next);
-          setSummary(d.summary);
-          setLoading(false);
-        }
-      })
-      .catch((e) => {
-        if (active) {
-          setError(e.message);
-          setLoading(false);
-        }
-      });
+    const timer = setTimeout(
+      () =>
+        api("consignments", { view, q: query })
+          .then((d) => {
+            if (active) {
+              setRows(d.rows);
+              setNext(d.next);
+              setSummary(d.summary);
+              setLoading(false);
+            }
+          })
+          .catch((e) => {
+            if (active) {
+              setError(e.message);
+              setLoading(false);
+            }
+          }),
+      query ? 160 : 0,
+    );
     return () => {
       active = false;
+      clearTimeout(timer);
     };
-  }, [view, refresh]);
+  }, [view, query, refresh]);
   async function more() {
     const key = signature;
     setBusy(true);
     try {
-      const data = await api("consignments", { view, after: next });
+      const data = await api("consignments", { view, q: query, after: next });
       if (activeKey.current === key) {
         setRows((r) => [...r, ...data.rows]);
         setNext(data.next);
@@ -156,6 +163,7 @@ export function CustomerResalePage({ refresh, open, user }: PageProps) {
           onClick={() => {
             if (view !== "stock") {
               setLoading(true);
+              setQ("");
               setView("stock");
             }
           }}
@@ -168,12 +176,30 @@ export function CustomerResalePage({ refresh, open, user }: PageProps) {
           onClick={() => {
             if (view !== "owners") {
               setLoading(true);
+              setQ("");
               setView("owners");
             }
           }}
         >
           {t("resale.ownerBalances")}
         </button>
+      </div>
+      <div className="resale-toolbar">
+        <input
+          type="search"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder={
+            view === "stock"
+              ? t("resale.searchStock")
+              : t("resale.searchOwners")
+          }
+          aria-label={
+            view === "stock"
+              ? t("resale.searchStock")
+              : t("resale.searchOwners")
+          }
+        />
       </div>
       <ErrorMessage error={error} />
       {loading ? (
@@ -190,9 +216,12 @@ export function CustomerResalePage({ refresh, open, user }: PageProps) {
                       .filter(Boolean)
                       .join(" · ")}
                   </small>
-                  <small>
-                    {t("resale.owner")}: {row.owner_name} · {row.received_date}
-                  </small>
+                  <div className="resale-owner-line">
+                    <strong className="resale-owner-name">
+                      {row.owner_name}
+                    </strong>
+                    <small>{row.received_date}</small>
+                  </div>
                 </div>
                 <div>
                   <small>{t("resale.stockHeld")}</small>
@@ -236,7 +265,7 @@ export function CustomerResalePage({ refresh, open, user }: PageProps) {
             ) : (
               <article className="resale-row" key={row.id}>
                 <div>
-                  <strong>{row.name}</strong>
+                  <strong className="resale-owner-name">{row.name}</strong>
                   <small>
                     {row.phone || "—"} · {t("resale.stockHeld")}:{" "}
                     {row.held_units}

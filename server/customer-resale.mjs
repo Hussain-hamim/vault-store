@@ -358,12 +358,16 @@ export function consignments(s, input = {}) {
       after: z.string().default(""),
       limit: z.number().int().min(1).max(100).default(10),
       view: z.enum(["stock", "owners"]).default("stock"),
+      q: z.string().max(100).default(""),
     })
     .parse(input);
   const summary =
     s.one(`SELECT COALESCE((SELECT SUM(remaining) FROM batches WHERE owner_id IS NOT NULL),0) held_units,
     COALESCE(SUM(MAX(0,credit-debit)),0) due,COALESCE(SUM(MAX(0,debit-credit)),0) recoverable
     FROM party_totals WHERE account='consignment_payables'`);
+  const like = d.q.trim()
+    ? "%" + d.q.trim().replace(/[\\%_]/g, "\\$&") + "%"
+    : "%";
   let rows;
   if (d.view === "owners")
     rows = s.all(
@@ -371,15 +375,28 @@ export function consignments(s, input = {}) {
     COALESCE((SELECT SUM(remaining) FROM batches WHERE owner_id=p.id),0) held_units
     FROM parties p LEFT JOIN party_totals t ON t.party_id=p.id AND t.account='consignment_payables'
     WHERE p.kind='customer' AND p.id>? AND (COALESCE(t.credit-t.debit,0)<>0 OR EXISTS(SELECT 1 FROM batches b WHERE b.owner_id=p.id AND b.remaining>0))
+    AND (p.name LIKE ? ESCAPE '\\' OR p.phone LIKE ? ESCAPE '\\')
     ORDER BY p.id LIMIT ?`,
       d.after,
+      like,
+      like,
       d.limit + 1,
     );
   else
     rows = s.all(
       `SELECT b.id,b.owner_id,b.product_id,b.quantity,b.remaining,b.owner_unit_amount,SUBSTR(b.received_at,1,10) received_date,p.name,p.brand,p.model,p.sku,p.price,p.category,p.attributes,p.stock,p.serialized,p.image,p.barcode,o.name owner_name
-    FROM batches b JOIN products p ON p.id=b.product_id JOIN parties o ON o.id=b.owner_id WHERE b.owner_id IS NOT NULL AND b.remaining>0 AND b.id>? ORDER BY b.id LIMIT ?`,
+    FROM batches b JOIN products p ON p.id=b.product_id JOIN parties o ON o.id=b.owner_id
+    WHERE b.owner_id IS NOT NULL AND b.remaining>0 AND b.id>?
+    AND (o.name LIKE ? ESCAPE '\\' OR o.phone LIKE ? ESCAPE '\\' OR p.name LIKE ? ESCAPE '\\' OR p.brand LIKE ? ESCAPE '\\' OR p.model LIKE ? ESCAPE '\\' OR p.sku LIKE ? ESCAPE '\\' OR IFNULL(p.barcode,'') LIKE ? ESCAPE '\\')
+    ORDER BY b.id LIMIT ?`,
       d.after,
+      like,
+      like,
+      like,
+      like,
+      like,
+      like,
+      like,
       d.limit + 1,
     );
   const more = rows.length > d.limit;

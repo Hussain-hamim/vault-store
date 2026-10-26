@@ -73,6 +73,39 @@
 .resale-row strong {
   line-height: 1.6;
 }
+.resale-toolbar {
+  display: flex;
+  gap: 10px;
+  margin: 10px 0 4px;
+}
+.resale-toolbar input[type="search"] {
+  flex: 1;
+  min-width: 0;
+  max-width: 420px;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--paint-border-d1e3df, #d1e3df);
+  border-radius: 9px;
+  background: var(--paint-bg-fff, #fff);
+  font: inherit;
+  font-size: 12px;
+}
+.resale-owner-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+.resale-owner-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--paint-fg-275c5d, #275c5d);
+  line-height: 1.35;
+}
+.resale-owner-line small {
+  margin: 0;
+}
 .expense-account-create {
   display: flex;
   align-items: flex-end;

@@ -375,6 +375,8 @@ export const en: MessageTree = {
     intakeNote:
       "Customer-owned units stay on this resale list and do not appear in Inventory. Nothing is owed until a unit sells. Record the owner’s agreed amount here; later the actual sale price minus that amount becomes shop gross profit. For example: sell for AF 3,000, owe the owner AF 2,000, retain AF 1,000 before expenses.",
     stockHeld: "Customer-owned units on hand",
+    searchStock: "Search owner or product…",
+    searchOwners: "Search owners by name or phone…",
     ownerBalances: "Owner balances",
     owedToOwners: "Owed to product owners",
     recoverable: "Recoverable from product owners",
