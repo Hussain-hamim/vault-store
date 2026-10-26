@@ -302,35 +302,44 @@ export function TradeForm({
     // Sales merge by product like accessories; purchases still allow
     // separate serialized lines for different device costs.
     const mergeByProduct = !purchase || !p.serialized;
-    if (mergeByProduct && lines.some((l) => l.product.id === p.id)) return;
+    if (mergeByProduct && lines.some((l) => l.product.id === p.id)) {
+      setLines((ls) =>
+        ls.map((l) => {
+          if (l.product.id !== p.id) return l;
+          const next = l.quantity + 1;
+          const max = purchase ? 100000 : Math.max(1, p.stock);
+          return { ...l, quantity: Math.min(next, max) };
+        }),
+      );
+      if (q) setQ("");
+      return;
+    }
     const sourceCost =
       p.currency === currency || (!p.currency && currency === "AED")
         ? (p.cost_foreign ?? p.cost_aed ?? 0)
         : 0;
     const costAedMajor = sourceCost ? moneyInput(sourceCost) : "";
-    setLines((ls) =>
-      mergeByProduct && ls.some((l) => l.product.id === p.id)
-        ? ls
-        : [
-            ...ls,
-            {
-              key: requestKey(),
-              product: p,
-              selectedUnits: [],
-              quantity: 1,
-              price: purchase
-                ? afnPriceFromAed(costAedMajor, fxRate) || ""
-                : String(p.price / 100),
-              discount: "0",
-              ...(purchase ? { costAed: costAedMajor, cargoRent: "0" } : {}),
-            },
-          ],
-    );
+    setLines((ls) => [
+      ...ls,
+      {
+        key: requestKey(),
+        product: p,
+        selectedUnits: [],
+        quantity: 1,
+        price: purchase
+          ? afnPriceFromAed(costAedMajor, fxRate) || ""
+          : String(p.price / 100),
+        discount: "0",
+        ...(purchase ? { costAed: costAedMajor, cargoRent: "0" } : {}),
+      },
+    ]);
     if (q) setQ("");
   }
-  async function scanBarcode() {
-    const code = scanCode.trim();
+  const scanBurst = useRef({ last: 0, rapid: false });
+  async function scanBarcode(raw?: string) {
+    const code = (raw ?? scanCode).trim();
     if (!code || scanBusy) return;
+    scanBurst.current.rapid = false;
     setScanBusy(true);
     setError("");
     try {
@@ -343,20 +352,24 @@ export function TradeForm({
             });
       let p = d.rows[0];
       if (!p && !purchase) {
-        const result = await api<{ unit: Device; product: Product }>(
-          "unitLookup",
-          { code },
-        );
-        p = result.product;
+        try {
+          const result = await api<{ unit: Device; product: Product }>(
+            "unitLookup",
+            { code },
+          );
+          p = result.product;
+        } catch {
+          /* barcode may simply be unknown */
+        }
       }
       if (!p) throw new Error(t("sales.errBarcode", { code }));
       if (!purchase && p.stock <= 0)
         throw new Error(t("sales.errOutOfStock", { name: p.name }));
       if (
-        (!purchase || !p.serialized) &&
-        lines.some((l) => l.product.id === p.id)
+        !purchase &&
+        lines.some((l) => l.product.id === p.id && l.quantity >= p.stock)
       )
-        throw new Error(t("sales.errOnBill", { name: p.name }));
+        throw new Error(t("sales.errOutOfStock", { name: p.name }));
       add(p);
       setScanCode("");
       barcodeRef.current?.focus();
@@ -367,6 +380,32 @@ export function TradeForm({
       setScanBusy(false);
     }
   }
+  useEffect(() => {
+    if (documentId || loading) return;
+    const id = window.setTimeout(() => barcodeRef.current?.focus(), 40);
+    return () => clearTimeout(id);
+  }, [documentId, loading, kind]);
+  useEffect(() => {
+    const code = scanCode.trim();
+    if (!code || !scanBurst.current.rapid || scanBusy) return;
+    const timer = window.setTimeout(() => {
+      if (scanBurst.current.rapid) scanBarcode(code);
+    }, 90);
+    return () => clearTimeout(timer);
+    // Intentionally only react to scanCode bursts from a wedge.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scanCode]);
+  useEffect(() => {
+    function onWedge(event: Event) {
+      const code = String((event as CustomEvent).detail?.code || "").trim();
+      if (!code || scanBusy) return;
+      setScanCode(code);
+      scanBarcode(code);
+    }
+    window.addEventListener("vault:barcode", onWedge);
+    return () => window.removeEventListener("vault:barcode", onWedge);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scanBusy, purchase, lines]);
   useEffect(() => {
     if (!seedProduct || documentId) return;
     add(seedProduct);
@@ -781,16 +820,25 @@ export function TradeForm({
                           aria-label={t("sales.scanBarcode")}
                           placeholder={t("sales.scanPh")}
                           value={scanCode}
-                          onChange={(e) => setScanCode(e.target.value)}
+                          onChange={(e) => {
+                            const now = Date.now();
+                            const gap = now - scanBurst.current.last;
+                            scanBurst.current.rapid =
+                              !scanBurst.current.last || gap < 55;
+                            scanBurst.current.last = now;
+                            setScanCode(e.target.value);
+                          }}
                           onKeyDown={(e) => {
                             if (e.key === "Enter") {
                               e.preventDefault();
+                              scanBurst.current.rapid = false;
                               scanBarcode();
                             }
                           }}
                           name="barcode_scan"
                           inputMode="text"
                           autoComplete="off"
+                          autoFocus={!documentId}
                         />
                         <button
                           type="button"
@@ -855,13 +903,11 @@ export function TradeForm({
                                         : af(p.price)}
                                     </em>
                                     <em>
-                                      {purchase
-                                        ? t("sales.inCatalog")
-                                        : out
-                                          ? t("sales.outOfStock")
-                                          : t("productDetail.inStock", {
-                                              n: p.stock,
-                                            })}
+                                      {out
+                                        ? t("sales.outOfStock")
+                                        : t("productDetail.inStock", {
+                                            n: p.stock,
+                                          })}
                                     </em>
                                   </span>
                                 </span>

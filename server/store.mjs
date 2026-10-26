@@ -2210,14 +2210,14 @@ export class Store {
       clauses.push("p.consignment_only=0");
     }
     if (d.barcode) {
-      clauses.push("p.barcode=?");
-      params.push(d.barcode);
+      clauses.push("p.barcode=? COLLATE NOCASE");
+      params.push(d.barcode.trim());
     } else if (d.q) {
       clauses.push(
-        "(p.name LIKE ? ESCAPE '\\' OR p.sku LIKE ? ESCAPE '\\' OR p.barcode=? OR p.barcode LIKE ? ESCAPE '\\')",
+        "(p.name LIKE ? ESCAPE '\\' OR p.sku LIKE ? ESCAPE '\\' OR p.barcode=? COLLATE NOCASE OR p.barcode LIKE ? ESCAPE '\\')",
       );
       const q = d.q.replace(/[\\%_]/g, "\\$&") + "%";
-      params.push(q, q, d.q, q);
+      params.push(q, q, d.q.trim(), q);
     }
     if (d.category !== "All products") {
       clauses.push("p.category=?");
@@ -3299,12 +3299,12 @@ export class Store {
         const canPeople = user.permissions.includes("people");
         if (canProducts) {
           const products = this.all(
-            `SELECT p.* FROM products p WHERE p.active=1 AND p.consignment_only=0 AND (p.name LIKE ? ESCAPE '\\' OR p.sku LIKE ? ESCAPE '\\' OR p.brand LIKE ? ESCAPE '\\' OR p.model LIKE ? ESCAPE '\\' OR p.barcode=?) ORDER BY p.name LIMIT ?`,
+            `SELECT p.* FROM products p WHERE p.active=1 AND p.consignment_only=0 AND (p.name LIKE ? ESCAPE '\\' OR p.sku LIKE ? ESCAPE '\\' OR p.brand LIKE ? ESCAPE '\\' OR p.model LIKE ? ESCAPE '\\' OR p.barcode=? COLLATE NOCASE) ORDER BY p.name LIMIT ?`,
             contains,
             prefix,
             contains,
             contains,
-            q,
+            q.trim(),
             d.limit,
           );
           for (const p of products) {

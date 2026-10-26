@@ -5281,6 +5281,70 @@ input[data-numeric] {
   background: linear-gradient(135deg, var(--paint-bg-f4f8ea, #f4f8ea) 0%, var(--paint-bg-fff, #fff) 60%);
   border-color: var(--paint-border-d7e0c0, #d7e0c0);
 }
+/* Purchase board: warmer clay/amber so it is distinct from the lime sale board. */
+.purchase-board {
+  background:
+    linear-gradient(180deg, var(--paint-bg-fbf6f0, #fbf6f0) 0%, transparent 42%),
+    var(--paint-bg-fcfaf8, #fcfaf8);
+}
+.purchase-board .sale-customer-panel,
+.purchase-board .sale-catalog-panel,
+.purchase-board .sale-bill-panel,
+.purchase-board .sale-pay-panel {
+  border-color: var(--paint-border-e6d5c4, #e6d5c4);
+}
+.purchase-board .sale-customer-panel {
+  background: linear-gradient(
+    135deg,
+    var(--paint-bg-f8efe4, #f8efe4) 0%,
+    var(--paint-bg-fff, #fff) 62%
+  );
+  border-color: var(--paint-border-e0cbb6, #e0cbb6);
+}
+.purchase-board .sale-customer-modes {
+  background: var(--paint-bg-f0e4d4, #f0e4d4);
+  border-color: var(--paint-border-e0cbb6, #e0cbb6);
+}
+.purchase-board .sale-customer-modes button {
+  color: var(--paint-fg-7a5a3d, #7a5a3d);
+}
+.purchase-board .sale-customer-modes button.active,
+.purchase-board .sale-customer-modes button[aria-selected="true"] {
+  background: var(--paint-bg-5a3d28, #5a3d28);
+  color: var(--paint-fg-ffe7c2, #ffe7c2);
+}
+.purchase-board .sale-customer-name > span,
+.purchase-board .sale-customer-date > span {
+  color: var(--paint-fg-8a6a4c, #8a6a4c);
+}
+.purchase-board .sale-customer-name input,
+.purchase-board .sale-customer-date input,
+.purchase-board .sale-customer-name select {
+  border-color: var(--paint-border-e0cbb6, #e0cbb6);
+}
+.purchase-board .sale-product-list.product-browser-list {
+  border-color: var(--paint-border-eadccc, #eadccc);
+  background: var(--paint-bg-faf5ef, #faf5ef);
+}
+.purchase-board .product-pick-card {
+  border-color: var(--paint-border-e8d8c6, #e8d8c6);
+  background: var(--paint-bg-fffdf9, #fffdf9);
+}
+.purchase-board .product-pick-card:hover:not(:disabled) {
+  border-color: var(--paint-border-c9945a, #c9945a);
+  box-shadow: 0 0 0 1px var(--paint-border-c9945a55, #c9945a55);
+}
+.purchase-board .sale-bill-panel .cart-line {
+  border-inline-start: 3px solid var(--paint-border-c9945a, #c9945a);
+  background: var(--paint-bg-fffaf4, #fffaf4);
+}
+.sale-board:not(.purchase-board) .sale-bill-panel .cart-line {
+  border-inline-start: 3px solid var(--paint-border-92a851, #92a851);
+}
+.purchase-workspace .sales-tabs button[aria-selected="true"] {
+  background: var(--paint-bg-5a3d28, #5a3d28);
+  color: var(--paint-fg-ffe7c2, #ffe7c2);
+}
 .sale-customer-row {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) minmax(128px, 0.4fr);

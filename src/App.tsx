@@ -54,7 +54,7 @@ import {
   ShieldCheckIcon,
   CommandIcon,
 } from "@phosphor-icons/react";
-import { api, setToken, Product, User } from "./api";
+import { api, setToken, Product, User, normalizeDigits } from "./api";
 import { useI18n, LOCALES, type Locale } from "./i18n";
 import { Dashboard } from "./components/Dashboard";
 import {
@@ -84,6 +84,7 @@ import {
 import { GlobalSearch, GlobalSearchHit } from "./components/GlobalSearch";
 import { Modal, ErrorMessage, Field } from "./components/ui";
 import { StoreDecor } from "./components/StoreDecor";
+import { attachBarcodeWedge } from "./barcodeWedge";
 type AppModal = {
   name: string;
   data?: any;
@@ -516,6 +517,71 @@ export function App() {
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [user, modal, globalOpen, palette, runAction]);
+  useEffect(() => {
+    if (!user) return;
+    const canCatalog = user.permissions.some((p) =>
+      ["inventory", "sales", "purchases"].includes(p),
+    );
+    if (!canCatalog) return;
+    const billOpen =
+      (page === "sales" && saleTab === "bill") ||
+      (page === "purchases" && purchaseTab === "bill");
+    const dashboardOpen = page === "dashboard";
+    if (!billOpen && !dashboardOpen) return;
+    let busy = false;
+    return attachBarcodeWedge({
+      enabled: true,
+      shouldIgnore: (event) => {
+        if (modal || globalOpen || palette) return true;
+        if (document.querySelector('[role="dialog"]')) return true;
+        const target = event.target;
+        if (!(target instanceof Element)) return false;
+        // Focused inputs handle their own typing (sale/purchase barcode field
+        // auto-adds on Enter / scanner burst). Wedge only when nothing is focused.
+        return !!target.closest(
+          'input,textarea,select,[contenteditable="true"]',
+        );
+      },
+      onScan: async (raw) => {
+        const code = normalizeDigits(raw).trim();
+        if (!code || busy) return;
+        if (billOpen) {
+          window.dispatchEvent(
+            new CustomEvent("vault:barcode", { detail: { code } }),
+          );
+          return;
+        }
+        busy = true;
+        try {
+          const d = await api<{ rows: Product[] }>("catalog", {
+            barcode: code,
+            limit: 1,
+          });
+          const product = d.rows[0];
+          if (!product) {
+            toast(t("sales.errBarcode", { code }));
+            return;
+          }
+          open("productDetail", product);
+        } catch (e: any) {
+          toast(e.message || t("sales.errBarcode", { code }));
+        } finally {
+          busy = false;
+        }
+      },
+    });
+  }, [
+    user,
+    page,
+    saleTab,
+    purchaseTab,
+    modal,
+    globalOpen,
+    palette,
+    open,
+    toast,
+    t,
+  ]);
   async function signOut() {
     await api("logout");
     setToken("");
@@ -928,7 +994,7 @@ export function App() {
             </div>
           ) : page === "purchases" ? (
             <div
-              className={`sales-workspace${purchaseTab === "bill" ? " is-bill" : ""}`}
+              className={`sales-workspace purchase-workspace${purchaseTab === "bill" ? " is-bill" : ""}`}
             >
               <div
                 className="sales-tabs"
