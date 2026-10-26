@@ -109,6 +109,8 @@ const ensureFxColumns = (db) => {
   add("batches", "fx_rate", "INTEGER");
   add("document_lines", "cost_aed", "INTEGER");
   add("document_lines", "fx_rate", "INTEGER");
+  add("document_lines", "cargo_rent", "INTEGER");
+  add("products", "cargo_rent", "INTEGER");
   add("documents", "fx_rate", "INTEGER");
   if (
     !db
@@ -209,6 +211,7 @@ const productSchema = z
     unit_cost: money.optional(),
     ...currencyFields,
     cost_aed: money.default(0),
+    cargo_rent: money.default(0),
     fx_rate: fxRate.default(0),
     serialized: z.boolean().optional(),
     ...unitFields,
@@ -224,6 +227,7 @@ const lineSchema = z
     discount: money.default(0),
     ...currencyFields,
     cost_aed: money.default(0),
+    cargo_rent: money.default(0),
     fx_rate: fxRate.default(0),
   })
   .transform(normalizeForeign);
@@ -301,6 +305,7 @@ export class Store {
       "expense_account_id",
       "TEXT REFERENCES expense_accounts(id)",
     );
+    addColumn("parties", "active", "INTEGER NOT NULL DEFAULT 1");
     this.db.exec(
       "CREATE INDEX IF NOT EXISTS idx_batches_owner ON batches(owner_id,id) WHERE owner_id IS NOT NULL; CREATE INDEX IF NOT EXISTS idx_expense_account_totals ON documents(expense_account_id,date,total) WHERE kind='expense'; CREATE INDEX IF NOT EXISTS idx_current_reorder ON products((stock=0) DESC,sku,id) WHERE active=1 AND consignment_only=0 AND stock<=reorder_level; CREATE INDEX IF NOT EXISTS idx_current_receivables ON party_totals((debit-credit) DESC,party_id) WHERE account='receivables' AND debit>credit",
     );
@@ -525,7 +530,7 @@ export class Store {
         name: text.min(2).parse(data.storeName),
       });
       this.run(
-        "INSERT INTO parties VALUES (?,?,?,?,?,?,?,?,?)",
+        "INSERT INTO parties(id,kind,name,phone,email,address,credit_limit,walk_in,created_at) VALUES (?,?,?,?,?,?,?,?,?)",
         id(),
         "customer",
         "Walk-in customer",
@@ -798,9 +803,10 @@ export class Store {
       d.opening_quantity > 1000
     )
       throw new Error("Receive at most 1,000 individual devices per entry.");
+    const cargo = d.cargo_rent || 0;
     const unitCost =
       d.cost_foreign && d.fx_rate
-        ? afnFromAed(d.cost_foreign, d.fx_rate)
+        ? afnFromAed(d.cost_foreign + cargo, d.fx_rate)
         : (d.unit_cost ?? 0);
     return this.transaction(() => {
       const pid = id();
@@ -826,10 +832,11 @@ export class Store {
         now(),
       );
       this.run(
-        "UPDATE products SET unit_cost=?,cost_aed=?,fx_rate=? WHERE id=?",
+        "UPDATE products SET unit_cost=?,cost_aed=?,fx_rate=?,cargo_rent=? WHERE id=?",
         unitCost,
         d.cost_aed || 0,
         d.fx_rate || 0,
+        cargo,
         pid,
       );
       this.saveForeign("products", pid, d);
@@ -916,9 +923,18 @@ export class Store {
             );
           l.fx_rate = l.fx_rate || d.fx_rate;
         }
-        if (l.discount > l.price * l.quantity)
+        if (d.kind === "purchase" && l.cargo_rent && !(l.fx_rate || d.fx_rate))
+          throw new Error(
+            "Enter the currency→AFN exchange rate used for cargo rent.",
+          );
+        const cargoAfn =
+          d.kind === "purchase" && l.cargo_rent
+            ? afnFromAed(l.cargo_rent, l.fx_rate || d.fx_rate)
+            : 0;
+        if (l.discount > l.price * l.quantity + cargoAfn * l.quantity)
           throw new Error("Discount exceeds line value.");
-        total += l.price * l.quantity - l.discount;
+        total += l.price * l.quantity - l.discount + cargoAfn * l.quantity;
+        l._cargo_afn = cargoAfn;
       }
       if (!Number.isSafeInteger(total) || total > 1e12)
         throw new Error("Invoice exceeds supported amount.");
@@ -969,12 +985,17 @@ export class Store {
           throw new Error(
             "Selling below the minimum price requires a manager.",
           );
+        const cargoAfn = l._cargo_afn || 0;
         const line = {
           ...l,
           _restoreUnits: identity.unitRestore?.get(p.id),
           id: id(),
-          cost: d.kind === "purchase" ? l.price * l.quantity - l.discount : 0,
+          cost:
+            d.kind === "purchase"
+              ? l.price * l.quantity - l.discount + cargoAfn * l.quantity
+              : 0,
           cost_aed: d.kind === "purchase" ? l.cost_aed || 0 : 0,
+          cargo_rent: d.kind === "purchase" ? l.cargo_rent || 0 : 0,
           fx_rate: d.kind === "purchase" ? l.fx_rate || d.fx_rate || 0 : 0,
         };
         this.run(
@@ -989,8 +1010,14 @@ export class Store {
           line.cost_aed,
           line.fx_rate,
         );
-        if (d.kind === "purchase")
+        if (d.kind === "purchase") {
+          this.run(
+            "UPDATE document_lines SET cargo_rent=? WHERE id=?",
+            line.cargo_rent,
+            line.id,
+          );
           this.saveForeign("document_lines", line.id, line);
+        }
         if (d.kind === "sale") {
           line.cost = this.consume(p, line, doc);
           this.run(
@@ -1001,14 +1028,16 @@ export class Store {
         } else {
           this.receive(p, line, doc);
           this.saveForeign("products", p.id, line);
-          if (line.cost_aed || line.fx_rate)
-            this.run(
-              "UPDATE products SET unit_cost=?,cost_aed=?,fx_rate=? WHERE id=?",
-              l.price,
-              line.cost_aed,
-              line.fx_rate,
-              p.id,
-            );
+          const landedUnit =
+            l.quantity > 0 ? Math.floor(line.cost / l.quantity) : l.price;
+          this.run(
+            "UPDATE products SET unit_cost=?,cost_aed=?,fx_rate=?,cargo_rent=? WHERE id=?",
+            landedUnit,
+            line.cost_aed,
+            line.fx_rate,
+            line.cargo_rent,
+            p.id,
+          );
         }
         cost += line.cost;
       }
@@ -1454,7 +1483,7 @@ export class Store {
         throw new Error("Only the owner can enter opening balances.");
       const pid = id();
       this.run(
-        "INSERT INTO parties VALUES (?,?,?,?,?,?,?,?,?)",
+        "INSERT INTO parties(id,kind,name,phone,email,address,credit_limit,walk_in,created_at) VALUES (?,?,?,?,?,?,?,?,?)",
         pid,
         d.kind,
         d.name,
@@ -1504,6 +1533,69 @@ export class Store {
       }
       this.audit(user, "Create contact", pid, { name: d.name });
       return { id: pid };
+    });
+  }
+  updateParty(user, data) {
+    const d = z
+      .object({
+        id: z.string(),
+        name: text.min(2),
+        phone: text.default(""),
+        email: text.default(""),
+        address: text.default(""),
+      })
+      .parse(data);
+    return this.transaction(() => {
+      const p = this.one("SELECT * FROM parties WHERE id=?", d.id);
+      if (!p || !p.active) throw new Error("Contact not found.");
+      if (p.walk_in)
+        throw new Error("The walk-in customer cannot be edited.");
+      this.run(
+        "UPDATE parties SET name=?,phone=?,email=?,address=? WHERE id=?",
+        d.name,
+        d.phone,
+        d.email,
+        d.address,
+        d.id,
+      );
+      this.audit(user, "Update contact", d.id, { name: d.name });
+      return { id: d.id };
+    });
+  }
+  deleteParty(user, data) {
+    const d = z.object({ id: z.string() }).parse(data);
+    return this.transaction(() => {
+      const p = this.partyBalance(d.id);
+      if (p.walk_in)
+        throw new Error("The walk-in customer cannot be deleted.");
+      if (!p.active) return { id: p.id };
+      if (p.balance !== 0)
+        throw new Error(
+          p.kind === "customer"
+            ? "This customer still has a balance. You cannot delete them until the balance is 0."
+            : "This supplier still has a balance. You cannot delete them until the balance is 0.",
+        );
+      if (p.kind === "customer") {
+        const owed = ownerBalance(this, p.id);
+        if (owed !== 0)
+          throw new Error(
+            "This customer still has a customer-resale balance. Settle owner proceeds before deleting.",
+          );
+        const custody = this.one(
+          "SELECT COALESCE(SUM(remaining),0) n FROM batches WHERE owner_id=?",
+          p.id,
+        ).n;
+        if (custody > 0)
+          throw new Error(
+            "This customer still has unsold resale stock. Hand it back or sell it before deleting.",
+          );
+      }
+      this.run("UPDATE parties SET active=0 WHERE id=?", p.id);
+      this.audit(user, "Delete contact", p.id, {
+        name: p.name,
+        kind: p.kind,
+      });
+      return { id: p.id };
     });
   }
   payment(user, input) {
@@ -2432,6 +2524,7 @@ export class Store {
         limit: z.number().int().min(1).max(100).default(50),
         from: date.optional(),
         to: date.optional(),
+        expense_account_id: z.string().min(1).optional(),
       })
       .parse(input);
     const clauses = ["1=1"],
@@ -2439,6 +2532,12 @@ export class Store {
     if (d.kind !== "all") {
       clauses.push("d.kind=?");
       params.push(d.kind);
+    }
+    if (d.expense_account_id) {
+      if (d.kind !== "expense")
+        throw new Error("Account filter is only available for expenses.");
+      clauses.push("d.expense_account_id=?");
+      params.push(d.expense_account_id);
     }
     if (d.q) {
       clauses.push(
@@ -2495,7 +2594,7 @@ export class Store {
       .parse(input);
     const account = d.kind === "customer" ? "receivables" : "payables";
     const rows = this.all(
-      `SELECT p.*,COALESCE((SELECT SUM(${d.kind === "customer" ? "debit-credit" : "credit-debit"}) FROM party_totals j WHERE j.party_id=p.id AND j.account=?),0) balance FROM parties p WHERE p.kind=? AND p.name LIKE ? AND p.id>? ORDER BY p.id LIMIT ?`,
+      `SELECT p.*,COALESCE((SELECT SUM(${d.kind === "customer" ? "debit-credit" : "credit-debit"}) FROM party_totals j WHERE j.party_id=p.id AND j.account=?),0) balance FROM parties p WHERE p.kind=? AND COALESCE(p.active,1)=1 AND p.name LIKE ? AND p.id>? ORDER BY p.id LIMIT ?`,
       account,
       d.kind,
       d.q + "%",
@@ -2704,6 +2803,8 @@ export class Store {
       purchase: "purchases",
       parties: "people",
       partyCreate: "people",
+      partyUpdate: "people",
+      partyDelete: "people",
       partyDetail: "people",
       payment: "finance",
       expense: "finance",
@@ -2873,17 +2974,19 @@ export class Store {
             throw new Error(
               "Enter the supplier unit cost in the selected currency.",
             );
+          const cargo = d.cargo_rent || 0;
           const unitCost =
             d.cost_foreign && d.fx_rate
-              ? afnFromAed(d.cost_foreign, d.fx_rate)
+              ? afnFromAed(d.cost_foreign + cargo, d.fx_rate)
               : d.unit_cost !== undefined
                 ? d.unit_cost
                 : existing.unit_cost;
           this.run(
-            "UPDATE products SET unit_cost=?,cost_aed=?,fx_rate=? WHERE id=?",
+            "UPDATE products SET unit_cost=?,cost_aed=?,fx_rate=?,cargo_rent=? WHERE id=?",
             unitCost,
             d.cost_aed || 0,
             d.fx_rate || 0,
+            cargo,
             existing.id,
           );
           this.saveForeign("products", existing.id, d);
@@ -2932,7 +3035,7 @@ export class Store {
         );
         const balances = (kind) =>
           this.all(
-            `SELECT p.id,p.name,p.phone,COALESCE((SELECT SUM(${kind === "customer" ? "debit-credit" : "credit-debit"}) FROM party_totals j WHERE j.party_id=p.id AND j.account=?),0) balance,COALESCE((SELECT SUM(MAX(0,d.total-d.paid-COALESCE((SELECT SUM(total) FROM documents r WHERE r.original_id=d.id),0))) FROM documents d WHERE d.party_id=p.id AND d.kind=? AND d.due_date IS NOT NULL AND d.due_date<?),0) overdue FROM parties p WHERE kind=? ORDER BY balance DESC LIMIT 100`,
+            `SELECT p.id,p.name,p.phone,COALESCE((SELECT SUM(${kind === "customer" ? "debit-credit" : "credit-debit"}) FROM party_totals j WHERE j.party_id=p.id AND j.account=?),0) balance,COALESCE((SELECT SUM(MAX(0,d.total-d.paid-COALESCE((SELECT SUM(total) FROM documents r WHERE r.original_id=d.id),0))) FROM documents d WHERE d.party_id=p.id AND d.kind=? AND d.due_date IS NOT NULL AND d.due_date<?),0) overdue FROM parties p WHERE kind=? AND COALESCE(p.active,1)=1 ORDER BY balance DESC LIMIT 100`,
             kind === "customer" ? "receivables" : "payables",
             kind === "customer" ? "sale" : "purchase",
             today(),
@@ -3054,7 +3157,7 @@ export class Store {
             const signed =
               kind === "customer" ? "debit-credit" : "credit-debit";
             const parties = this.all(
-              `SELECT p.*,COALESCE((SELECT SUM(${signed}) FROM party_totals j WHERE j.party_id=p.id AND j.account=?),0) balance FROM parties p WHERE p.kind=? AND (p.name LIKE ? ESCAPE '\\' OR p.phone LIKE ? ESCAPE '\\' OR IFNULL(p.email,'') LIKE ? ESCAPE '\\') ORDER BY p.name LIMIT ?`,
+              `SELECT p.*,COALESCE((SELECT SUM(${signed}) FROM party_totals j WHERE j.party_id=p.id AND j.account=?),0) balance FROM parties p WHERE p.kind=? AND COALESCE(p.active,1)=1 AND (p.name LIKE ? ESCAPE '\\' OR p.phone LIKE ? ESCAPE '\\' OR IFNULL(p.email,'') LIKE ? ESCAPE '\\') ORDER BY p.name LIMIT ?`,
               account,
               kind,
               contains,
@@ -3193,6 +3296,10 @@ export class Store {
         return this.listParties(args);
       case "partyCreate":
         return this.createParty(user, args);
+      case "partyUpdate":
+        return this.updateParty(user, args);
+      case "partyDelete":
+        return this.deleteParty(user, args);
       case "partyDetail": {
         const d = z
           .object({
@@ -3667,7 +3774,7 @@ export class Store {
     });
     const walk = id();
     this.run(
-      "INSERT INTO parties VALUES (?,?,?,?,?,?,?,?,?)",
+      "INSERT INTO parties(id,kind,name,phone,email,address,credit_limit,walk_in,created_at) VALUES (?,?,?,?,?,?,?,?,?)",
       walk,
       "customer",
       "Walk-in customer",

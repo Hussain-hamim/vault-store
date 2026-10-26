@@ -1043,6 +1043,7 @@ export function App() {
       {["customer", "supplier"].includes(modal?.name || "") && (
         <PartyForm
           kind={modal!.name as "customer" | "supplier"}
+          party={modal?.data || null}
           close={close}
           done={done}
         />
@@ -1126,6 +1127,7 @@ export function App() {
           close={close}
           open={open}
           refresh={refresh}
+          done={done}
         />
       )}
       {globalOpen && (

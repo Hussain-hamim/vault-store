@@ -626,3 +626,24 @@ test("a purchase price correction preserves device identity and details when met
   assert.equal(after.unit_cost, 15000);
   f.coherent();
 });
+test("sale quantity without unit_ids auto-picks devices FIFO", async (t) => {
+  const f = fixture(t);
+  f.buy(10000, 1);
+  f.buy(20000, 1);
+  const available = f.units().filter((u) => u.status === "available");
+  assert.equal(available.length, 2);
+  const sale = f.s.postTrade(f.u, {
+    kind: "sale",
+    party_id: f.customer,
+    paid: 0,
+    request_key: randomUUID(),
+    lines: [{ product_id: f.product, quantity: 1, price: 50000 }],
+  });
+  assert.equal(sale.lines[0].quantity, 1);
+  const sold = f.units().filter((u) => u.status === "sold");
+  assert.equal(sold.length, 1);
+  assert.equal(sold[0].id, available[0].id);
+  assert.equal(sold[0].unit_cost, 10000);
+  assert.equal(f.s.one("SELECT stock FROM products WHERE id=?", f.product).stock, 1);
+  f.coherent();
+});

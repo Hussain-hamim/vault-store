@@ -189,6 +189,7 @@ export const ps: MessageTree = {
     savedHint:
       "دا واحد به په ټول دوکان کې موجود وي. په هر پېرود کې یې افغانیو ته د بدلولو نرخ ولیکئ.",
     unitCost: "د یوه توکي بیه ({code})",
+    cargoRent: "د کارګو کرایه ({code})",
     costHint: "په ټاکل شوي واحد کې د عرضه کوونکي بیه.",
     rate: "د ۱ {code} په بدل کې افغانۍ",
     rateHint: "د دې پېرود د بدلولو نرخ ولیکئ. د افغانیو نرخ ۱ دی.",
@@ -603,6 +604,7 @@ export const ps: MessageTree = {
     lineDiscount: "تخفیف (AF)",
     costAed: "لګښت (AED)",
     costAf: "لګښت (AF)",
+    landedCostAf: "ټولیز لګښت (AF)",
     lineDiscountAf: "د کرښې تخفیف (AF)",
     autoFromRate: "له نرخ څخه اتومات",
     setAedRate: "د درهم نرخ وټاکئ",
@@ -1107,6 +1109,8 @@ export const ps: MessageTree = {
     newExpense: "نوی لګښت",
     category: "ډول",
     amount: "مقدار",
+    accountFilter: "د لګښت حساب",
+    allAccounts: "ټول حسابونه",
   },
   reports: {
     zeroStock: "صفر موجودي",
@@ -1538,6 +1542,8 @@ export const ps: MessageTree = {
   partyForm: {
     addCustomer: "پیرودونکی زیات کړئ",
     addSupplier: "عرضه کوونکی زیات کړئ",
+    editCustomer: "پیرودونکی سمول",
+    editSupplier: "عرضه کوونکی سمول",
     subtitle: "اړیکې او بشپړ حساب په یوه ځای کې وساتئ.",
     nameBusiness: "نوم / د سوداګرۍ نوم",
     emailOptional: "برېښنالیک (اختیاري)",
@@ -1549,6 +1555,8 @@ export const ps: MessageTree = {
     openingDateHint: "یوازې کله چې پیل بیلانس ولیکئ.",
     customerAdded: "پیرودونکی زیات شو.",
     supplierAdded: "عرضه کوونکی زیات شو.",
+    customerUpdated: "پیرودونکی تازه شو.",
+    supplierUpdated: "عرضه کوونکی تازه شو.",
   },
   partyDetail: {
     customerSubtitle: "د پیرودونکي حساب، تاریخچه او تادیې",
@@ -1563,6 +1571,16 @@ export const ps: MessageTree = {
     debit: "Debit",
     credit: "Credit",
     balance: "بیلانس",
+    deleteConfirmCustomer:
+      "دا پیرودونکی ړنګ کړئ؟ پخواني بیلونه په تاریخچه کې پاتې کېږي.",
+    deleteConfirmSupplier:
+      "دا عرضه کوونکی ړنګ کړئ؟ پخواني بیلونه په تاریخچه کې پاتې کېږي.",
+    deleteBalanceCustomer:
+      "تر څو چې بیلانس ۰ نه وي، تاسو دا پیرودونکی نشي ړنګولی.",
+    deleteBalanceSupplier:
+      "تر څو چې بیلانس ۰ نه وي، تاسو دا عرضه کوونکی نشي ړنګولی.",
+    customerDeleted: "پیرودونکی ړنګ شو.",
+    supplierDeleted: "عرضه کوونکی ړنګ شو.",
   },
   userForm: {
     editTitle: "د لاسرسي حقونه سمول",

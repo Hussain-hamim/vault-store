@@ -20,6 +20,7 @@ import {
   LockIcon,
   DatabaseIcon,
   HardDrivesIcon,
+  TrashIcon,
 } from "@phosphor-icons/react";
 import {
   api,
@@ -39,6 +40,7 @@ import { ReportPrintButton } from "../printing/PrintDialog";
 import type { PrintDocument } from "../printing/types";
 
 import { CompanyPage, HelpContent } from "./CompanyPages";
+import { expenseAccountName } from "../expense-accounts";
 
 const EM_DASH = "—";
 import {
@@ -452,6 +454,8 @@ export function DocumentsPage({
 }: PageProps & { kind: "sale" | "purchase" | "expense" }) {
   const { t, locale } = useI18n();
   const [q, setQ] = useState(globalSearch),
+    [accountId, setAccountId] = useState(""),
+    [accounts, setAccounts] = useState<{ id: string; name: string }[]>([]),
     [rows, setRows] = useState<any[]>([]),
     [next, setNext] = useState<string | null>(null),
     [loading, setLoading] = useState(true),
@@ -461,11 +465,36 @@ export function DocumentsPage({
     setQ(globalSearch);
   }, [globalSearch]);
   useEffect(() => {
+    if (kind !== "expense") {
+      setAccounts([]);
+      setAccountId("");
+      return;
+    }
+    let active = true;
+    api<{ rows: { id: string; name: string }[] }>("expenseAccounts")
+      .then((d) => {
+        if (active) setAccounts(d.rows);
+      })
+      .catch(() => {
+        if (active) setAccounts([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [kind, refresh]);
+  useEffect(() => {
     let active = true;
     setLoading(true);
     setError("");
     setNext(null);
-    api<any>("documents", { kind, q, limit: LIST_PAGE })
+    api<any>("documents", {
+      kind,
+      q,
+      limit: LIST_PAGE,
+      ...(kind === "expense" && accountId
+        ? { expense_account_id: accountId }
+        : {}),
+    })
       .then((d) => {
         if (!active) return;
         setRows(d.rows);
@@ -480,7 +509,7 @@ export function DocumentsPage({
     return () => {
       active = false;
     };
-  }, [kind, q, refresh]);
+  }, [kind, q, accountId, refresh]);
   async function loadMore() {
     if (!next || loadingMore) return;
     setLoadingMore(true);
@@ -490,6 +519,9 @@ export function DocumentsPage({
         q,
         after: next,
         limit: LIST_PAGE,
+        ...(kind === "expense" && accountId
+          ? { expense_account_id: accountId }
+          : {}),
       });
       setRows((prev) => {
         const seen = new Set(prev.map((r) => r.id));
@@ -579,66 +611,82 @@ export function DocumentsPage({
                     : t("documents.searchSale")
               }
             />
-            <ReportPrintButton
-              disabled={loading || !!error}
-              getDocument={() => ({
-                kind: "report",
-                locale,
-                title: label,
-                source: {
-                  type: "report",
-                  permission:
-                    kind === "sale"
-                      ? "sales"
-                      : kind === "purchase"
-                        ? "purchases"
-                        : "finance",
-                },
-                subtitle: t("printing.loadedRows", { n: rows.length }),
-                emptyLabel: t("reports.noRows"),
-                sections: [
-                  {
-                    note: t("printing.loadedOnly"),
-                    columns: [
-                      { label: t("documents.reference") },
-                      { label: t("common.date") },
-                      { label: partyLabel },
-                      { label: t("common.total"), numeric: true },
-                      { label: t("common.paid"), numeric: true },
-                      { label: t("common.outstanding"), numeric: true },
-                    ],
-                    rows: rows.map((d) => [
-                      d.number,
-                      d.date,
-                      kind === "expense" ? d.category : d.party_name,
-                      af(d.total, 2),
-                      af(d.paid, 2),
-                      af(Math.max(0, d.total - d.paid - d.returned), 2),
-                    ]),
+            <div className="toolbar-right">
+              {kind === "expense" && (
+                <select
+                  aria-label={t("expenses.accountFilter")}
+                  value={accountId}
+                  onChange={(e) => setAccountId(e.target.value)}
+                >
+                  <option value="">{t("expenses.allAccounts")}</option>
+                  {accounts.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {expenseAccountName(a.name, t)}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <ReportPrintButton
+                disabled={loading || !!error}
+                getDocument={() => ({
+                  kind: "report",
+                  locale,
+                  title: label,
+                  source: {
+                    type: "report",
+                    permission:
+                      kind === "sale"
+                        ? "sales"
+                        : kind === "purchase"
+                          ? "purchases"
+                          : "finance",
                   },
-                ],
-              })}
-            />
-            <ExportButton
-              onClick={() => {
-                exportCSV(
-                  `radefy-techmart-${label.toLowerCase()}`,
-                  rows.map((d: any) => ({
-                    invoice: d.number,
-                    date: d.date,
-                    contact: d.party_name || "",
-                    category: d.category,
-                    total_AF: d.total / 100,
-                    paid_AF: d.paid / 100,
-                    returned_AF: d.returned / 100,
-                    outstanding_AF:
-                      Math.max(0, d.total - d.paid - d.returned) / 100,
-                    note: d.note,
-                  })),
-                );
-                toast(t("documents.exported"));
-              }}
-            />
+                  subtitle: t("printing.loadedRows", { n: rows.length }),
+                  emptyLabel: t("reports.noRows"),
+                  sections: [
+                    {
+                      note: t("printing.loadedOnly"),
+                      columns: [
+                        { label: t("documents.reference") },
+                        { label: t("common.date") },
+                        { label: partyLabel },
+                        { label: t("common.total"), numeric: true },
+                        { label: t("common.paid"), numeric: true },
+                        { label: t("common.outstanding"), numeric: true },
+                      ],
+                      rows: rows.map((d) => [
+                        d.number,
+                        d.date,
+                        kind === "expense" ? d.category : d.party_name,
+                        af(d.total, 2),
+                        af(d.paid, 2),
+                        af(Math.max(0, d.total - d.paid - d.returned), 2),
+                      ]),
+                    },
+                  ],
+                })}
+              />
+              <ExportButton
+                onClick={() => {
+                  exportCSV(
+                    `radefy-techmart-${label.toLowerCase()}`,
+                    rows.map((d: any) => ({
+                      invoice: d.number,
+                      date: d.date,
+                      contact: d.party_name || "",
+                      category: d.category,
+                      total_AF: d.total / 100,
+                      paid_AF: d.paid / 100,
+                      returned_AF: d.returned / 100,
+                      outstanding_AF:
+                        Math.max(0, d.total - d.paid - d.returned) / 100,
+                      note: d.note,
+                    })),
+                  );
+                  toast(t("documents.exported"));
+                }}
+              />
+            </div>
           </div>
           <div className="docs-list-cols" role="row">
             <span>{t("documents.reference")}</span>
@@ -861,8 +909,12 @@ export function PeoplePage({
     [loading, setLoading] = useState(true),
     [loadingMore, setLoadingMore] = useState(false),
     [error, setError] = useState(""),
+    [detailActionError, setDetailActionError] = useState(""),
+    [confirmDelete, setConfirmDelete] = useState(false),
+    [busy, setBusy] = useState(false),
     [ledgerAfter, setLedgerAfter] = useState(""),
     [ledgerHistory, setLedgerHistory] = useState<string[]>([]);
+  const canManage = user.permissions.includes("people");
   useEffect(() => {
     let active = true;
     setLoading(true);
@@ -931,6 +983,8 @@ export function PeoplePage({
     setSelected(id);
     setLedgerAfter("");
     setLedgerHistory([]);
+    setConfirmDelete(false);
+    setDetailActionError("");
   }
   const balanceTone = (balance: number) =>
     balance > 0 ? "owed" : balance < 0 ? "credit" : "settled";
@@ -1215,6 +1269,84 @@ export function PeoplePage({
                         <ArrowRightIcon size={15} />
                       </button>
                     )}
+                  {canManage && !detail.party.walk_in && (
+                    <div className="heading-actions people-detail-actions">
+                      <button
+                        className="button"
+                        disabled={busy}
+                        onClick={() => open(kind, detail.party)}
+                      >
+                        {t("common.edit")}
+                      </button>
+                      <button
+                        className="button button-danger"
+                        disabled={busy}
+                        onClick={() => {
+                          if (detail.party.balance !== 0) {
+                            setConfirmDelete(false);
+                            setDetailActionError(
+                              kind === "customer"
+                                ? t("partyDetail.deleteBalanceCustomer")
+                                : t("partyDetail.deleteBalanceSupplier"),
+                            );
+                            return;
+                          }
+                          setDetailActionError("");
+                          setConfirmDelete(true);
+                        }}
+                      >
+                        <TrashIcon size={15} />
+                        {t("common.delete")}
+                      </button>
+                    </div>
+                  )}
+                  {confirmDelete && (
+                    <div className="product-delete-confirm" role="alert">
+                      <p>
+                        {kind === "customer"
+                          ? t("partyDetail.deleteConfirmCustomer")
+                          : t("partyDetail.deleteConfirmSupplier")}
+                      </p>
+                      <div className="heading-actions">
+                        <button
+                          className="button"
+                          disabled={busy}
+                          onClick={() => setConfirmDelete(false)}
+                        >
+                          {t("common.cancel")}
+                        </button>
+                        <button
+                          className="button button-danger"
+                          disabled={busy}
+                          onClick={async () => {
+                            setBusy(true);
+                            setDetailActionError("");
+                            try {
+                              await api("partyDelete", {
+                                id: detail.party.id,
+                              });
+                              setSelected(null);
+                              setConfirmDelete(false);
+                              toast(
+                                kind === "customer"
+                                  ? t("partyDetail.customerDeleted")
+                                  : t("partyDetail.supplierDeleted"),
+                              );
+                            } catch (e: any) {
+                              setDetailActionError(e.message);
+                              setConfirmDelete(false);
+                            } finally {
+                              setBusy(false);
+                            }
+                          }}
+                        >
+                          <TrashIcon size={15} />
+                          {t("common.delete")}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  <ErrorMessage error={detailActionError} />
                 </div>
                 <div className="contact-ledger">
                   <h3>{t("ledger.title")}</h3>

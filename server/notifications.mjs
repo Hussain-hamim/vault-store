@@ -24,7 +24,7 @@ export function notifications(s, user, input = {}) {
     : { total: 0, zero: 0 };
   const customers = peopleAllowed
     ? s.one(
-        "SELECT COUNT(*) total,COALESCE(SUM(t.debit-t.credit),0) amount FROM party_totals t JOIN parties p ON p.id=t.party_id WHERE t.account='receivables' AND t.debit>t.credit AND p.kind='customer' AND p.walk_in=0",
+        "SELECT COUNT(*) total,COALESCE(SUM(t.debit-t.credit),0) amount FROM party_totals t JOIN parties p ON p.id=t.party_id WHERE t.account='receivables' AND t.debit>t.credit AND p.kind='customer' AND p.walk_in=0 AND COALESCE(p.active,1)=1",
       )
     : { total: 0, amount: 0 };
   if (!Number.isSafeInteger(customers.amount))
@@ -78,7 +78,7 @@ export function notifications(s, user, input = {}) {
       params = [c[0], ...c];
     }
     rows = s.all(
-      "SELECT p.id,p.name,p.phone,p.kind,p.walk_in,t.debit-t.credit balance FROM party_totals t JOIN parties p ON p.id=t.party_id WHERE t.account='receivables' AND t.debit>t.credit AND p.kind='customer' AND p.walk_in=0" +
+      "SELECT p.id,p.name,p.phone,p.kind,p.walk_in,t.debit-t.credit balance FROM party_totals t JOIN parties p ON p.id=t.party_id WHERE t.account='receivables' AND t.debit>t.credit AND p.kind='customer' AND p.walk_in=0 AND COALESCE(p.active,1)=1" +
         after +
         " ORDER BY balance DESC,p.id LIMIT ?",
       ...params,

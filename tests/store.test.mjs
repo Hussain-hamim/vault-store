@@ -3080,3 +3080,30 @@ test("product deletion is authenticated and requires inventory permission", asyn
   await f.s.dispatch("productDelete", {id:f.product}, f.token);
   assert.equal(f.s.one("SELECT active FROM products WHERE id=?",f.product).active,0);
 });
+test("party update and delete require zero balance", async (t) => {
+  const f = fixture(t);
+  const zero = f.s.createParty(f.u, { kind: "customer", name: "Settled customer" }).id;
+  const owed = f.s.createParty(f.u, {
+    kind: "customer",
+    name: "Open balance customer",
+    opening_balance: 25000,
+    request_key: key(),
+  }).id;
+  await f.s.dispatch(
+    "partyUpdate",
+    { id: zero, name: "Settled renamed", phone: "0700", email: "", address: "Kabul" },
+    f.token,
+  );
+  assert.equal(f.s.one("SELECT name FROM parties WHERE id=?", zero).name, "Settled renamed");
+  await f.s.dispatch("partyDelete", { id: zero }, f.token);
+  assert.equal(f.s.one("SELECT active FROM parties WHERE id=?", zero).active, 0);
+  assert.equal(
+    f.s.listParties({ kind: "customer" }).rows.some((p) => p.id === zero),
+    false,
+  );
+  await assert.rejects(
+    f.s.dispatch("partyDelete", { id: owed }, f.token),
+    /balance is 0/,
+  );
+  assert.equal(f.s.one("SELECT active FROM parties WHERE id=?", owed).active, 1);
+});

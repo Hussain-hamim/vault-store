@@ -30,6 +30,8 @@ export type Product = {
   /** Dubai supplier unit cost in fils (AED × 100). */
   cost_aed?: number;
   cost_foreign?: number;
+  /** Per-unit cargo / freight rent in the product currency (minor units). */
+  cargo_rent?: number;
   currency?: string;
   /** AFN per 1 AED, scaled by 10_000 (e.g. 18.5 → 185000). */
   fx_rate?: number;

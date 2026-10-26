@@ -155,6 +155,24 @@ export function migrateUnits(s) {
 }
 export function selectUnits(s, product, line, doc) {
   const ids = line.unit_ids || [];
+  // New Sale posts quantity only; assign oldest available devices FIFO.
+  if (!ids.length && doc.kind === "sale") {
+    const units = s.all(
+      `SELECT u.*,b.received_at,b.owner_id,b.owner_unit_amount,b.unit_cost
+       FROM inventory_units u JOIN batches b ON b.id=u.batch_id
+       WHERE u.product_id=? AND u.status='available' AND SUBSTR(b.received_at,1,10)<=?
+       ORDER BY b.received_at ASC, b.rowid ASC, u.rowid ASC
+       LIMIT ?`,
+      product.id,
+      doc.date,
+      line.quantity,
+    );
+    if (units.length !== line.quantity)
+      throw new Error(
+        "Not enough available devices for this quantity. Refresh stock and try again.",
+      );
+    return units;
+  }
   if (ids.length !== line.quantity || new Set(ids).size !== ids.length)
     throw new Error(
       "Select exactly one available device for every unit on this line.",

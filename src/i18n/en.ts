@@ -192,6 +192,7 @@ export const en: MessageTree = {
     savedHint:
       "This currency will be available throughout this store. Enter its AF conversion rate on each purchase.",
     unitCost: "Unit cost ({code})",
+    cargoRent: "Cargo rent ({code})",
     costHint: "The supplier cost in your selected currency.",
     rate: "AF per 1 {code}",
     rateHint: "Enter the rate used for this purchase. AFN uses a rate of 1.",
@@ -611,6 +612,7 @@ export const en: MessageTree = {
     lineDiscount: "Discount (AF)",
     costAed: "Cost (AED)",
     costAf: "Cost (AF)",
+    landedCostAf: "Landed cost (AF)",
     lineDiscountAf: "Line discount (AF)",
     autoFromRate: "Auto from rate",
     setAedRate: "Set AED rate",
@@ -1121,6 +1123,8 @@ export const en: MessageTree = {
     newExpense: "New expense",
     category: "Category",
     amount: "Amount",
+    accountFilter: "Expense account",
+    allAccounts: "All accounts",
   },
   reports: {
     zeroStock: "Zero stock",
@@ -1563,6 +1567,8 @@ export const en: MessageTree = {
   partyForm: {
     addCustomer: "Add customer",
     addSupplier: "Add supplier",
+    editCustomer: "Edit customer",
+    editSupplier: "Edit supplier",
     subtitle: "Keep contact details and the full ledger in one place.",
     nameBusiness: "Name / business name",
     emailOptional: "Email (optional)",
@@ -1576,6 +1582,8 @@ export const en: MessageTree = {
     openingDateHint: "Used only when an opening balance is entered.",
     customerAdded: "Customer added.",
     supplierAdded: "Supplier added.",
+    customerUpdated: "Customer updated.",
+    supplierUpdated: "Supplier updated.",
   },
   partyDetail: {
     customerSubtitle: "Customer ledger, history and payments",
@@ -1591,6 +1599,14 @@ export const en: MessageTree = {
     debit: "Debit",
     credit: "Credit",
     balance: "Balance",
+    deleteConfirmCustomer: "Delete this customer? Past invoices stay in history.",
+    deleteConfirmSupplier: "Delete this supplier? Past invoices stay in history.",
+    deleteBalanceCustomer:
+      "You cannot delete this customer until the balance is 0.",
+    deleteBalanceSupplier:
+      "You cannot delete this supplier until the balance is 0.",
+    customerDeleted: "Customer deleted.",
+    supplierDeleted: "Supplier deleted.",
   },
   userForm: {
     editTitle: "Edit access rights",

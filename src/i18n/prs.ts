@@ -192,6 +192,7 @@ export const prs: MessageTree = {
     savedHint:
       "این واحد پول در تمام فروشگاه در دسترس می‌باشد. نرخ تبدیل به افغانی را در هر خرید وارد کنید.",
     unitCost: "قیمت فی واحد ({code})",
+    cargoRent: "کرایه کارگو ({code})",
     costHint: "قیمت عرضه‌کننده به واحد پول انتخاب‌شده.",
     rate: "افغانی در برابر ۱ {code}",
     rateHint: "نرخ مورد استفاده در این خرید را وارد کنید. نرخ افغانی ۱ است.",
@@ -606,6 +607,7 @@ export const prs: MessageTree = {
     lineDiscount: "تخفیف (AF)",
     costAed: "هزینه (AED)",
     costAf: "هزینه (AF)",
+    landedCostAf: "هزینه نهایی (AF)",
     lineDiscountAf: "تخفیف سطر (AF)",
     autoFromRate: "خودکار از نرخ",
     setAedRate: "نرخ درهم را بگذارید",
@@ -1113,6 +1115,8 @@ export const prs: MessageTree = {
     newExpense: "مصرف جدید",
     category: "نوع",
     amount: "مبلغ",
+    accountFilter: "حساب مصرف",
+    allAccounts: "همه حساب‌ها",
   },
   reports: {
     zeroStock: "موجودی صفر",
@@ -1544,6 +1548,8 @@ export const prs: MessageTree = {
   partyForm: {
     addCustomer: "افزودن مشتری",
     addSupplier: "افزودن تامین‌کننده",
+    editCustomer: "ویرایش مشتری",
+    editSupplier: "ویرایش تأمین‌کننده",
     subtitle: "اطلاعات تماس و دفتر کامل در یک جا.",
     nameBusiness: "نام / نام تجارت",
     emailOptional: "ایمیل (اختیاری)",
@@ -1555,6 +1561,8 @@ export const prs: MessageTree = {
     openingDateHint: "فقط وقتی موجودی اول وارد می‌کنید.",
     customerAdded: "مشتری اضافه شد.",
     supplierAdded: "تأمین‌کننده اضافه شد.",
+    customerUpdated: "مشتری به‌روز شد.",
+    supplierUpdated: "تأمین‌کننده به‌روز شد.",
   },
   partyDetail: {
     customerSubtitle: "دفتر مشتری، تاریخچه و پرداخت‌ها",
@@ -1569,6 +1577,16 @@ export const prs: MessageTree = {
     debit: "بدهکار",
     credit: "بستانکار",
     balance: "مانده",
+    deleteConfirmCustomer:
+      "این مشتری حذف شود؟ فاکتورهای قبلی در تاریخچه می‌مانند.",
+    deleteConfirmSupplier:
+      "این تأمین‌کننده حذف شود؟ فاکتورهای قبلی در تاریخچه می‌مانند.",
+    deleteBalanceCustomer:
+      "تا وقتی مانده صفر نباشد، نمی‌توانید این مشتری را حذف کنید.",
+    deleteBalanceSupplier:
+      "تا وقتی مانده صفر نباشد، نمی‌توانید این تأمین‌کننده را حذف کنید.",
+    customerDeleted: "مشتری حذف شد.",
+    supplierDeleted: "تأمین‌کننده حذف شد.",
   },
   userForm: {
     editTitle: "ویرایش حق دسترسی",

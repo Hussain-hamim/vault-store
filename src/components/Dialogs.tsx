@@ -80,6 +80,8 @@ type CartLine = {
   discount: string;
   /** Per-unit supplier quote in the selected currency (major-unit string). */
   costAed?: string;
+  /** Per-unit cargo / freight rent in the selected currency (major-unit string). */
+  cargoRent?: string;
 };
 function BillFrame({
   children,
@@ -235,6 +237,7 @@ export function TradeForm({
                 (line.cost_foreign ?? line.cost_aed)
                   ? moneyInput(line.cost_foreign ?? line.cost_aed)
                   : "0",
+              cargoRent: line.cargo_rent ? moneyInput(line.cargo_rent) : "0",
             };
           }),
         );
@@ -280,14 +283,17 @@ export function TradeForm({
     }
   }
   function add(p: Product) {
-    if (!p.serialized && lines.some((l) => l.product.id === p.id)) return;
+    // Sales merge by product like accessories; purchases still allow
+    // separate serialized lines for different device costs.
+    const mergeByProduct = !purchase || !p.serialized;
+    if (mergeByProduct && lines.some((l) => l.product.id === p.id)) return;
     const sourceCost =
       p.currency === currency || (!p.currency && currency === "AED")
         ? (p.cost_foreign ?? p.cost_aed ?? 0)
         : 0;
     const costAedMajor = sourceCost ? moneyInput(sourceCost) : "";
     setLines((ls) =>
-      !p.serialized && ls.some((l) => l.product.id === p.id)
+      mergeByProduct && ls.some((l) => l.product.id === p.id)
         ? ls
         : [
             ...ls,
@@ -295,12 +301,12 @@ export function TradeForm({
               key: requestKey(),
               product: p,
               selectedUnits: [],
-              quantity: p.serialized && !purchase ? 0 : 1,
+              quantity: 1,
               price: purchase
                 ? afnPriceFromAed(costAedMajor, fxRate) || ""
                 : String(p.price / 100),
               discount: "0",
-              ...(purchase ? { costAed: costAedMajor } : {}),
+              ...(purchase ? { costAed: costAedMajor, cargoRent: "0" } : {}),
             },
           ],
     );
@@ -326,26 +332,14 @@ export function TradeForm({
           { code },
         );
         p = result.product;
-        if (p) {
-          setLines((rows) => [
-            ...rows,
-            {
-              key: requestKey(),
-              product: p,
-              quantity: 1,
-              price: moneyInput(result.unit.price ?? p.price),
-              discount: "0",
-              selectedUnits: [result.unit],
-            },
-          ]);
-          setScanCode("");
-          return;
-        }
       }
       if (!p) throw new Error(t("sales.errBarcode", { code }));
       if (!purchase && p.stock <= 0)
         throw new Error(t("sales.errOutOfStock", { name: p.name }));
-      if (!p.serialized && lines.some((l) => l.product.id === p.id))
+      if (
+        (!purchase || !p.serialized) &&
+        lines.some((l) => l.product.id === p.id)
+      )
         throw new Error(t("sales.errOnBill", { name: p.name }));
       add(p);
       setScanCode("");
@@ -397,17 +391,25 @@ export function TradeForm({
       current.map((l) => ({
         ...l,
         costAed: code === "AFN" ? l.price : "",
+        cargoRent: "0",
         price: code === "AFN" ? l.price : "",
       })),
     );
   }
-  const total = lines.reduce(
-    (s, l) =>
-      s +
+  const cargoUnitAfn = (l: CartLine) => {
+    try {
+      if (!purchase || !(l.cargoRent || "").trim() || !fxRate.trim()) return 0;
+      return afnFromAed(toMoney(l.cargoRent!), toFxRate(fxRate));
+    } catch {
+      return 0;
+    }
+  };
+  const total = lines.reduce((s, l) => {
+    const goods =
       Math.round(Number(l.price || 0) * 100) * l.quantity -
-      Math.round(Number(l.discount || 0) * 100),
-    0,
-  );
+      Math.round(Number(l.discount || 0) * 100);
+    return s + goods + cargoUnitAfn(l) * l.quantity;
+  }, 0);
   const payment = (() => {
     try {
       const amount = paid.trim() === "" ? 0 : toMoney(paid);
@@ -473,19 +475,21 @@ export function TradeForm({
               t("currencies.costMismatch", { name: l.product.name }),
             );
         }
+        const cargo_rent =
+          purchase && (l.cargoRent || "").trim()
+            ? toMoney(l.cargoRent!)
+            : 0;
         return {
           product_id: l.product.id,
-          ...(l.product.serialized
-            ? purchase
-              ? {
-                  units: l.units?.length
-                    ? Array.from(
-                        { length: l.quantity },
-                        (_, i) => l.units?.[i] || {},
-                      )
-                    : undefined,
-                }
-              : { unit_ids: (l.selectedUnits || []).map((u) => u.id) }
+          ...(l.product.serialized && purchase
+            ? {
+                units: l.units?.length
+                  ? Array.from(
+                      { length: l.quantity },
+                      (_, i) => l.units?.[i] || {},
+                    )
+                  : undefined,
+              }
             : {}),
           quantity: l.quantity,
           price,
@@ -495,6 +499,7 @@ export function TradeForm({
                 currency,
                 cost_foreign: cost_aed,
                 cost_aed: currency === "AED" ? cost_aed : 0,
+                cargo_rent,
                 fx_rate: rate,
               }
             : {}),
@@ -810,9 +815,9 @@ export function TradeForm({
                             ]
                               .filter(Boolean)
                               .join(" · ");
-                            const added =
-                              !p.serialized &&
-                              lines.some((l) => l.product.id === p.id);
+                            const added = lines.some(
+                              (l) => l.product.id === p.id,
+                            );
                             const out = !purchase && p.stock === 0;
                             return (
                               <button
@@ -918,40 +923,13 @@ export function TradeForm({
                               <TrashIcon size={17} />
                             </button>
                           </div>
-                          {l.product.serialized ? (
-                            purchase ? (
-                              <ReceiveDevices
-                                defaultCondition={l.product.condition}
-                                quantity={l.quantity}
-                                values={l.units}
-                                onChange={(v) => update(i, "units", v)}
-                              />
-                            ) : (
-                              <DeviceSelection
-                                product={l.product}
-                                saleId={documentId}
-                                selected={l.selectedUnits || []}
-                                onChange={(v) =>
-                                  setLines((rows) =>
-                                    rows.map((row, j) =>
-                                      j === i
-                                        ? {
-                                            ...row,
-                                            selectedUnits: v,
-                                            quantity: v.length,
-                                            ...(!row.selectedUnits?.length &&
-                                            v[0]?.price !== undefined
-                                              ? {
-                                                  price: moneyInput(v[0].price),
-                                                }
-                                              : {}),
-                                          }
-                                        : row,
-                                    ),
-                                  )
-                                }
-                              />
-                            )
+                          {l.product.serialized && purchase ? (
+                            <ReceiveDevices
+                              defaultCondition={l.product.condition}
+                              quantity={l.quantity}
+                              values={l.units}
+                              onChange={(v) => update(i, "units", v)}
+                            />
                           ) : null}
                           <div className="form-grid three">
                             <Field label={t("common.quantity")}>
@@ -963,7 +941,6 @@ export function TradeForm({
                                 min="1"
                                 max={purchase ? 100000 : l.product.stock}
                                 value={l.quantity}
-                                readOnly={!!l.product.serialized && !purchase}
                                 onChange={(e) =>
                                   update(
                                     i,
@@ -992,11 +969,35 @@ export function TradeForm({
                                     required
                                   />
                                 </Field>
-                                <Field label={t("sales.costAf")}>
+                                <Field
+                                  label={t("currencies.cargoRent", {
+                                    code: currency,
+                                  })}
+                                >
                                   <NumericInput
                                     min="0"
                                     step="0.01"
-                                    value={l.price}
+                                    value={l.cargoRent ?? "0"}
+                                    onChange={(e) =>
+                                      update(i, "cargoRent", e.target.value)
+                                    }
+                                    placeholder="0.00"
+                                  />
+                                </Field>
+                                <Field label={t("sales.landedCostAf")}>
+                                  <NumericInput
+                                    min="0"
+                                    step="0.01"
+                                    value={(() => {
+                                      try {
+                                        if (!(l.price || "").trim()) return "";
+                                        return moneyInput(
+                                          toMoney(l.price) + cargoUnitAfn(l),
+                                        );
+                                      } catch {
+                                        return l.price;
+                                      }
+                                    })()}
                                     readOnly
                                     tabIndex={-1}
                                     placeholder={fxRate.trim() ? "0.00" : "—"}
@@ -1094,13 +1095,18 @@ export function TradeForm({
                           <strong>
                             <bdi dir="ltr">
                               {foreignMoney(
-                                lines.reduce(
-                                  (sum, l) =>
-                                    sum +
-                                    Math.round(Number(l.costAed || 0) * 100) *
-                                      l.quantity,
-                                  0,
-                                ),
+                                lines.reduce((sum, l) => {
+                                  try {
+                                    const unit =
+                                      toMoney(l.costAed || "0") +
+                                      ((l.cargoRent || "").trim()
+                                        ? toMoney(l.cargoRent!)
+                                        : 0);
+                                    return sum + unit * l.quantity;
+                                  } catch {
+                                    return sum;
+                                  }
+                                }, 0),
                                 currency,
                               )}
                             </bdi>
@@ -1440,41 +1446,12 @@ export function TradeForm({
                               </button>
                             </div>
                             {l.product.serialized ? (
-                              purchase ? (
-                                <ReceiveDevices
-                                  defaultCondition={l.product.condition}
-                                  quantity={l.quantity}
-                                  values={l.units}
-                                  onChange={(v) => update(i, "units", v)}
-                                />
-                              ) : (
-                                <DeviceSelection
-                                  product={l.product}
-                                  saleId={documentId}
-                                  selected={l.selectedUnits || []}
-                                  onChange={(v) =>
-                                    setLines((rows) =>
-                                      rows.map((row, j) =>
-                                        j === i
-                                          ? {
-                                              ...row,
-                                              selectedUnits: v,
-                                              quantity: v.length,
-                                              ...(!row.selectedUnits?.length &&
-                                              v[0]?.price !== undefined
-                                                ? {
-                                                    price: moneyInput(
-                                                      v[0].price,
-                                                    ),
-                                                  }
-                                                : {}),
-                                            }
-                                          : row,
-                                      ),
-                                    )
-                                  }
-                                />
-                              )
+                              <ReceiveDevices
+                                defaultCondition={l.product.condition}
+                                quantity={l.quantity}
+                                values={l.units}
+                                onChange={(v) => update(i, "units", v)}
+                              />
                             ) : null}
                             <div className="form-grid three">
                               <Field label={t("common.quantity")}>
@@ -1486,7 +1463,6 @@ export function TradeForm({
                                   min="1"
                                   max={100000}
                                   value={l.quantity}
-                                  readOnly={!!l.product.serialized && !purchase}
                                   onChange={(e) =>
                                     update(
                                       i,
@@ -1518,11 +1494,42 @@ export function TradeForm({
                                   required
                                 />
                               </Field>
-                              <Field label={t("sales.costAf")}>
+                              <Field
+                                label={
+                                  <span className="currency-rate-label">
+                                    <CurrencyFlag code={currency} />
+                                    {t("currencies.cargoRent", {
+                                      code: currency,
+                                    })}
+                                  </span>
+                                }
+                              >
                                 <NumericInput
                                   min="0"
                                   step="0.01"
-                                  value={l.price}
+                                  value={l.cargoRent ?? "0"}
+                                  onChange={(e) =>
+                                    update(i, "cargoRent", e.target.value)
+                                  }
+                                  placeholder="0.00"
+                                />
+                              </Field>
+                            </div>
+                            <div className="form-grid three" style={{ marginTop: 4 }}>
+                              <Field label={t("sales.landedCostAf")}>
+                                <NumericInput
+                                  min="0"
+                                  step="0.01"
+                                  value={(() => {
+                                    try {
+                                      if (!(l.price || "").trim()) return "";
+                                      return moneyInput(
+                                        toMoney(l.price) + cargoUnitAfn(l),
+                                      );
+                                    } catch {
+                                      return l.price;
+                                    }
+                                  })()}
                                   readOnly
                                   tabIndex={-1}
                                   placeholder={
@@ -1533,8 +1540,6 @@ export function TradeForm({
                                   required
                                 />
                               </Field>
-                            </div>
-                            <div className="form-grid" style={{ marginTop: 4 }}>
                               <Field label={t("sales.lineDiscountAf")}>
                                 <NumericInput
                                   min="0"
@@ -1682,10 +1687,15 @@ function ShoppingIllustration() {
 }
 export function PartyForm({
   kind,
+  party,
   close,
   done,
-}: { kind: "customer" | "supplier" } & DialogProps) {
+}: {
+  kind: "customer" | "supplier";
+  party?: Party | null;
+} & DialogProps) {
   const t = useT();
+  const editing = !!party?.id;
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
   const key = useRef(requestKey());
@@ -1694,22 +1704,38 @@ export function PartyForm({
     const f = new FormData(e.currentTarget);
     setBusy(true);
     try {
-      const created = await api<{ id: string }>("partyCreate", {
-        kind,
-        name: f.get("name"),
-        phone: f.get("phone"),
-        email: f.get("email"),
-        address: f.get("address"),
-        opening_balance: toMoney(f.get("opening_balance") || "0"),
-        opening_date: f.get("opening_date") || businessDate(),
-        request_key: key.current,
-      });
-      done(
-        kind === "customer"
-          ? t("partyForm.customerAdded")
-          : t("partyForm.supplierAdded"),
-        created,
-      );
+      if (editing) {
+        const updated = await api<{ id: string }>("partyUpdate", {
+          id: party!.id,
+          name: f.get("name"),
+          phone: f.get("phone"),
+          email: f.get("email"),
+          address: f.get("address"),
+        });
+        done(
+          kind === "customer"
+            ? t("partyForm.customerUpdated")
+            : t("partyForm.supplierUpdated"),
+          updated,
+        );
+      } else {
+        const created = await api<{ id: string }>("partyCreate", {
+          kind,
+          name: f.get("name"),
+          phone: f.get("phone"),
+          email: f.get("email"),
+          address: f.get("address"),
+          opening_balance: toMoney(f.get("opening_balance") || "0"),
+          opening_date: f.get("opening_date") || businessDate(),
+          request_key: key.current,
+        });
+        done(
+          kind === "customer"
+            ? t("partyForm.customerAdded")
+            : t("partyForm.supplierAdded"),
+          created,
+        );
+      }
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -1719,9 +1745,13 @@ export function PartyForm({
   return (
     <Modal
       title={
-        kind === "customer"
-          ? t("partyForm.addCustomer")
-          : t("partyForm.addSupplier")
+        editing
+          ? kind === "customer"
+            ? t("partyForm.editCustomer")
+            : t("partyForm.editSupplier")
+          : kind === "customer"
+            ? t("partyForm.addCustomer")
+            : t("partyForm.addSupplier")
       }
       subtitle={t("partyForm.subtitle")}
       onClose={close}
@@ -1729,51 +1759,70 @@ export function PartyForm({
       <form onSubmit={submit}>
         <div className="form-body">
           <Field label={t("partyForm.nameBusiness")}>
-            <input name="name" required minLength={2} />
+            <input
+              name="name"
+              required
+              minLength={2}
+              defaultValue={party?.name || ""}
+            />
           </Field>
           <div className="form-grid">
             <Field label={t("party.phone")}>
-              <input name="phone" type="tel" />
+              <input
+                name="phone"
+                type="tel"
+                defaultValue={party?.phone || ""}
+              />
             </Field>
             <Field label={t("partyForm.emailOptional")}>
-              <input name="email" type="email" />
+              <input
+                name="email"
+                type="email"
+                defaultValue={party?.email || ""}
+              />
             </Field>
           </div>
           <Field label={t("party.address")}>
-            <textarea name="address" rows={2} />
+            <textarea
+              name="address"
+              rows={2}
+              defaultValue={party?.address || ""}
+            />
           </Field>
-          <div className="form-grid">
-            <Field
-              label={
-                kind === "customer"
-                  ? t("partyForm.openingCustomer")
-                  : t("partyForm.openingSupplier")
-              }
-              hint={
-                kind === "customer"
-                  ? t("partyForm.openingHintCustomer")
-                  : t("partyForm.openingHintSupplier")
-              }
-            >
-              <NumericInput
-                name="opening_balance"
-                min="0"
-                step="0.01"
-                defaultValue="0"
-              />
-            </Field>
-            <Field
-              label={t("partyForm.openingDate")}
-              hint={t("partyForm.openingDateHint")}
-            >
-              <input
-                name="opening_date"
-                type="date"
-                max={businessDate()}
-                defaultValue={businessDate()}
-              />
-            </Field>
-          </div>
+          {!editing && (
+            <div className="form-grid">
+              <Field
+                label={
+                  kind === "customer"
+                    ? t("partyForm.openingCustomer")
+                    : t("partyForm.openingSupplier")
+                }
+                hint={
+                  kind === "customer"
+                    ? t("partyForm.openingHintCustomer")
+                    : t("partyForm.openingHintSupplier")
+                }
+              >
+                <NumericInput
+                  name="opening_balance"
+                  min="0"
+                  step="0.01"
+                  defaultValue="0"
+                />
+              </Field>
+              <Field
+                label={t("partyForm.openingDate")}
+                hint={t("partyForm.openingDateHint")}
+              >
+                <input
+                  name="opening_date"
+                  type="date"
+                  max={businessDate()}
+                  defaultValue={businessDate()}
+                />
+              </Field>
+            </div>
+          )}
           <ErrorMessage error={error} />
         </div>
         <div className="modal-actions">
@@ -1783,9 +1832,11 @@ export function PartyForm({
           <button className="button button-dark" disabled={busy}>
             {busy
               ? t("common.saving")
-              : kind === "customer"
-                ? t("partyForm.addCustomer")
-                : t("partyForm.addSupplier")}
+              : editing
+                ? t("common.save")
+                : kind === "customer"
+                  ? t("partyForm.addCustomer")
+                  : t("partyForm.addSupplier")}
           </button>
         </div>
       </form>
@@ -2341,6 +2392,13 @@ export function InvoiceDialog({
                         })}
                       </th>
                     )}
+                    {doc.kind === "purchase" && (
+                      <th>
+                        {t("currencies.cargoRent", {
+                          code: doc.currency || "AED",
+                        })}
+                      </th>
+                    )}
                     <th>
                       {["purchase", "purchase_return"].includes(doc.kind)
                         ? t("invoice.unitCostAf")
@@ -2356,6 +2414,14 @@ export function InvoiceDialog({
                     const identity = [l.brand, l.model, l.sku]
                       .filter(Boolean)
                       .join(" · ");
+                    const lineTotal =
+                      doc.kind === "purchase" && l.cost != null
+                        ? l.cost
+                        : l.quantity * l.price - l.discount;
+                    const landedUnit =
+                      doc.kind === "purchase" && l.quantity
+                        ? Math.round(lineTotal / l.quantity)
+                        : l.price;
                     return (
                       <tr key={l.id}>
                         <td>
@@ -2404,9 +2470,24 @@ export function InvoiceDialog({
                               : "—"}
                           </td>
                         )}
-                        <td>{af(l.price, 2)}</td>
+                        {doc.kind === "purchase" && (
+                          <td>
+                            {l.cargo_rent
+                              ? foreignMoney(
+                                  l.cargo_rent,
+                                  l.currency || doc.currency || "AED",
+                                )
+                              : "—"}
+                          </td>
+                        )}
+                        <td>
+                          {af(
+                            doc.kind === "purchase" ? landedUnit : l.price,
+                            2,
+                          )}
+                        </td>
                         <td>{af(l.discount, 2)}</td>
-                        <td>{af(l.quantity * l.price - l.discount, 2)}</td>
+                        <td>{af(lineTotal, 2)}</td>
                       </tr>
                     );
                   })}
@@ -3333,18 +3414,23 @@ export function PartyDetailDialog({
   close,
   open,
   refresh = 0,
+  done,
 }: {
   party: Party;
   user: User;
   open: (name: string, data?: any) => void;
   refresh?: number;
+  done?: DialogProps["done"];
 } & Pick<DialogProps, "close">) {
   const t = useT();
   const [ledgerAfter, setLedgerAfter] = useState("");
   const [ledgerHistory, setLedgerHistory] = useState<string[]>([]);
   const [detail, setDetail] = useState<any>(null);
   const [error, setError] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [busy, setBusy] = useState(false);
   const kind = party.kind;
+  const canManage = user.permissions.includes("people");
   const canResale =
     kind === "customer" &&
     !party.walk_in &&
@@ -3435,6 +3521,80 @@ export function PartyDetailDialog({
                 <ArrowRightIcon size={15} />
               </button>
             )}
+          {canManage && !current.walk_in && (
+            <div className="heading-actions party-detail-actions">
+              <button
+                className="button"
+                disabled={busy}
+                onClick={() => open(kind, current)}
+              >
+                {t("common.edit")}
+              </button>
+              <button
+                className="button button-danger"
+                disabled={busy}
+                onClick={() => {
+                  if ((current.balance || 0) !== 0) {
+                    setConfirmDelete(false);
+                    setError(
+                      kind === "customer"
+                        ? t("partyDetail.deleteBalanceCustomer")
+                        : t("partyDetail.deleteBalanceSupplier"),
+                    );
+                    return;
+                  }
+                  setError("");
+                  setConfirmDelete(true);
+                }}
+              >
+                <TrashIcon size={15} />
+                {t("common.delete")}
+              </button>
+            </div>
+          )}
+          {confirmDelete && (
+            <div className="product-delete-confirm" role="alert">
+              <p>
+                {kind === "customer"
+                  ? t("partyDetail.deleteConfirmCustomer")
+                  : t("partyDetail.deleteConfirmSupplier")}
+              </p>
+              <div className="heading-actions">
+                <button
+                  className="button"
+                  disabled={busy}
+                  onClick={() => setConfirmDelete(false)}
+                >
+                  {t("common.cancel")}
+                </button>
+                <button
+                  className="button button-danger"
+                  disabled={busy}
+                  onClick={async () => {
+                    setBusy(true);
+                    setError("");
+                    try {
+                      await api("partyDelete", { id: current.id });
+                      done?.(
+                        kind === "customer"
+                          ? t("partyDetail.customerDeleted")
+                          : t("partyDetail.supplierDeleted"),
+                      );
+                      close();
+                    } catch (e: any) {
+                      setError(e.message);
+                      setConfirmDelete(false);
+                    } finally {
+                      setBusy(false);
+                    }
+                  }}
+                >
+                  <TrashIcon size={15} />
+                  {t("common.delete")}
+                </button>
+              </div>
+            </div>
+          )}
           {canResale && (
             <div className="resale-owner-balance">
               <span>

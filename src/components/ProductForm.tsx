@@ -141,6 +141,7 @@ function empty(common?: Values): Entry {
     accessoryOther: "",
     currency: common?.currency || "AED",
     cost: "",
+    cargo: "",
     rate: common?.rate || "",
     price: "",
     opening_quantity: "0",
@@ -170,6 +171,7 @@ function existing(p: Product): Entry {
       (p.cost_foreign ?? p.cost_aed)
         ? moneyInput(p.cost_foreign ?? p.cost_aed ?? 0)
         : "",
+    cargo: p.cargo_rent ? moneyInput(p.cargo_rent) : "",
     rate: p.fx_rate ? fxRateInput(p.fx_rate) : "",
     price: moneyInput(p.price),
     reorder_level: String(p.reorder_level),
@@ -321,6 +323,11 @@ export function ProductForm({
       : d.cost.trim()
         ? toMoney(d.cost)
         : 0;
+    const cargo = purchase
+      ? (entry.original?.cargo_rent ?? 0)
+      : d.cargo.trim()
+        ? toMoney(d.cargo)
+        : 0;
     const rate = purchase
       ? (entry.original?.fx_rate ?? 0)
       : d.rate.trim()
@@ -365,10 +372,11 @@ export function ProductForm({
       currency: purchase ? entry.original?.currency || d.currency : d.currency,
       cost_foreign: cost,
       cost_aed: d.currency === "AED" ? cost : 0,
+      cargo_rent: cargo,
       fx_rate: rate,
       unit_cost: purchase
         ? (entry.original?.unit_cost ?? 0)
-        : afnFromAed(cost, rate),
+        : afnFromAed(cost + cargo, rate),
       ...(!editing
         ? { opening_quantity: purchase ? 0 : Number(d.opening_quantity) }
         : {}),
@@ -538,7 +546,12 @@ export function ProductForm({
   try {
     costAF =
       d.cost && d.rate
-        ? moneyInput(afnFromAed(toMoney(d.cost), toFxRate(d.rate)))
+        ? moneyInput(
+            afnFromAed(
+              toMoney(d.cost) + (d.cargo.trim() ? toMoney(d.cargo) : 0),
+              toFxRate(d.rate),
+            ),
+          )
         : "";
   } catch {}
   const text = (name: string, label: string, required = false) => (
@@ -718,6 +731,7 @@ export function ProductForm({
                                 ...e.data,
                                 currency: code,
                                 cost: "",
+                                cargo: "",
                                 rate: code === "AFN" ? "1" : "",
                               },
                             }))
@@ -727,6 +741,10 @@ export function ProductForm({
                       {number(
                         "cost",
                         t("currencies.unitCost", { code: d.currency }),
+                      )}
+                      {number(
+                        "cargo",
+                        t("currencies.cargoRent", { code: d.currency }),
                       )}
                       <Field
                         label={t("currencies.rate", { code: d.currency })}
