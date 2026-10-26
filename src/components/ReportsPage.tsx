@@ -30,22 +30,22 @@ import { Empty, ErrorMessage } from "./ui";
 import "./reports.css";
 
 const TABS = [
-  ["profitLoss", ChartLineUpIcon, "hintProfitLoss"],
-  ["daily", CalendarDotsIcon, "hintDaily"],
-  ["invoiceProfit", InvoiceIcon, "hintInvoiceProfit"],
-  ["productProfit", PackageIcon, "hintProductProfit"],
-  ["resaleProfit", HandshakeIcon, "hintResaleProfit"],
-  ["cashMoney", WalletIcon, "hintCashMoney"],
-  ["expenseBreak", ReceiptIcon, "hintExpenseBreak"],
-  ["trialBalance", ScalesIcon, "hintTrialBalance"],
-  ["balanceSheet", BankIcon, "hintBalanceSheet"],
-  ["capitalNet", CoinsIcon, "hintCapitalNet"],
-  ["inventoryVal", StackIcon, "hintInventoryVal"],
-  ["stockAging", ClockIcon, "hintStockAging"],
-  ["reorder", WarningCircleIcon, "hintReorder"],
-  ["zeroStock", PackageIcon, "hintZeroStock"],
-  ["receivables", UsersIcon, "hintReceivables"],
-  ["payables", TruckIcon, "hintPayables"],
+  ["profitLoss", ChartLineUpIcon],
+  ["daily", CalendarDotsIcon],
+  ["invoiceProfit", InvoiceIcon],
+  ["productProfit", PackageIcon],
+  ["resaleProfit", HandshakeIcon],
+  ["cashMoney", WalletIcon],
+  ["expenseBreak", ReceiptIcon],
+  ["trialBalance", ScalesIcon],
+  ["balanceSheet", BankIcon],
+  ["capitalNet", CoinsIcon],
+  ["inventoryVal", StackIcon],
+  ["stockAging", ClockIcon],
+  ["reorder", WarningCircleIcon],
+  ["zeroStock", PackageIcon],
+  ["receivables", UsersIcon],
+  ["payables", TruckIcon],
 ] as const;
 type Tab = (typeof TABS)[number][0];
 const CURRENT = new Set<Tab>([
@@ -174,8 +174,6 @@ export function ReportsPage({
   }
   const report = ready ? model() : null;
   const section = report?.sections?.[0];
-  const selected = TABS.find((item) => item[0] === tab)!;
-  const Icon = selected[1];
   const count = section?.rows.length || 0;
   const rows = section?.rows.slice(0, visible) || [];
   const canExport = ready && count > 0 && !exportBusy && !moreBusy;
@@ -306,26 +304,7 @@ export function ReportsPage({
         tabIndex={0}
         aria-busy={pending}
       >
-        <header className="report-screen-heading">
-          <div className="report-export-actions">
-            <ReportPrintButton
-              key={`${key}-${tab}-print`}
-              disabled={!canExport}
-              getDocument={exportDocument}
-            />
-            <ReportPrintButton
-              key={`${key}-${tab}-pdf`}
-              disabled={!canExport}
-              getDocument={exportDocument}
-              intent="pdf"
-            />
-            <button className="button" disabled={!canExport} onClick={csv}>
-              <DownloadSimpleIcon size={16} />
-              {t("reports.csv")}
-            </button>
-          </div>
-        </header>
-        <div className="report-scope-bar">
+        <div className="report-toolbar">
           {current ? (
             <span className="report-scope-current">
               <span />
@@ -356,8 +335,8 @@ export function ReportsPage({
               </label>
             </div>
           )}
-          <div className="report-scope-actions">
-            <span>{t("invoice.afnNote")}</span>
+          <div className="report-toolbar-actions">
+            <span className="report-afn-note">{t("invoice.afnNote")}</span>
             <button
               className="button button-icon"
               aria-label={t("reports.refresh")}
@@ -366,6 +345,21 @@ export function ReportsPage({
               onClick={() => setReload((v) => v + 1)}
             >
               <ArrowClockwiseIcon size={16} />
+            </button>
+            <ReportPrintButton
+              key={`${key}-${tab}-print`}
+              disabled={!canExport}
+              getDocument={exportDocument}
+            />
+            <ReportPrintButton
+              key={`${key}-${tab}-pdf`}
+              disabled={!canExport}
+              getDocument={exportDocument}
+              intent="pdf"
+            />
+            <button className="button" disabled={!canExport} onClick={csv}>
+              <DownloadSimpleIcon size={16} />
+              {t("reports.csv")}
             </button>
           </div>
         </div>
@@ -408,9 +402,6 @@ export function ReportsPage({
                     : "reports.reconNeeded",
                 )}
               </p>
-            )}
-            {section?.note && (
-              <p className="report-explainer">{section.note}</p>
             )}
             {report.note && (
               <p className="report-unpriced">
@@ -470,10 +461,7 @@ export function ReportsPage({
                 </div>
               </div>
             ) : (
-              <Empty
-                title={t("reports.noRows")}
-                text={t(`reports.${selected[2]}`)}
-              />
+              <Empty title={t("reports.noRows")} />
             )}
             <div className="report-list-footer">
               <span>
@@ -491,7 +479,6 @@ export function ReportsPage({
                   {moreBusy ? t("common.loading") : t("pagination.loadMore")}
                 </button>
               )}
-              <small>{t("reports.exportScope")}</small>
             </div>
           </>
         )}
