@@ -1040,6 +1040,16 @@ export function App() {
       {modal?.name === "product" && (
         <ProductForm product={modal.data} close={close} done={toast} />
       )}
+      {modal?.name === "productDetail" && (
+        <ProductDetail
+          edit={() => open("product", modal.data)}
+          sell={() => open("sale", { product: modal.data })}
+          product={modal.data}
+          user={user}
+          close={close}
+          done={done}
+        />
+      )}
       {["customer", "supplier"].includes(modal?.name || "") && (
         <PartyForm
           kind={modal!.name as "customer" | "supplier"}
@@ -1108,16 +1118,6 @@ export function App() {
               modal.data,
             )
           }
-        />
-      )}
-      {modal?.name === "productDetail" && (
-        <ProductDetail
-          edit={() => open("product", modal.data)}
-          sell={() => open("sale", { product: modal.data })}
-          product={modal.data}
-          user={user}
-          close={close}
-          done={done}
         />
       )}
       {modal?.name === "partyDetail" && (

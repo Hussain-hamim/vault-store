@@ -1661,6 +1661,7 @@ export function TradeForm({
           intent="purchase"
           close={() => setAddingProduct(false)}
           done={async (_message, result) => {
+            if (!result?.product) return;
             const p = result.product;
             setProducts((rows) =>
               rows.some((r) => r.id === p.id)
