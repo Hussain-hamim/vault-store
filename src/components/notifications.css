@@ -27,13 +27,26 @@
   height: 17px;
   font-size: 9px;
 }
+.notifications-modal.modal {
+  height: min(720px, calc(100dvh - 32px));
+  max-height: calc(100dvh - 32px);
+}
 .notification-center {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 22px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--paint-bg-d5d8cc, #d5d8cc) transparent;
 }
 .notification-summary {
   display: flex;
   gap: 14px;
   margin-bottom: 19px;
+  flex: none;
 }
 .notification-summary article {
   display: flex;
@@ -67,6 +80,7 @@
   border-bottom: 1px solid var(--paint-border-e4ebf1, #e4ebf1);
   padding-bottom: 12px;
   margin-bottom: 16px;
+  flex: none;
 }
 .notification-tabs button {
   border: 0;
@@ -94,6 +108,7 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
+  flex: none;
 }
 .notification-item {
   display: flex;
@@ -165,10 +180,12 @@
   font-size: 10px;
   color: var(--paint-fg-7c8b9e, #7c8b9e);
   line-height: 1.7;
+  flex: none;
 }
 .notification-more {
   display: flex;
   margin: 17px auto 0;
+  flex: none;
 }
 .sidebar-collapsed .notifications-shortcut .notification-count {
   display: inline-flex;

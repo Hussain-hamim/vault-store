@@ -337,7 +337,7 @@ export function Dashboard({ user, refresh, open, navigate }: Props) {
           <button
             className="circle-link"
             aria-label={t("dashboard.lowStock")}
-            onClick={() => open("lowStock")}
+            onClick={() => navigate("reports:reorder")}
           >
             <ArrowUpRightIcon size={16} />
           </button>
@@ -682,7 +682,7 @@ export function Dashboard({ user, refresh, open, navigate }: Props) {
         <div className="card-buttons">
           <button
             className="button button-dark"
-            onClick={() => open("lowStock")}
+            onClick={() => navigate("reports:reorder")}
           >
             {t("dashboard.seeAll")} <ArrowRightIcon size={13} />
           </button>

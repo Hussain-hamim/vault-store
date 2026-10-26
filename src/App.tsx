@@ -213,6 +213,7 @@ export function App() {
     [saleEditId, setSaleEditId] = useState<string | undefined>(),
     [purchaseTab, setPurchaseTab] = useState("bill"),
     [purchaseEditId, setPurchaseEditId] = useState<string | undefined>(),
+    [reportTab, setReportTab] = useState<string | undefined>(),
     [billEpoch, setBillEpoch] = useState(0),
     [purchaseEpoch, setPurchaseEpoch] = useState(0),
     [modal, setModal] = useState<AppModal | null>(null),
@@ -398,8 +399,11 @@ export function App() {
     });
   }, []);
   const navigate = useCallback((name: string) => {
-    const id = normalizePage(name);
+    const [pageName, tab] = name.split(":");
+    const id = normalizePage(pageName);
     setPage(id);
+    if (id === "reports") setReportTab(tab || undefined);
+    else setReportTab(undefined);
     if (id === "inventory") setCategoryFilter("All products");
     setSearch("");
     setProfile(false);
@@ -994,8 +998,12 @@ export function App() {
           ) : page === "expenses" ? (
             <DocumentsPage {...props} kind="expense" />
           ) : page === "reports" ? (
-            cost ? (
-              <ReportsPage {...props} />
+            cost || user.permissions.includes("reports") ? (
+              <ReportsPage
+                key={reportTab || "reports"}
+                {...props}
+                initialTab={reportTab}
+              />
             ) : (
               <div className="page-content">
                 <h2>{t("reports.title")}</h2>

@@ -210,6 +210,7 @@ export function NotificationsDialog({
       subtitle={t("notifications.subtitle")}
       onClose={close}
       wide
+      className="notifications-modal"
     >
       <div className="notification-center">
         <div className="notification-summary">

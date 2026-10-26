@@ -62,9 +62,18 @@ type ReportModel = PrintDocument & {
   reconciled?: boolean;
 };
 
-export function ReportsPage({ refresh }: PageProps) {
+function isReportTab(value: string | undefined): value is Tab {
+  return !!value && TABS.some(([id]) => id === value);
+}
+
+export function ReportsPage({
+  refresh,
+  initialTab,
+}: PageProps & { initialTab?: string }) {
   const { t, locale, dir } = useI18n();
-  const [tab, setTab] = useState<Tab>("profitLoss");
+  const [tab, setTab] = useState<Tab>(
+    isReportTab(initialTab) ? initialTab : "profitLoss",
+  );
   const [from, setFrom] = useState(businessDate().slice(0, 7) + "-01");
   const [to, setTo] = useState(businessDate());
   const [result, setResult] = useState<{ key: string; data: any } | null>(null);
@@ -76,6 +85,9 @@ export function ReportsPage({ refresh }: PageProps) {
   const [visible, setVisible] = useState(10);
   const [reload, setReload] = useState(0);
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  useEffect(() => {
+    if (isReportTab(initialTab)) setTab(initialTab);
+  }, [initialTab]);
   const current = CURRENT.has(tab),
     asOf = AS_OF.has(tab);
   const invalid =

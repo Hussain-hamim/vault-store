@@ -1157,9 +1157,9 @@ export const en: MessageTree = {
     hintZeroStock:
       "Active products with no units available, ready for your order list.",
     zeroStockNote: "Only active products with exactly zero stock are listed.",
-    reorder: "Reorder & stock alerts",
+    reorder: "Low stock",
     hintReorder:
-      "What to buy next: empty shelves first, then products running low.",
+      "Products at or below reorder level — print, PDF, or CSV for your order list. Empty shelves first, then items running low.",
     dailyFormula:
       "Net profit = sales − FIFO cost − operating expenses + other income. Returns reduce sales and reverse their original cost.",
     expenseNote:
