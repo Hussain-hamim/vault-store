@@ -6737,9 +6737,9 @@ html[dir="rtl"] .sale-customer-name select {
   min-width: 0;
 }
 .inventory-row-image {
-  width: 40px;
-  height: 40px;
-  border-radius: 9px;
+  width: 56px;
+  height: 56px;
+  border-radius: 10px;
   border: 1px solid var(--paint-border-ebebe7, #ebebe7);
   background: var(--paint-bg-f4f4f1, #f4f4f1);
   display: flex;
