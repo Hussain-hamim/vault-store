@@ -2342,12 +2342,76 @@ export class Store {
       range.from,
       range.to,
     );
+    const invoices = this.all(
+      `SELECT d.id,d.number,d.date,d.kind,COALESCE(p.name,'') party_name,
+        SUM(CASE WHEN d.kind='sale' THEN l.price*l.quantity-l.discount ELSE -(l.price*l.quantity-l.discount) END) revenue,
+        SUM(CASE WHEN d.kind='sale' THEN l.cost ELSE -l.cost END) cost
+      FROM documents d
+      JOIN document_lines l ON l.document_id=d.id
+      LEFT JOIN parties p ON p.id=d.party_id
+      WHERE d.kind IN ('sale','sale_return') AND d.date BETWEEN ? AND ?
+      GROUP BY d.id
+      ORDER BY d.date DESC,d.created_at DESC,d.id DESC
+      LIMIT 200`,
+      range.from,
+      range.to,
+    );
+    const resale = this.all(
+      `SELECT d.id,d.number,d.date,COALESCE(pr.name,'') product_name,COALESCE(ow.name,'') owner_name,
+        SUM(CASE WHEN d.kind='sale' THEN a.quantity ELSE -a.quantity END) AS quantity,
+        SUM(CASE WHEN d.kind='sale' THEN CAST(ROUND((l.price*l.quantity-l.discount)*1.0*a.quantity/l.quantity) AS INTEGER) ELSE -CAST(ROUND((l.price*l.quantity-l.discount)*1.0*a.quantity/l.quantity) AS INTEGER) END) AS revenue,
+        SUM(CASE WHEN d.kind='sale' THEN a.cost ELSE -a.cost END) AS owner_share
+      FROM allocations a
+      JOIN batches b ON b.id=a.batch_id AND b.owner_id IS NOT NULL
+      JOIN document_lines l ON l.id=a.line_id
+      JOIN documents d ON d.id=l.document_id
+      JOIN products pr ON pr.id=l.product_id
+      JOIN parties ow ON ow.id=b.owner_id
+      WHERE d.kind IN ('sale','sale_return') AND d.date BETWEEN ? AND ?
+      GROUP BY d.id,d.number,d.date,d.created_at,pr.id,pr.name,ow.id,ow.name
+      HAVING SUM(CASE WHEN d.kind='sale' THEN a.quantity ELSE -a.quantity END)<>0
+         OR SUM(CASE WHEN d.kind='sale' THEN a.cost ELSE -a.cost END)<>0
+      ORDER BY d.date DESC,d.created_at DESC,d.id DESC
+      LIMIT 200`,
+      range.from,
+      range.to,
+    );
+    const money = this.wealthSnapshot(range.to);
+    const cashFlow = this.one(
+      `SELECT
+        COALESCE(SUM(CASE WHEN j.debit>j.credit THEN j.debit-j.credit ELSE 0 END),0) cash_in,
+        COALESCE(SUM(CASE WHEN j.credit>j.debit THEN j.credit-j.debit ELSE 0 END),0) cash_out
+      FROM journal j WHERE j.account='cash' AND j.date BETWEEN ? AND ?`,
+      range.from,
+      range.to,
+    );
+    const cashByKind = this.all(
+      `SELECT d.kind,
+        SUM(CASE WHEN j.debit>j.credit THEN j.debit-j.credit ELSE 0 END) cash_in,
+        SUM(CASE WHEN j.credit>j.debit THEN j.credit-j.debit ELSE 0 END) cash_out
+      FROM journal j JOIN documents d ON d.id=j.document_id
+      WHERE j.account='cash' AND j.date BETWEEN ? AND ?
+      GROUP BY d.kind
+      HAVING cash_in<>0 OR cash_out<>0
+      ORDER BY (cash_in+cash_out) DESC`,
+      range.from,
+      range.to,
+    );
     return {
       totals,
       days,
       trial,
       best,
       expenses,
+      invoices,
+      resale,
+      money: {
+        ...money,
+        cash_in: cashFlow.cash_in,
+        cash_out: cashFlow.cash_out,
+        cash_net: cashFlow.cash_in - cashFlow.cash_out,
+        by_kind: cashByKind,
+      },
       consignment: consignmentSnapshot(this, range.to),
     };
   }

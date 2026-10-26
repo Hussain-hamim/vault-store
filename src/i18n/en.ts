@@ -1179,7 +1179,12 @@ export const en: MessageTree = {
     groupStockDebt: "Stock & debt",
     hintProfitLoss: "How much you sold, what it cost, and what you kept.",
     hintDaily: "Day-by-day sales, cost, expenses, and profit.",
+    hintInvoiceProfit: "Gross profit on each sale invoice and return in the period.",
     hintProductProfit: "Which products made the most money this period.",
+    hintResaleProfit:
+      "Shop profit on customer-owned resale stock: sale price minus the owner’s agreed share.",
+    hintCashMoney:
+      "Cash on hand, money tied in stock and balances, and cash movement by type for the period.",
     hintTrialBalance:
       "All ledger accounts with debit, credit, and net balance.",
     hintBalanceSheet: "What the business owns, owes, and keeps as equity.",
@@ -1194,7 +1199,10 @@ export const en: MessageTree = {
     noRows: "Nothing to show for this report yet.",
     profitLoss: "Profit & loss",
     daily: "Daily performance",
+    invoiceProfit: "Invoice profit",
     productProfit: "Product profitability",
+    resaleProfit: "Resale profit",
+    cashMoney: "Cash & money",
     trialBalance: "Trial balance",
     balanceSheet: "Balance sheet",
     capitalNet: "Capital & net worth",
@@ -1203,6 +1211,21 @@ export const en: MessageTree = {
     stockAging: "Stock aging",
     receivables: "Receivables",
     payables: "Payables",
+    colType: "Type",
+    colItem: "Item",
+    ownerShare: "Owner share",
+    shopProfit: "Shop profit",
+    cashIn: "Cash in",
+    cashOut: "Cash out",
+    cashNet: "Net cash",
+    periodCash: "Period cash",
+    moneyPosition: "Money position",
+    invoiceProfitNote:
+      "Each sale and sale return in the period. Gross profit = revenue − FIFO cost (owner share counts as cost on resale units).",
+    resaleProfitNote:
+      "Only customer-owned stock that was sold or returned. Shop profit = sale revenue − agreed owner share.",
+    cashMoneyNote:
+      "Balances as of the end date. Period cash lines show net cash movement by document type between the start and end dates.",
     startDate: "Report start date",
     endDate: "Report end date",
     cogs: "Cost of goods sold",

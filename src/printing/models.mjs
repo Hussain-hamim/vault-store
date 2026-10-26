@@ -325,6 +325,162 @@ export function reportPrintModel(
     );
     metric("reports.netSales", totals.sales);
     metric("reports.grossProfit", totals.gross, profitTone(totals.gross));
+  } else if (tab === "invoiceProfit") {
+    const rows = data.invoices || [];
+    const revenue = rows.reduce((s, r) => s + r.revenue, 0);
+    const cost = rows.reduce((s, r) => s + r.cost, 0);
+    table(
+      [
+        "documents.reference",
+        "common.date",
+        "reports.colContact",
+        "reports.colType",
+        "reports.colRevenue",
+        "reports.colCogsShort",
+        "reports.grossProfit",
+        "reports.colMargin",
+      ],
+      ["text", "text", "text", "text", "money", "money", "money", "percent"],
+      rows.map((r) => [
+        r.number,
+        r.date,
+        r.party_name || "—",
+        r.kind === "sale_return"
+          ? t("documents.returned")
+          : t("nav.sales"),
+        r.revenue,
+        r.cost,
+        r.revenue - r.cost,
+        r.revenue ? ((r.revenue - r.cost) / r.revenue) * 100 : 0,
+      ]),
+      t("reports.invoiceProfitNote"),
+      [
+        "neutral",
+        "neutral",
+        "neutral",
+        "blue",
+        "blue",
+        "amber",
+        "positive",
+        "positive",
+      ],
+    );
+    metric("reports.colRevenue", revenue);
+    metric("reports.colCogsShort", cost, "amber");
+    metric("reports.grossProfit", revenue - cost, profitTone(revenue - cost));
+  } else if (tab === "resaleProfit") {
+    const rows = data.resale || [];
+    const revenue = rows.reduce((s, r) => s + r.revenue, 0);
+    const owner = rows.reduce((s, r) => s + r.owner_share, 0);
+    table(
+      [
+        "documents.reference",
+        "common.date",
+        "reports.colProduct",
+        "resale.owner",
+        "reports.colUnitsSoldNet",
+        "reports.colRevenue",
+        "reports.ownerShare",
+        "reports.shopProfit",
+        "reports.colMargin",
+      ],
+      [
+        "text",
+        "text",
+        "text",
+        "text",
+        "number",
+        "money",
+        "money",
+        "money",
+        "percent",
+      ],
+      rows.map((r) => {
+        const profit = r.revenue - r.owner_share;
+        return [
+          r.number,
+          r.date,
+          r.product_name,
+          r.owner_name,
+          r.quantity,
+          r.revenue,
+          r.owner_share,
+          profit,
+          r.revenue ? (profit / r.revenue) * 100 : 0,
+        ];
+      }),
+      t("reports.resaleProfitNote"),
+      [
+        "neutral",
+        "neutral",
+        "neutral",
+        "neutral",
+        "blue",
+        "blue",
+        "amber",
+        "positive",
+        "positive",
+      ],
+    );
+    metric("reports.colRevenue", revenue);
+    metric("reports.ownerShare", owner, "amber");
+    metric(
+      "reports.shopProfit",
+      revenue - owner,
+      profitTone(revenue - owner),
+    );
+  } else if (tab === "cashMoney") {
+    const m = data.money || {};
+    const kindLabel = (kind) => {
+      const keys = {
+        sale: "nav.sales",
+        sale_return: "documents.returned",
+        purchase: "nav.purchases",
+        purchase_return: "documents.returned",
+        expense: "nav.expenses",
+        payment: "people.paySupplier",
+        receipt: "people.receivePayment",
+        owner: "capital.title",
+        adjustment: "ledger.adjustment",
+        consignment_payment: "resale.payOwner",
+        consignment_recovery: "resale.recover",
+      };
+      return keys[kind] ? t(keys[kind]) : kind;
+    };
+    const position = [
+      [t("accounts.cash"), m.cash || 0],
+      [t("accounts.receivables"), m.receivables || 0],
+      [t("accounts.inventory"), m.inventory || 0],
+      [t("resale.recoverable"), m.consignment_recoverable || 0],
+      [t("accounts.payables"), -(m.payables || 0)],
+      [t("resale.owedToOwners"), -(m.consignment_payables || 0)],
+      [t("capital.netWorth"), m.net_worth || 0],
+    ];
+    const flows = (m.by_kind || []).map((r) => [
+      `${t("reports.periodCash")}: ${kindLabel(r.kind)}`,
+      r.cash_in - r.cash_out,
+    ]);
+    const rows = [...position, ...flows];
+    table(
+      ["reports.colItem", "common.total"],
+      ["text", "money"],
+      rows,
+      t("reports.cashMoneyNote"),
+      [
+        "neutral",
+        (_, r) =>
+          r < position.length ? profitTone(position[r][1]) : "blue",
+      ],
+    );
+    metric("accounts.cash", m.cash || 0, profitTone(m.cash || 0));
+    metric("reports.cashIn", m.cash_in || 0, "positive");
+    metric("reports.cashOut", m.cash_out || 0, "amber");
+    metric(
+      "reports.cashNet",
+      m.cash_net || 0,
+      profitTone(m.cash_net || 0),
+    );
+    metric("capital.netWorth", m.net_worth || 0, profitTone(m.net_worth || 0));
   } else if (tab === "expenseBreak") {
     table(
       ["expenses.category", "common.total"],

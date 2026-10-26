@@ -15,6 +15,9 @@ import {
   DownloadSimpleIcon,
   CheckCircleIcon,
   ArrowClockwiseIcon,
+  InvoiceIcon,
+  HandshakeIcon,
+  WalletIcon,
 } from "@phosphor-icons/react";
 import { api, af, businessDate, exportCSV } from "../api";
 import { collectReorderReport } from "../reports/reorder.mjs";
@@ -29,7 +32,10 @@ import "./reports.css";
 const TABS = [
   ["profitLoss", ChartLineUpIcon, "hintProfitLoss"],
   ["daily", CalendarDotsIcon, "hintDaily"],
+  ["invoiceProfit", InvoiceIcon, "hintInvoiceProfit"],
   ["productProfit", PackageIcon, "hintProductProfit"],
+  ["resaleProfit", HandshakeIcon, "hintResaleProfit"],
+  ["cashMoney", WalletIcon, "hintCashMoney"],
   ["expenseBreak", ReceiptIcon, "hintExpenseBreak"],
   ["trialBalance", ScalesIcon, "hintTrialBalance"],
   ["balanceSheet", BankIcon, "hintBalanceSheet"],
