@@ -1,7 +1,6 @@
 import {
   DeviceSelection,
   ReceiveDevices,
-  ProductDevices,
   type Device,
   type DeviceDetails,
 } from "./DeviceInventory";
@@ -3149,9 +3148,6 @@ export function ProductDetail({
           aria-labelledby="product-details-tab"
           hidden={tab !== "details"}
         >
-          {!!product.serialized && user.permissions.includes("inventory") && (
-            <ProductDevices product={product} />
-          )}
           <div className="spec-grid product-identity-grid">
             {[
               [t("productDetail.category"), product.category],
