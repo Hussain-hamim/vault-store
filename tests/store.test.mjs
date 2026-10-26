@@ -772,7 +772,7 @@ test("editing a multi-product invoice preserves its identity and recalculates co
   assert.deepEqual(f.s.getDocument(old.id), before);
   summariesMatch(f.s);
 });
-test("hard delete removes an invoice and restores stock and financial totals, with confirmation and retry protection", (t) => {
+test("hard delete removes an invoice and restores stock and financial totals, with retry protection", (t) => {
   const f = fixture(t);
   const p = f.s.createProduct(f.u, {
     name: "Delete test phone",
@@ -795,13 +795,8 @@ test("hard delete removes an invoice and restores stock and financial totals, wi
   const args = {
     id: doc.id,
     revision: doc.revision,
-    confirmation: doc.number,
     request_key: key(),
   };
-  assert.throws(
-    () => f.s.mutateSale(f.u, { ...args, confirmation: "wrong" }, "delete"),
-    /exact invoice number/,
-  );
   const result = f.s.mutateSale(f.u, args, "delete");
   assert.equal(result.deleted, true);
   assert.throws(() => f.s.getDocument(doc.id), /not found/);
@@ -2727,6 +2722,57 @@ test("foreign supplier payments reject mismatches, invalid rates, overpayment an
   balanced(f.s);
 });
 
+test("customer payment receipts can be hard-deleted and restore invoice balances", async (t) => {
+  const f = fixture(t);
+  purchase(f, 1, 50000);
+  const invoice = sale(f, 1, 0);
+  assert.equal(f.s.partyBalance(f.customer).balance, 100000);
+  const receipt = await f.s.dispatch(
+    "payment",
+    {
+      party_id: f.customer,
+      amount: 40000,
+      request_key: key(),
+    },
+    f.token,
+  );
+  assert.equal(f.s.getDocument(invoice.id).paid, 40000);
+  assert.equal(f.s.partyBalance(f.customer).balance, 60000);
+  const delKey = key();
+  const deleted = await f.s.dispatch(
+    "paymentDelete",
+    {
+      id: receipt.id,
+      revision: receipt.revision,
+      confirmation: receipt.number,
+      request_key: delKey,
+    },
+    f.token,
+  );
+  assert.equal(deleted.deleted, true);
+  assert.equal(f.s.getDocument(invoice.id).paid, 0);
+  assert.equal(f.s.partyBalance(f.customer).balance, 100000);
+  assert.equal(
+    f.s.one("SELECT id FROM documents WHERE id=?", receipt.id),
+    undefined,
+  );
+  assert.equal(
+    (
+      await f.s.dispatch(
+        "paymentDelete",
+        {
+          id: receipt.id,
+          revision: receipt.revision,
+          confirmation: receipt.number,
+          request_key: delKey,
+        },
+        f.token,
+      )
+    ).id,
+    deleted.id,
+  );
+  balanced(f.s);
+});
 test("customer receipts accept AFN and foreign currency while allocating AFN balances", async (t) => {
   const f = fixture(t);
   const customer = f.s.createParty(f.u, {

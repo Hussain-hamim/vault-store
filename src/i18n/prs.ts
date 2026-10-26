@@ -745,6 +745,8 @@ export const prs: MessageTree = {
     enterOpeningBalance: "بیلانس اول دوره را وارد کنید",
     outstandingBalance: "بدهی باقی‌مانده",
     noLedgerActivity: "هنوز ثبت حساب برای این مخاطب نیست.",
+    paymentDeleteHint:
+      "برای حذف دائمی رسید پرداخت و بازگرداندن بیلانس بل، آن را از این دفتر باز کنید.",
     showingContacts: "نمایش {n} مخاطب",
     showingContacts_plural: "نمایش {n} مخاطب",
   },
@@ -927,13 +929,23 @@ export const prs: MessageTree = {
     body: "سند را حذف می‌کند و موجودی و حساب را برمی‌گرداند. قابل بازگشت نیست.",
     confirm: "برای تأیید DELETE بنویسید",
     deleting: "در حال حذف…",
-    action: "حذف دائمی بل",
-    titleAction: "حذف دائمی فاکتور",
-    loading: "بارگذاری فاکتور…",
+    action: "حذف",
+    actionPayment: "حذف پرداخت",
+    titleAction: "حذف بل؟",
+    titlePayment: "حذف پرداخت؟",
+    loading: "در حال بارگذاری…",
+    areYouSureSale:
+      "مطمئن هستید که فروش {number} حذف شود؟ موجودی، نقد و حساب مشتری برمی‌گردد.",
+    areYouSurePurchase:
+      "مطمئن هستید که خرید {number} حذف شود؟ موجودی نفروخته و حساب تأمین‌کننده برمی‌گردد.",
+    areYouSurePayment:
+      "مطمئن هستید که پرداخت {number} حذف شود؟ بیلانس بل‌های مرتبط و نقد بازگردانده می‌شود.",
     bodyPurchase:
       "این خرید و ثبت‌های حسابداری را برای همیشه حذف می‌کند. موجودی دریافت‌شدهٔ فروخته‌نشده از انبار کم می‌شود.",
     bodySale:
       "این فاکتور و ثبت‌های حسابداری را برای همیشه حذف می‌کند. کالاهای فروخته‌شده به دسته‌های موجودی برمی‌گردند.",
+    bodyPayment:
+      "این رسید پرداخت را برای همیشه حذف می‌کند و بیلانس بل‌های مرتبط و حساب نقد را بازمی‌گرداند. قابل بازگشت نیست.",
     bodyAudit: "مرجع audit اداری باقی می‌ماند.",
     bodyLinked: "فاکتورهای دارای برگشت یا {payments} بعدی حذف نمی‌شوند.",
     paymentsSupplier: "پرداخت به تأمین‌کننده",
@@ -945,6 +957,8 @@ export const prs: MessageTree = {
       "خرید برای همیشه حذف شد. موجودی و حساب تأمین‌کننده به‌روز شد.",
     deletedSale:
       "فاکتور برای همیشه حذف شد. موجودی، نقد و حساب مشتری به‌روز شد.",
+    deletedPayment:
+      "پرداخت برای همیشه حذف شد. بیلانس بل و حساب نقد به‌روز شد.",
   },
   devices: {
     details: "جزئیات دستگاه‌ها",
@@ -1511,7 +1525,8 @@ export const prs: MessageTree = {
   },
   invoiceActions: {
     edit: "ویرایش بل",
-    hardDelete: "حذف دائمی",
+    hardDelete: "حذف",
+    deletePayment: "حذف پرداخت",
     returnItems: "برگشت اجناس",
     cancelReturn: "لغو برگشت",
     downloadPdf: "دانلود PDF",

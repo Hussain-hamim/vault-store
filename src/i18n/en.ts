@@ -753,6 +753,8 @@ export const en: MessageTree = {
     enterOpeningBalance: "Enter opening balance",
     outstandingBalance: "Outstanding balance",
     noLedgerActivity: "No ledger activity for this account yet.",
+    paymentDeleteHint:
+      "Open a payment receipt from this ledger to hard-delete it and restore invoice balances.",
     showingContacts: "Showing {n} contact",
     showingContacts_plural: "Showing {n} contacts",
   },
@@ -935,13 +937,23 @@ export const en: MessageTree = {
     body: "This hard-deletes the document and reverses stock and ledger entries. This cannot be undone.",
     confirm: "Type DELETE to confirm",
     deleting: "Deleting…",
-    action: "Permanently delete invoice",
-    titleAction: "Hard delete invoice",
-    loading: "Loading invoice…",
+    action: "Delete",
+    actionPayment: "Delete payment",
+    titleAction: "Delete invoice?",
+    titlePayment: "Delete payment?",
+    loading: "Loading…",
+    areYouSureSale:
+      "Are you sure you want to delete sale {number}? Stock, cash and the customer ledger will be reversed.",
+    areYouSurePurchase:
+      "Are you sure you want to delete purchase {number}? Unsold received stock and the supplier ledger will be reversed.",
+    areYouSurePayment:
+      "Are you sure you want to delete payment {number}? Linked invoice balances and cash will be restored.",
     bodyPurchase:
       "This permanently removes the purchase and its accounting entries. Received stock that is still unsold is removed from inventory.",
     bodySale:
       "This permanently removes the invoice and its accounting entries. Sold items return to their original stock batches.",
+    bodyPayment:
+      "This permanently removes the payment receipt and restores the linked invoice balances and cash ledger. This cannot be undone.",
     bodyAudit: "An administrative audit reference remains.",
     bodyLinked:
       "Invoices with linked returns or later {payments} cannot be deleted.",
@@ -955,6 +967,8 @@ export const en: MessageTree = {
       "Purchase permanently deleted. Stock and supplier ledger updated.",
     deletedSale:
       "Invoice permanently deleted. Stock, cash and customer ledger updated.",
+    deletedPayment:
+      "Payment permanently deleted. Invoice balances and cash ledger updated.",
   },
   devices: {
     details: "Device details",
@@ -1527,7 +1541,8 @@ export const en: MessageTree = {
   },
   invoiceActions: {
     edit: "Edit invoice",
-    hardDelete: "Hard delete",
+    hardDelete: "Delete",
+    deletePayment: "Delete payment",
     returnItems: "Return items",
     cancelReturn: "Cancel return",
     downloadPdf: "Download PDF",

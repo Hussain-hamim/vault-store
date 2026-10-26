@@ -2795,6 +2795,14 @@ export function InvoiceDialog({
               </button>
             </>
           )}
+        {["receipt", "payment"].includes(doc?.kind) &&
+          ["Owner", "Manager"].includes(user.role) &&
+          user.permissions.includes("finance") &&
+          remove && (
+            <button className="button danger-text" onClick={remove}>
+              {t("invoiceActions.deletePayment")}
+            </button>
+          )}
         {doc &&
           ["sale", "purchase"].includes(doc.kind) &&
           ["Owner", "Manager", "Accountant"].includes(user.role) && (
@@ -2870,7 +2878,6 @@ export function DeleteInvoiceDialog({
 }: { documentId: string } & DialogProps) {
   const t = useT();
   const [doc, setDoc] = useState<any>(null),
-    [confirmation, setConfirmation] = useState(""),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
   const key = useRef(requestKey());
@@ -2888,9 +2895,19 @@ export function DeleteInvoiceDialog({
     };
   }, [documentId]);
   const purchase = doc?.kind === "purchase";
+  const settlement = ["receipt", "payment"].includes(doc?.kind);
+  const command = settlement
+    ? "paymentDelete"
+    : purchase
+      ? "purchaseDelete"
+      : "saleDelete";
   return (
     <Modal
-      title={t("deleteInvoice.titleAction")}
+      title={
+        settlement
+          ? t("deleteInvoice.titlePayment")
+          : t("deleteInvoice.titleAction")
+      }
       subtitle={doc?.number || t("deleteInvoice.loading")}
       onClose={close}
     >
@@ -2900,16 +2917,17 @@ export function DeleteInvoiceDialog({
           setBusy(true);
           setError("");
           try {
-            await api(purchase ? "purchaseDelete" : "saleDelete", {
+            await api(command, {
               id: doc.id,
               revision: doc.revision,
-              confirmation,
               request_key: key.current,
             });
             done(
-              purchase
-                ? t("deleteInvoice.deletedPurchase")
-                : t("deleteInvoice.deletedSale"),
+              settlement
+                ? t("deleteInvoice.deletedPayment")
+                : purchase
+                  ? t("deleteInvoice.deletedPurchase")
+                  : t("deleteInvoice.deletedSale"),
             );
           } catch (e: any) {
             setError(e.message);
@@ -2920,31 +2938,15 @@ export function DeleteInvoiceDialog({
       >
         <div className="form-body">
           <p>
-            {purchase
-              ? t("deleteInvoice.bodyPurchase")
-              : t("deleteInvoice.bodySale")}{" "}
-            {t("deleteInvoice.bodyAudit")}
+            {t(
+              settlement
+                ? "deleteInvoice.areYouSurePayment"
+                : purchase
+                  ? "deleteInvoice.areYouSurePurchase"
+                  : "deleteInvoice.areYouSureSale",
+              { number: doc?.number || "" },
+            )}
           </p>
-          <p>
-            {t("deleteInvoice.bodyLinked", {
-              payments: purchase
-                ? t("deleteInvoice.paymentsSupplier")
-                : t("deleteInvoice.paymentsCustomer"),
-            })}
-            {purchase ? t("deleteInvoice.bodyPurchaseSold") : ""}
-          </p>
-          <Field
-            label={t("deleteInvoice.confirmNumber", {
-              number: doc?.number || t("deleteInvoice.confirmFallback"),
-            })}
-          >
-            <input
-              value={confirmation}
-              onChange={(e) => setConfirmation(e.target.value)}
-              autoComplete="off"
-              required
-            />
-          </Field>
           <ErrorMessage error={error} />
         </div>
         <div className="modal-actions">
@@ -2953,9 +2955,13 @@ export function DeleteInvoiceDialog({
           </button>
           <button
             className="button button-danger"
-            disabled={busy || !doc || confirmation !== doc.number}
+            disabled={busy || !doc}
           >
-            {busy ? t("deleteInvoice.deleting") : t("deleteInvoice.action")}
+            {busy
+              ? t("deleteInvoice.deleting")
+              : settlement
+                ? t("deleteInvoice.actionPayment")
+                : t("deleteInvoice.action")}
           </button>
         </div>
       </form>
@@ -3495,74 +3501,72 @@ export function PartyDetailDialog({
       onClose={close}
       wide
     >
-      <div className="form-body party-detail-body">
+      <div className="form-body party-detail-body party-ledger-only">
         <ErrorMessage error={error} />
-        <div className="contact-summary party-detail-summary">
-          <span className="customer-initial avatar-lg">
-            {current.name.slice(0, 1)}
-          </span>
-          <h2>{current.name}</h2>
-          <p>{current.phone || t("people.noPhone")}</p>
-          <p>{current.address || current.email || t("people.noAddress")}</p>
-          {user.role === "Owner" && !current.walk_in && (
-            <button
-              className="text-button"
-              onClick={() => open("openingBalance", current)}
-            >
-              {t("partyDetail.enterOpening")}
-            </button>
-          )}
-          <div className="contact-balance">
-            <span>{t("partyDetail.outstanding")}</span>
-            <strong
-              className={(current.balance || 0) > 0 ? "text-red" : "text-green"}
-            >
-              {af(current.balance || 0)}
-            </strong>
-          </div>
-          {(current.balance || 0) > 0 &&
-            user.permissions.includes("finance") && (
-              <button
-                className="button button-dark full"
-                onClick={() => open("payment", current)}
+        <div className="contact-ledger">
+          <div className="people-ledger-bar">
+            <div className="people-ledger-balance">
+              <span>{t("partyDetail.outstanding")}</span>
+              <strong
+                className={(current.balance || 0) > 0 ? "text-red" : "text-green"}
               >
-                {kind === "customer"
-                  ? t("people.receivePayment")
-                  : t("people.paySupplier")}
-                <ArrowRightIcon size={15} />
-              </button>
-            )}
-          {canManage && !current.walk_in && (
-            <div className="heading-actions party-detail-actions">
-              <button
-                className="button"
-                disabled={busy}
-                onClick={() => open(kind, current)}
-              >
-                {t("common.edit")}
-              </button>
-              <button
-                className="button button-danger"
-                disabled={busy}
-                onClick={() => {
-                  if ((current.balance || 0) !== 0) {
-                    setConfirmDelete(false);
-                    setError(
-                      kind === "customer"
-                        ? t("partyDetail.deleteBalanceCustomer")
-                        : t("partyDetail.deleteBalanceSupplier"),
-                    );
-                    return;
-                  }
-                  setError("");
-                  setConfirmDelete(true);
-                }}
-              >
-                <TrashIcon size={15} />
-                {t("common.delete")}
-              </button>
+                {af(current.balance || 0)}
+              </strong>
             </div>
-          )}
+            <div className="inline-actions">
+              {user.role === "Owner" && !current.walk_in && (
+                <button
+                  className="button"
+                  onClick={() => open("openingBalance", current)}
+                >
+                  {t("partyDetail.enterOpening")}
+                </button>
+              )}
+              {(current.balance || 0) > 0 &&
+                user.permissions.includes("finance") && (
+                  <button
+                    className="button button-dark"
+                    onClick={() => open("payment", current)}
+                  >
+                    {kind === "customer"
+                      ? t("people.receivePayment")
+                      : t("people.paySupplier")}
+                    <ArrowRightIcon size={15} />
+                  </button>
+                )}
+              {canManage && !current.walk_in && (
+                <>
+                  <button
+                    className="button"
+                    disabled={busy}
+                    onClick={() => open(kind, current)}
+                  >
+                    {t("common.edit")}
+                  </button>
+                  <button
+                    className="button button-danger"
+                    disabled={busy}
+                    onClick={() => {
+                      if ((current.balance || 0) !== 0) {
+                        setConfirmDelete(false);
+                        setError(
+                          kind === "customer"
+                            ? t("partyDetail.deleteBalanceCustomer")
+                            : t("partyDetail.deleteBalanceSupplier"),
+                        );
+                        return;
+                      }
+                      setError("");
+                      setConfirmDelete(true);
+                    }}
+                  >
+                    <TrashIcon size={15} />
+                    {t("common.delete")}
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
           {confirmDelete && (
             <div className="product-delete-confirm" role="alert">
               <p>
@@ -3620,7 +3624,7 @@ export function PartyDetailDialog({
               </strong>
               {ownerBalance !== 0 && (
                 <button
-                  className="button full"
+                  className="button"
                   onClick={() =>
                     open("consignmentSettlement", {
                       ...current,
@@ -3633,7 +3637,7 @@ export function PartyDetailDialog({
               )}
               {user.permissions.includes("inventory") && (
                 <button
-                  className="button full"
+                  className="button"
                   onClick={() => open("consignmentReceive", current)}
                 >
                   {t("resale.receive")}
@@ -3641,8 +3645,6 @@ export function PartyDetailDialog({
               )}
             </div>
           )}
-        </div>
-        <div className="contact-ledger">
           {canResale && (
             <div className="owner-ledger-tabs">
               <button
@@ -3687,6 +3689,7 @@ export function PartyDetailDialog({
                 : "partyDetail.ledgerHint",
             )}
           </p>
+          <p className="subtle ledger-hint">{t("people.paymentDeleteHint")}</p>
           {!detail ? (
             <p className="muted">{t("partyDetail.loadingLedger")}</p>
           ) : (
@@ -3705,7 +3708,12 @@ export function PartyDetailDialog({
                     {ledgerRows.map((e: any) => (
                       <tr
                         key={e.id}
-                        onClick={() => open("invoice", { id: e.document_id })}
+                        onClick={() =>
+                          open("invoice", {
+                            id: e.document_id,
+                            kind: e.kind,
+                          })
+                        }
                       >
                         <td>
                           {e.date}

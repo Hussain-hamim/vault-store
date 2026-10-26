@@ -1082,7 +1082,9 @@ export function App() {
       {modal?.name === "payment" && (
         <PaymentForm party={modal.data} close={close} done={done} />
       )}
-      {["saleDelete", "purchaseDelete"].includes(modal?.name || "") &&
+      {["saleDelete", "purchaseDelete", "paymentDelete"].includes(
+        modal?.name || "",
+      ) &&
         modal && (
           <DeleteInvoiceDialog
             documentId={modal.data.id}
@@ -1114,7 +1116,11 @@ export function App() {
           }
           remove={() =>
             open(
-              modal.data.kind === "purchase" ? "purchaseDelete" : "saleDelete",
+              modal.data.kind === "purchase"
+                ? "purchaseDelete"
+                : modal.data.kind === "sale"
+                  ? "saleDelete"
+                  : "paymentDelete",
               modal.data,
             )
           }

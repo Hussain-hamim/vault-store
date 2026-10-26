@@ -742,6 +742,8 @@ export const ps: MessageTree = {
     enterOpeningBalance: "پیل بیلانس ولیکئ",
     outstandingBalance: "پاتې پور",
     noLedgerActivity: "تر اوسه د دې حساب لپاره ثبت نشته.",
+    paymentDeleteHint:
+      "د تادیې ثبت دایمي ړنګولو او د بل بیلانس بیرته کولو لپاره یې له دې حساب څخه پرانیزئ.",
     showingContacts: "ښودل کېږي {n} اړیکه",
     showingContacts_plural: "ښودل کېږي {n} اړیکې",
   },
@@ -924,13 +926,23 @@ export const ps: MessageTree = {
     body: "دا سند او اړوند ذخیره او حساب بیرته کوي. بېرته نشي.",
     confirm: "د تایید لپاره DELETE ولیکئ",
     deleting: "ړنګېږي…",
-    action: "بل دایمي ړنګ کړئ",
-    titleAction: "بل دایمي ړنګول",
-    loading: "بل بارېږي…",
+    action: "ړنګول",
+    actionPayment: "تادیه ړنګول",
+    titleAction: "بل ړنګ کړئ؟",
+    titlePayment: "تادیه ړنګ کړئ؟",
+    loading: "بارېږي…",
+    areYouSureSale:
+      "ایا ډاډه یاست چې پلور {number} ړنګ کړئ؟ ذخیره، نغدي او د پیرودونکي حساب بیرته کېږي.",
+    areYouSurePurchase:
+      "ایا ډاډه یاست چې پیرود {number} ړنګ کړئ؟ نه پلورل شوې ذخیره او د عرضه کوونکي حساب بیرته کېږي.",
+    areYouSurePayment:
+      "ایا ډاډه یاست چې تادیه {number} ړنګ کړئ؟ تړلي بل بیلانسونه او نغدي بیرته کېږي.",
     bodyPurchase:
       "دا پیرود او حسابي ثبتونه دایمي لرې کوي. نه پلورل شوې ترلاسه شوې ذخیره له موجودي لرې کېږي.",
     bodySale:
       "دا بل او حسابي ثبتونه دایمي لرې کوي. پلورل شوي توکي بیرته خپلو ذخیرې ډلو ته ځي.",
+    bodyPayment:
+      "دا د تادیې ثبت دایمي لرې کوي او تړلي بل بیلانسونه او نغدي حساب بیرته کوي. بېرته نشي.",
     bodyAudit: "د اداري audit یادښت پاتې کېږي.",
     bodyLinked:
       "بلونه چې بیرته یا وروسته {payments} ورسره تړلي دي، نشي ړنګېدای.",
@@ -941,6 +953,7 @@ export const ps: MessageTree = {
     confirmFallback: "د بل شمېره",
     deletedPurchase: "پیرود دایمي ړنګ شو. ذخیره او د عرضه کوونکي حساب تازه شو.",
     deletedSale: "بل دایمي ړنګ شو. ذخیره، نغدي او د پیرودونکي حساب تازه شو.",
+    deletedPayment: "تادیه دایمي ړنګ شوه. د بل بیلانس او نغدي حساب تازه شو.",
   },
   devices: {
     details: "د وسیلو جزییات",
@@ -1504,7 +1517,8 @@ export const ps: MessageTree = {
   },
   invoiceActions: {
     edit: "بل سمول",
-    hardDelete: "دایمي ړنګول",
+    hardDelete: "ړنګول",
+    deletePayment: "تادیه ړنګول",
     returnItems: "توکي بیرته",
     cancelReturn: "بیرته لغوه",
     downloadPdf: "PDF ډاونلوډ",

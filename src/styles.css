@@ -1927,7 +1927,7 @@ html[dir="rtl"] .period-picker select {
   display: grid;
   grid-template-columns:
     minmax(180px, 2fr) minmax(110px, 0.9fr) minmax(90px, 0.7fr)
-    minmax(110px, 0.85fr) 36px;
+    minmax(110px, 0.85fr) minmax(118px, auto);
   gap: 10px;
   align-items: center;
   padding: 4px 14px 8px;
@@ -1951,7 +1951,7 @@ html[dir="rtl"] .period-picker select {
   display: grid;
   grid-template-columns:
     minmax(180px, 2fr) minmax(110px, 0.9fr) minmax(90px, 0.7fr)
-    minmax(110px, 0.85fr) 36px;
+    minmax(110px, 0.85fr) minmax(118px, auto);
   gap: 10px;
   align-items: center;
   width: 100%;
@@ -2131,6 +2131,50 @@ html[dir="rtl"] .period-picker select {
 .people-row-balance .balance-credit {
   color: var(--paint-fg-2f7a55, #2f7a55);
 }
+.people-row-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-self: end;
+}
+.people-row-actions .button {
+  padding: 5px 8px;
+  font-size: 10px;
+  min-height: 28px;
+}
+.people-ledger-only .contact-ledger {
+  padding-top: 4px;
+}
+.people-ledger-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--paint-border-dce8e5, #dce8e5);
+  border-radius: 10px;
+  background: var(--paint-bg-f7fbfb, #f7fbfb);
+}
+.people-ledger-balance {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.people-ledger-balance span {
+  font-size: 10px;
+  color: var(--paint-fg-697c7c, #697c7c);
+}
+.people-ledger-balance strong {
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
+.party-ledger-only .people-ledger-bar {
+  margin-top: 0;
+}
 .people-row-go {
   width: 32px;
   height: 32px;
@@ -2201,7 +2245,7 @@ html[dir="rtl"] .period-picker select {
   .people-row {
     grid-template-columns:
       minmax(160px, 1.5fr) minmax(90px, 0.8fr) minmax(100px, 0.85fr)
-      36px;
+      minmax(100px, auto);
   }
   .people-list-cols span:nth-child(2),
   .people-row > :nth-child(2) {
@@ -2215,15 +2259,16 @@ html[dir="rtl"] .period-picker select {
   .people-row {
     grid-template-columns: 1fr auto;
     grid-template-areas:
-      "id go"
+      "id actions"
       "status balance";
     gap: 8px 12px;
   }
   .people-row-identity {
     grid-area: id;
   }
+  .people-row-actions,
   .people-row-go {
-    grid-area: go;
+    grid-area: actions;
   }
   .people-row > :nth-child(2) {
     display: none;
@@ -7449,7 +7494,7 @@ img {
     display: none;
   }
   .people-row {
-    grid-template-columns: minmax(0, 1.4fr) minmax(0, 0.8fr) auto 32px;
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 0.8fr) auto minmax(100px, auto);
   }
   .people-row > :nth-child(2) {
     display: none;
@@ -7587,14 +7632,15 @@ img {
   .people-row {
     grid-template-columns: minmax(0, 1fr) auto;
     grid-template-areas:
-      "identity go"
+      "identity actions"
       "status balance";
   }
   .people-row-identity {
     grid-area: identity;
   }
+  .people-row-actions,
   .people-row-go {
-    grid-area: go;
+    grid-area: actions;
   }
   .people-row > :nth-child(3) {
     grid-area: status;

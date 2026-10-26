@@ -1114,10 +1114,6 @@ export class Store {
         throw new Error(
           "This invoice has later payment receipts. Resolve those linked receipts before editing or hard deletion.",
         );
-      if (action === "delete" && d.confirmation !== old.number)
-        throw new Error(
-          "Type the exact invoice number to confirm hard deletion.",
-        );
       if (
         this.one(
           "SELECT id FROM consignment_payout_allocations WHERE sale_id=? LIMIT 1",
@@ -1293,10 +1289,6 @@ export class Store {
       )
         throw new Error(
           "This invoice has later supplier payments. Resolve those linked payments before editing or hard deletion.",
-        );
-      if (action === "delete" && d.confirmation !== old.number)
-        throw new Error(
-          "Type the exact invoice number to confirm hard deletion.",
         );
       const unitRestore = new Map();
       // Reverse received stock only while every batch from this purchase is still intact.
@@ -1697,6 +1689,80 @@ export class Store {
       );
       this.audit(user, "Record payment", doc.id, { amount: d.amount });
       return this.getDocument(doc.id);
+    });
+  }
+  deletePayment(user, input) {
+    if (
+      !user.permissions.includes("finance") ||
+      !["Owner", "Manager"].includes(user.role)
+    )
+      throw new Error(
+        "Deleting payment records requires an owner or manager with finance permission.",
+      );
+    const d = z
+      .object({
+        id: z.string(),
+        revision: z.number().int().min(0),
+        request_key: z.string().min(8),
+        confirmation: z.string().optional(),
+      })
+      .parse(input);
+    return this.transaction(() => {
+      const prior = this.one(
+        "SELECT * FROM invoice_operations WHERE request_key=?",
+        d.request_key,
+      );
+      if (prior) {
+        if (prior.user_id !== user.id || prior.action !== "payment_delete")
+          throw new Error("Request key already used.");
+        const result = JSON.parse(prior.result);
+        if (result.id !== d.id)
+          throw new Error("Request key already used for another payment.");
+        return result;
+      }
+      const old = this.getDocument(d.id);
+      if (!["receipt", "payment"].includes(old.kind))
+        throw new Error(
+          "Only customer receipts and supplier payments can be deleted here.",
+        );
+      if (old.revision !== d.revision)
+        throw new Error("This payment changed. Reload it before continuing.");
+      const closed = this.setting("closedThrough");
+      if (closed && old.date <= closed)
+        throw new Error("This accounting period is closed.");
+      const allocations = this.all(
+        "SELECT * FROM payment_allocations WHERE payment_id=?",
+        old.id,
+      );
+      for (const allocation of allocations) {
+        const reversed = this.run(
+          "UPDATE documents SET paid=paid-? WHERE id=? AND paid>=?",
+          allocation.amount,
+          allocation.invoice_id,
+          allocation.amount,
+        );
+        if (reversed.changes !== 1)
+          throw new Error(
+            "Could not reverse a linked invoice payment. Reload and try again.",
+          );
+      }
+      this.run("DELETE FROM payment_allocations WHERE payment_id=?", old.id);
+      this.run("DELETE FROM journal WHERE document_id=?", old.id);
+      this.run("DELETE FROM documents WHERE id=?", old.id);
+      const result = { id: old.id, number: old.number, deleted: true };
+      this.audit(user, "Hard delete payment", old.id, {
+        number: old.number,
+        kind: old.kind,
+        amount: old.total,
+      });
+      this.run(
+        "INSERT INTO invoice_operations VALUES (?,?,?,?)",
+        d.request_key,
+        user.id,
+        "payment_delete",
+        JSON.stringify(result),
+      );
+      return result;
     });
   }
   expenseAccounts(input = {}) {
@@ -2903,6 +2969,7 @@ export class Store {
       partyDelete: "people",
       partyDetail: "people",
       payment: "finance",
+      paymentDelete: "finance",
       expense: "finance",
       expenseAccounts: "finance",
       expenseAccountCreate: "finance",
@@ -3493,6 +3560,8 @@ export class Store {
       }
       case "payment":
         return this.payment(user, args);
+      case "paymentDelete":
+        return this.deletePayment(user, args);
       case "expenseAccounts":
         return this.expenseAccounts(args);
       case "expenseAccountCreate": {

@@ -1014,7 +1014,7 @@ export function PeoplePage({
     [loadingMore, setLoadingMore] = useState(false),
     [error, setError] = useState(""),
     [detailActionError, setDetailActionError] = useState(""),
-    [confirmDelete, setConfirmDelete] = useState(false),
+    [confirmDelete, setConfirmDelete] = useState<string | false>(false),
     [busy, setBusy] = useState(false),
     [ledgerAfter, setLedgerAfter] = useState(""),
     [ledgerHistory, setLedgerHistory] = useState<string[]>([]);
@@ -1192,7 +1192,7 @@ export function PeoplePage({
               <span>{t("common.phone")}</span>
               <span>{t("common.status")}</span>
               <span>{t("common.outstanding")}</span>
-              <span aria-hidden="true" />
+              <span>{canManage ? t("common.actions") : ""}</span>
             </div>
           </div>
           <ErrorMessage error={error} />
@@ -1203,13 +1203,20 @@ export function PeoplePage({
               <div className="people-list-scroll" role="list">
                 {rows.map((p) => {
                   const tone = balanceTone(p.balance);
+                  const confirming = confirmDelete === p.id;
                   return (
-                    <button
-                      type="button"
+                    <article
                       key={p.id}
                       role="listitem"
                       className={`people-row balance-${tone}${selected === p.id ? " selected" : ""}${p.walk_in ? " walk-in" : ""}`}
                       onClick={() => selectParty(p.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          selectParty(p.id);
+                        }
+                      }}
+                      tabIndex={0}
                     >
                       <div className="people-row-identity">
                         <span className="people-row-avatar">
@@ -1248,10 +1255,94 @@ export function PeoplePage({
                           {af(p.balance)}
                         </strong>
                       </div>
-                      <div className="people-row-go" aria-hidden="true">
-                        <ArrowUpRightIcon size={16} />
+                      <div
+                        className="people-row-actions"
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => e.stopPropagation()}
+                      >
+                        {canManage && !p.walk_in ? (
+                          confirming ? (
+                            <>
+                              <button
+                                type="button"
+                                className="button"
+                                disabled={busy}
+                                onClick={() => setConfirmDelete(false)}
+                              >
+                                {t("common.cancel")}
+                              </button>
+                              <button
+                                type="button"
+                                className="button button-danger"
+                                disabled={busy}
+                                onClick={async () => {
+                                  setBusy(true);
+                                  setDetailActionError("");
+                                  try {
+                                    await api("partyDelete", { id: p.id });
+                                    if (selected === p.id) setSelected(null);
+                                    setConfirmDelete(false);
+                                    toast(
+                                      kind === "customer"
+                                        ? t("partyDetail.customerDeleted")
+                                        : t("partyDetail.supplierDeleted"),
+                                    );
+                                  } catch (e: any) {
+                                    setDetailActionError(e.message);
+                                    setConfirmDelete(false);
+                                  } finally {
+                                    setBusy(false);
+                                  }
+                                }}
+                              >
+                                <TrashIcon size={14} />
+                                {t("common.delete")}
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                type="button"
+                                className="button"
+                                disabled={busy}
+                                onClick={() => open(kind, p)}
+                              >
+                                {t("common.edit")}
+                              </button>
+                              <button
+                                type="button"
+                                className="button button-danger"
+                                disabled={busy}
+                                onClick={() => {
+                                  if (p.balance !== 0) {
+                                    setConfirmDelete(false);
+                                    toast(
+                                      kind === "customer"
+                                        ? t(
+                                            "partyDetail.deleteBalanceCustomer",
+                                          )
+                                        : t(
+                                            "partyDetail.deleteBalanceSupplier",
+                                          ),
+                                    );
+                                    return;
+                                  }
+                                  setDetailActionError("");
+                                  setConfirmDelete(p.id);
+                                }}
+                              >
+                                <TrashIcon size={14} />
+                                {t("common.delete")}
+                              </button>
+                            </>
+                          )
+                        ) : (
+                          <span className="people-row-go" aria-hidden="true">
+                            <ArrowUpRightIcon size={16} />
+                          </span>
+                        )}
                       </div>
-                    </button>
+                    </article>
                   );
                 })}
                 {!rows.length && (
@@ -1287,15 +1378,15 @@ export function PeoplePage({
           )}
         </section>
         {selected && (
-          <section className="panel contact-detail people-detail">
+          <section className="panel contact-detail people-detail people-ledger-only">
             <div className="panel-heading">
-              <h3>{t("people.contactLedger")}</h3>
+              <h3>{t("ledger.title")}</h3>
               <ReportPrintButton
                 disabled={!detail?.party || detailPending || !!detailError}
                 getDocument={() => ({
                   kind: "report",
                   locale,
-                  title: t("people.contactLedger"),
+                  title: t("ledger.title"),
                   subtitle: detail.party.name,
                   source: { type: "report", permission: "people" },
                   emptyLabel: t("reports.noRows"),
@@ -1328,29 +1419,15 @@ export function PeoplePage({
                 {t("common.close")}
               </button>
             </div>
-            <ErrorMessage error={detailError} />
+            <ErrorMessage error={detailError || detailActionError} />
             {!detailPending &&
             !detailError &&
             detail?.party?.id === selected &&
             detail.party.kind === kind ? (
-              <>
-                <div className="contact-summary">
-                  <span className="customer-initial avatar-lg people-detail-avatar">
-                    {detail.party.name.slice(0, 1)}
-                  </span>
-                  <h2>{detail.party.name}</h2>
-                  <p>{detail.party.phone || t("people.noPhone")}</p>
-                  <p>{detail.party.address || t("people.noAddress")}</p>
-                  {user.role === "Owner" && !detail.party.walk_in && (
-                    <button
-                      className="text-button"
-                      onClick={() => open("openingBalance", detail.party)}
-                    >
-                      {t("people.enterOpeningBalance")}
-                    </button>
-                  )}
+              <div className="contact-ledger">
+                <div className="people-ledger-bar">
                   <div
-                    className={`contact-balance balance-${balanceTone(detail.party.balance)}`}
+                    className={`people-ledger-balance balance-${balanceTone(detail.party.balance)}`}
                   >
                     <span>{t("people.outstandingBalance")}</span>
                     <strong
@@ -1361,181 +1438,116 @@ export function PeoplePage({
                       {af(detail.party.balance)}
                     </strong>
                   </div>
-                  {detail.party.balance > 0 &&
-                    user.permissions.includes("finance") && (
-                      <button
-                        className="button button-dark full"
-                        onClick={() => open("payment", detail.party)}
-                      >
-                        {kind === "customer"
-                          ? t("people.receivePayment")
-                          : t("people.paySupplier")}
-                        <ArrowRightIcon size={15} />
-                      </button>
-                    )}
-                  {canManage && !detail.party.walk_in && (
-                    <div className="heading-actions people-detail-actions">
+                  <div className="inline-actions">
+                    {user.role === "Owner" && !detail.party.walk_in && (
                       <button
                         className="button"
-                        disabled={busy}
-                        onClick={() => open(kind, detail.party)}
+                        onClick={() => open("openingBalance", detail.party)}
                       >
-                        {t("common.edit")}
+                        {t("people.enterOpeningBalance")}
                       </button>
-                      <button
-                        className="button button-danger"
-                        disabled={busy}
-                        onClick={() => {
-                          if (detail.party.balance !== 0) {
-                            setConfirmDelete(false);
-                            setDetailActionError(
-                              kind === "customer"
-                                ? t("partyDetail.deleteBalanceCustomer")
-                                : t("partyDetail.deleteBalanceSupplier"),
-                            );
-                            return;
-                          }
-                          setDetailActionError("");
-                          setConfirmDelete(true);
-                        }}
-                      >
-                        <TrashIcon size={15} />
-                        {t("common.delete")}
-                      </button>
-                    </div>
-                  )}
-                  {confirmDelete && (
-                    <div className="product-delete-confirm" role="alert">
-                      <p>
-                        {kind === "customer"
-                          ? t("partyDetail.deleteConfirmCustomer")
-                          : t("partyDetail.deleteConfirmSupplier")}
-                      </p>
-                      <div className="heading-actions">
+                    )}
+                    {detail.party.balance > 0 &&
+                      user.permissions.includes("finance") && (
                         <button
-                          className="button"
-                          disabled={busy}
-                          onClick={() => setConfirmDelete(false)}
+                          className="button button-dark"
+                          onClick={() => open("payment", detail.party)}
                         >
-                          {t("common.cancel")}
+                          {kind === "customer"
+                            ? t("people.receivePayment")
+                            : t("people.paySupplier")}
+                          <ArrowRightIcon size={15} />
                         </button>
-                        <button
-                          className="button button-danger"
-                          disabled={busy}
-                          onClick={async () => {
-                            setBusy(true);
-                            setDetailActionError("");
-                            try {
-                              await api("partyDelete", {
-                                id: detail.party.id,
-                              });
-                              setSelected(null);
-                              setConfirmDelete(false);
-                              toast(
-                                kind === "customer"
-                                  ? t("partyDetail.customerDeleted")
-                                  : t("partyDetail.supplierDeleted"),
-                              );
-                            } catch (e: any) {
-                              setDetailActionError(e.message);
-                              setConfirmDelete(false);
-                            } finally {
-                              setBusy(false);
-                            }
-                          }}
-                        >
-                          <TrashIcon size={15} />
-                          {t("common.delete")}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                  <ErrorMessage error={detailActionError} />
-                </div>
-                <div className="contact-ledger">
-                  <h3>{t("ledger.title")}</h3>
-                  <p className="subtle ledger-hint">{t("ledger.hint")}</p>
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>{t("ledger.dateReference")}</th>
-                        <th>{t("ledger.debit")}</th>
-                        <th>{t("ledger.credit")}</th>
-                        <th>{t("ledger.balance")}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {ledgerRows.map((e: any) => (
-                        <tr
-                          key={e.id}
-                          onClick={() => open("invoice", { id: e.document_id })}
-                        >
-                          <td>
-                            {e.date}
-                            <small className="block muted">
-                              {e.label}
-                              {e.number ? ` · ${e.number}` : ""}
-                            </small>
-                            {["payment", "receipt"].includes(e.kind) &&
-                              e.paid_foreign != null && (
-                                <small className="block ledger-foreign-payment">
-                                  <bdi dir="ltr">
-                                    {foreignMoney(e.paid_foreign, e.currency)} →{" "}
-                                    {af(
-                                      afnFromAed(e.paid_foreign, e.fx_rate),
-                                      2,
-                                    )}
-                                  </bdi>
-                                </small>
-                              )}
-                          </td>
-                          <td
-                            className={`money ${e.debit ? (kind === "customer" ? "text-red" : "text-green") : "muted"}`}
-                          >
-                            {e.debit ? af(e.debit) : EM_DASH}
-                          </td>
-                          <td
-                            className={`money ${e.credit ? (kind === "customer" ? "text-green" : "text-red") : "muted"}`}
-                          >
-                            {e.credit ? af(e.credit) : EM_DASH}
-                          </td>
-                          <td
-                            className={`money ${e.running > 0 ? "text-red" : "text-green"}`}
-                          >
-                            {af(e.running)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  {!detail.entries.length && (
-                    <p className="muted">{t("people.noLedgerActivity")}</p>
-                  )}
-                  <div className="pagination ledger-pagination">
-                    <span>{t("ui.perPage", { n: 25 })}</span>
-                    <button
-                      className="button"
-                      disabled={!ledgerHistory.length}
-                      onClick={() => {
-                        setLedgerAfter(ledgerHistory.at(-1) || "");
-                        setLedgerHistory((h) => h.slice(0, -1));
-                      }}
-                    >
-                      {t("ui.newer")}
-                    </button>
-                    <button
-                      className="button"
-                      disabled={!detail.next}
-                      onClick={() => {
-                        setLedgerHistory((h) => [...h, ledgerAfter]);
-                        setLedgerAfter(detail.next || "");
-                      }}
-                    >
-                      {t("ui.older")}
-                    </button>
+                      )}
                   </div>
                 </div>
-              </>
+                <p className="subtle ledger-hint">{t("ledger.hint")}</p>
+                <p className="subtle ledger-hint">{t("people.paymentDeleteHint")}</p>
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>{t("ledger.dateReference")}</th>
+                      <th>{t("ledger.debit")}</th>
+                      <th>{t("ledger.credit")}</th>
+                      <th>{t("ledger.balance")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ledgerRows.map((e: any) => (
+                      <tr
+                        key={e.id}
+                        onClick={() =>
+                          open("invoice", {
+                            id: e.document_id,
+                            kind: e.kind,
+                          })
+                        }
+                      >
+                        <td>
+                          {e.date}
+                          <small className="block muted">
+                            {e.label}
+                            {e.number ? ` · ${e.number}` : ""}
+                          </small>
+                          {["payment", "receipt"].includes(e.kind) &&
+                            e.paid_foreign != null && (
+                              <small className="block ledger-foreign-payment">
+                                <bdi dir="ltr">
+                                  {foreignMoney(e.paid_foreign, e.currency)} →{" "}
+                                  {af(
+                                    afnFromAed(e.paid_foreign, e.fx_rate),
+                                    2,
+                                  )}
+                                </bdi>
+                              </small>
+                            )}
+                        </td>
+                        <td
+                          className={`money ${e.debit ? (kind === "customer" ? "text-red" : "text-green") : "muted"}`}
+                        >
+                          {e.debit ? af(e.debit) : EM_DASH}
+                        </td>
+                        <td
+                          className={`money ${e.credit ? (kind === "customer" ? "text-green" : "text-red") : "muted"}`}
+                        >
+                          {e.credit ? af(e.credit) : EM_DASH}
+                        </td>
+                        <td
+                          className={`money ${e.running > 0 ? "text-red" : "text-green"}`}
+                        >
+                          {af(e.running)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {!detail.entries.length && (
+                  <p className="muted">{t("people.noLedgerActivity")}</p>
+                )}
+                <div className="pagination ledger-pagination">
+                  <span>{t("ui.perPage", { n: 25 })}</span>
+                  <button
+                    className="button"
+                    disabled={!ledgerHistory.length}
+                    onClick={() => {
+                      setLedgerAfter(ledgerHistory.at(-1) || "");
+                      setLedgerHistory((h) => h.slice(0, -1));
+                    }}
+                  >
+                    {t("ui.newer")}
+                  </button>
+                  <button
+                    className="button"
+                    disabled={!detail.next}
+                    onClick={() => {
+                      setLedgerHistory((h) => [...h, ledgerAfter]);
+                      setLedgerAfter(detail.next || "");
+                    }}
+                  >
+                    {t("ui.older")}
+                  </button>
+                </div>
+              </div>
             ) : (
               <Loading />
             )}
