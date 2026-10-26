@@ -1117,6 +1117,8 @@ export const prs: MessageTree = {
     amount: "مبلغ",
     accountFilter: "حساب مصرف",
     allAccounts: "همه حساب‌ها",
+    note: "توضیح",
+    monthTotal: "این ماه",
   },
   reports: {
     zeroStock: "موجودی صفر",

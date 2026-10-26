@@ -1606,6 +1606,32 @@ html[dir="rtl"] .period-picker select {
   align-items: center;
   gap: 9px;
 }
+.docs-month-total {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  flex: none;
+  padding: 7px 11px;
+  border: 1px solid var(--paint-border-e2e4da, #e2e4da);
+  border-radius: 9px;
+  background: var(--paint-bg-f7faf4, #f7faf4);
+  white-space: nowrap;
+}
+.docs-month-total span {
+  font-size: 9px;
+  font-weight: 650;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--paint-fg-7a7e74, #7a7e74);
+}
+.docs-month-total strong {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--paint-fg-2f322c, #2f322c);
+  font-variant-numeric: tabular-nums;
+  unicode-bidi: isolate;
+  direction: ltr;
+}
 .toolbar-right select {
   border: 1px solid var(--paint-border-e2e4da, #e2e4da);
   border-radius: 9px;

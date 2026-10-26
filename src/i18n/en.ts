@@ -1125,6 +1125,8 @@ export const en: MessageTree = {
     amount: "Amount",
     accountFilter: "Expense account",
     allAccounts: "All accounts",
+    note: "Description",
+    monthTotal: "This month",
   },
   reports: {
     zeroStock: "Zero stock",

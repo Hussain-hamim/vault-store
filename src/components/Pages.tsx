@@ -457,6 +457,7 @@ export function DocumentsPage({
     [accountId, setAccountId] = useState(""),
     [accounts, setAccounts] = useState<{ id: string; name: string }[]>([]),
     [rows, setRows] = useState<any[]>([]),
+    [monthTotal, setMonthTotal] = useState<number | null>(null),
     [next, setNext] = useState<string | null>(null),
     [loading, setLoading] = useState(true),
     [loadingMore, setLoadingMore] = useState(false),
@@ -468,6 +469,7 @@ export function DocumentsPage({
     if (kind !== "expense") {
       setAccounts([]);
       setAccountId("");
+      setMonthTotal(null);
       return;
     }
     let active = true;
@@ -499,6 +501,8 @@ export function DocumentsPage({
         if (!active) return;
         setRows(d.rows);
         setNext(d.next);
+        if (kind === "expense") setMonthTotal(Number(d.month_total) || 0);
+        else setMonthTotal(null);
       })
       .catch((e) => {
         if (active) setError(e.message);
@@ -528,6 +532,8 @@ export function DocumentsPage({
         return [...prev, ...d.rows.filter((r: any) => !seen.has(r.id))];
       });
       setNext(d.next);
+      if (kind === "expense" && d.month_total !== undefined)
+        setMonthTotal(Number(d.month_total) || 0);
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -613,18 +619,27 @@ export function DocumentsPage({
             />
             <div className="toolbar-right">
               {kind === "expense" && (
-                <select
-                  aria-label={t("expenses.accountFilter")}
-                  value={accountId}
-                  onChange={(e) => setAccountId(e.target.value)}
-                >
-                  <option value="">{t("expenses.allAccounts")}</option>
-                  {accounts.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {expenseAccountName(a.name, t)}
-                    </option>
-                  ))}
-                </select>
+                <>
+                  <div
+                    className="docs-month-total"
+                    aria-label={t("expenses.monthTotal")}
+                  >
+                    <span>{t("expenses.monthTotal")}</span>
+                    <strong>{af(monthTotal || 0)}</strong>
+                  </div>
+                  <select
+                    aria-label={t("expenses.accountFilter")}
+                    value={accountId}
+                    onChange={(e) => setAccountId(e.target.value)}
+                  >
+                    <option value="">{t("expenses.allAccounts")}</option>
+                    {accounts.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {expenseAccountName(a.name, t)}
+                      </option>
+                    ))}
+                  </select>
+                </>
               )}
               <ReportPrintButton
                 disabled={loading || !!error}
@@ -647,20 +662,39 @@ export function DocumentsPage({
                     {
                       note: t("printing.loadedOnly"),
                       columns: [
-                        { label: t("documents.reference") },
+                        {
+                          label:
+                            kind === "expense"
+                              ? t("expenses.note")
+                              : t("documents.reference"),
+                        },
                         { label: t("common.date") },
                         { label: partyLabel },
                         { label: t("common.total"), numeric: true },
-                        { label: t("common.paid"), numeric: true },
-                        { label: t("common.outstanding"), numeric: true },
+                        ...(kind === "expense"
+                          ? []
+                          : [
+                              { label: t("common.paid"), numeric: true },
+                              {
+                                label: t("common.outstanding"),
+                                numeric: true,
+                              },
+                            ]),
                       ],
                       rows: rows.map((d) => [
-                        d.number,
+                        kind === "expense" ? d.note || "" : d.number,
                         d.date,
                         kind === "expense" ? d.category : d.party_name,
                         af(d.total, 2),
-                        af(d.paid, 2),
-                        af(Math.max(0, d.total - d.paid - d.returned), 2),
+                        ...(kind === "expense"
+                          ? []
+                          : [
+                              af(d.paid, 2),
+                              af(
+                                Math.max(0, d.total - d.paid - d.returned),
+                                2,
+                              ),
+                            ]),
                       ]),
                     },
                   ],
@@ -670,18 +704,27 @@ export function DocumentsPage({
                 onClick={() => {
                   exportCSV(
                     `radefy-techmart-${label.toLowerCase()}`,
-                    rows.map((d: any) => ({
-                      invoice: d.number,
-                      date: d.date,
-                      contact: d.party_name || "",
-                      category: d.category,
-                      total_AF: d.total / 100,
-                      paid_AF: d.paid / 100,
-                      returned_AF: d.returned / 100,
-                      outstanding_AF:
-                        Math.max(0, d.total - d.paid - d.returned) / 100,
-                      note: d.note,
-                    })),
+                    rows.map((d: any) =>
+                      kind === "expense"
+                        ? {
+                            description: d.note || "",
+                            date: d.date,
+                            category: d.category,
+                            total_AF: d.total / 100,
+                          }
+                        : {
+                            invoice: d.number,
+                            date: d.date,
+                            contact: d.party_name || "",
+                            category: d.category,
+                            total_AF: d.total / 100,
+                            paid_AF: d.paid / 100,
+                            returned_AF: d.returned / 100,
+                            outstanding_AF:
+                              Math.max(0, d.total - d.paid - d.returned) / 100,
+                            note: d.note,
+                          },
+                    ),
                   );
                   toast(t("documents.exported"));
                 }}
@@ -689,7 +732,11 @@ export function DocumentsPage({
             </div>
           </div>
           <div className="docs-list-cols" role="row">
-            <span>{t("documents.reference")}</span>
+            <span>
+              {kind === "expense"
+                ? t("expenses.note")
+                : t("documents.reference")}
+            </span>
             <span>{t("common.date")}</span>
             <span>{partyLabel}</span>
             <span>{t("common.total")}</span>
@@ -716,14 +763,22 @@ export function DocumentsPage({
                     onClick={() => open("invoice", d)}
                   >
                     <div className="docs-row-ref">
-                      <strong>{d.number}</strong>
-                      {d.note ? <small>{d.note}</small> : null}
-                      {d.returned > 0 && (
-                        <small className="docs-return-note">
-                          {t("invoiceActions.returnedQty", {
-                            n: af(d.returned),
-                          })}
-                        </small>
+                      {kind === "expense" ? (
+                        d.note ? (
+                          <strong>{d.note}</strong>
+                        ) : null
+                      ) : (
+                        <>
+                          <strong>{d.number}</strong>
+                          {d.note ? <small>{d.note}</small> : null}
+                          {d.returned > 0 && (
+                            <small className="docs-return-note">
+                              {t("invoiceActions.returnedQty", {
+                                n: af(d.returned),
+                              })}
+                            </small>
+                          )}
+                        </>
                       )}
                     </div>
                     <div className="docs-row-meta">

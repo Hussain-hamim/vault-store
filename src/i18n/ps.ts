@@ -1111,6 +1111,8 @@ export const ps: MessageTree = {
     amount: "مقدار",
     accountFilter: "د لګښت حساب",
     allAccounts: "ټول حسابونه",
+    note: "تفصیل",
+    monthTotal: "دا میاشت",
   },
   reports: {
     zeroStock: "صفر موجودي",

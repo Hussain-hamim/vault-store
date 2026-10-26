@@ -2574,6 +2574,21 @@ export class Store {
     );
     const more = rows.length > d.limit;
     rows.length = Math.min(rows.length, d.limit);
+    let month_total;
+    if (d.kind === "expense") {
+      const monthFrom = today().slice(0, 7) + "-01";
+      const monthTo = today();
+      const monthClauses = ["kind='expense'", "date>=?", "date<=?"];
+      const monthParams = [monthFrom, monthTo];
+      if (d.expense_account_id) {
+        monthClauses.push("expense_account_id=?");
+        monthParams.push(d.expense_account_id);
+      }
+      month_total = this.one(
+        `SELECT COALESCE(SUM(total),0) n FROM documents WHERE ${monthClauses.join(" AND ")}`,
+        ...monthParams,
+      ).n;
+    }
     return {
       rows,
       next: more
@@ -2581,6 +2596,7 @@ export class Store {
             JSON.stringify([rows.at(-1).created_at, rows.at(-1).id]),
           ).toString("base64url")
         : null,
+      ...(month_total !== undefined ? { month_total } : {}),
     };
   }
   listParties(input = {}) {
