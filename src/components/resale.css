@@ -122,12 +122,146 @@
     flex-wrap: wrap;
   }
 }
-.resale-intake-section { padding:18px; border:1px solid var(--paint-border-dce8e9, #dce8e9); border-radius:12px; background:var(--paint-bg-fbfdfd, #fbfdfd); margin-bottom:15px; }
-.resale-intake-section h3 { font-size:13px; margin:0 0 15px; color:var(--paint-fg-2a6765, #2a6765); }
-.resale-intake-heading { display:flex; align-items:center; justify-content:space-between; gap:15px; margin-bottom:16px; }
-.resale-intake-heading h3 { margin:0; }
-.resale-mode-switch { display:flex; border:1px solid var(--paint-border-d1e3df, #d1e3df); border-radius:8px; padding:3px; background:var(--paint-bg-ffffff, #ffffff); }
-.resale-mode-switch button { border:0; padding:7px 11px; background:transparent; font:inherit; font-size:10px; color:var(--paint-fg-64817b, #64817b); cursor:pointer; border-radius:5px; }
-.resale-mode-switch button[aria-pressed="true"] { color:var(--paint-fg-24695f, #24695f); background:var(--paint-bg-e6f3ef, #e6f3ef); font-weight:700; }
-.resale-intake-section .help-note { margin:5px 0 0; font-size:10px; line-height:1.7; }
-@media(max-width:650px){.resale-intake-heading{align-items:flex-start;flex-direction:column}.resale-intake-section{padding:13px}}
+.resale-intake-section {
+  padding: 12px 14px;
+  border: 1px solid var(--paint-border-dce8e9, #dce8e9);
+  border-radius: 10px;
+  background: var(--paint-bg-fbfdfd, #fbfdfd);
+  margin-bottom: 10px;
+}
+.resale-intake-section h3 {
+  font-size: 12px;
+  margin: 0 0 10px;
+  color: var(--paint-fg-2a6765, #2a6765);
+}
+.resale-intake-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.resale-intake-heading h3 {
+  margin: 0;
+}
+.resale-mode-switch {
+  display: flex;
+  border: 1px solid var(--paint-border-d1e3df, #d1e3df);
+  border-radius: 8px;
+  padding: 2px;
+  background: var(--paint-bg-ffffff, #ffffff);
+}
+.resale-mode-switch button {
+  border: 0;
+  padding: 5px 10px;
+  background: transparent;
+  font: inherit;
+  font-size: 10px;
+  color: var(--paint-fg-64817b, #64817b);
+  cursor: pointer;
+  border-radius: 5px;
+}
+.resale-mode-switch button[aria-pressed="true"] {
+  color: var(--paint-fg-24695f, #24695f);
+  background: var(--paint-bg-e6f3ef, #e6f3ef);
+  font-weight: 700;
+}
+.resale-intake-section .help-note {
+  margin: 5px 0 0;
+  font-size: 10px;
+  line-height: 1.7;
+}
+.resale-receive-modal.modal {
+  width: min(1100px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  display: flex;
+  flex-direction: column;
+}
+.resale-receive-modal .modal-head {
+  padding-bottom: 8px;
+}
+.resale-receive-modal .modal-head p {
+  margin: 4px 0 0;
+  font-size: 11px;
+}
+.resale-receive-form {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+.resale-intake-compact {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-height: 0;
+  overflow: hidden;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+.resale-intake-compact .field {
+  margin-bottom: 8px;
+}
+.resale-intake-compact .form-grid {
+  gap: 8px 10px;
+}
+.resale-intake-compact .form-grid.four {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+@media (max-width: 900px) {
+  .resale-intake-compact .form-grid.four {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.resale-intake-owner {
+  flex: none;
+}
+.resale-owner-row.existing-owner > .field:first-child {
+  grid-column: span 2;
+}
+.resale-intake-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-height: 0;
+  overflow: auto;
+  flex: 1;
+  padding-inline-end: 2px;
+}
+.resale-intake-line .device-receipt {
+  margin-top: 0;
+}
+.resale-line-extras {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 0 0 6px;
+}
+.resale-line-extras .text-button {
+  font-size: 11px;
+  padding: 0;
+}
+.resale-add-product {
+  align-self: start;
+  margin: 2px 0 6px;
+  flex: none;
+}
+.resale-receive-modal .modal-actions {
+  flex: none;
+  margin-top: 0;
+}
+@media (max-width: 900px) {
+  .resale-owner-row.existing-owner > .field:first-child {
+    grid-column: auto;
+  }
+}
+@media (max-width: 650px) {
+  .resale-intake-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .resale-intake-section {
+    padding: 11px;
+  }
+}

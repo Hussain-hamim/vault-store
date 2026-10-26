@@ -2115,6 +2115,61 @@ test("notification data obeys staff permissions and never exposes costs or other
     /Sign in|Session|session/i,
   );
 });
+test("one receive can take several new products for the same owner", async (t) => {
+  const f = fixture(t);
+  const receipt = await f.s.dispatch(
+    "consignmentReceive",
+    {
+      owner_id: f.customer,
+      lines: [
+        {
+          new_product: {
+            name: "Owner phone",
+            brand: "Apple",
+            model: "13",
+            category: "Mobiles",
+            serialized: false,
+          },
+          quantity: 1,
+          owner_unit_amount: 200000,
+        },
+        {
+          new_product: {
+            name: "Owner laptop",
+            brand: "Dell",
+            model: "XPS",
+            category: "Computers",
+            serialized: false,
+          },
+          quantity: 2,
+          owner_unit_amount: 150000,
+        },
+      ],
+      request_key: key(),
+    },
+    f.token,
+  );
+  assert.equal(receipt.lines.length, 2);
+  assert.equal(
+    f.s.one("SELECT stock FROM products WHERE id=?", receipt.lines[0].product_id)
+      .stock,
+    1,
+  );
+  assert.equal(
+    f.s.one("SELECT stock FROM products WHERE id=?", receipt.lines[1].product_id)
+      .stock,
+    2,
+  );
+  assert.equal(
+    f.s.one(
+      "SELECT consignment_only FROM products WHERE id=?",
+      receipt.lines[0].product_id,
+    ).consignment_only,
+    1,
+  );
+  assert.equal(ownerClaim(f, f.customer), 0);
+  balanced(f.s);
+});
 test("unlisted customer resale creates owner and product atomically, then records 3000 revenue, 2000 owner share and 1000 profit days later", async (t) => {
   const f = fixture(t);
   const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);

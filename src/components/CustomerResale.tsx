@@ -4,17 +4,18 @@ import {
   type Device,
   type DeviceDetails,
 } from "./DeviceInventory";
-import { ProductPhotoPicker, type PhotoValue } from "./ProductPhotoPicker";
 import {
   PRODUCT_BRANDS,
   PRODUCT_CATEGORIES,
   categoryLabel,
   specFieldLabel,
 } from "./Dialogs";
+import { PartySearchSelect } from "./PartySearchSelect";
 import { specOrder } from "../api";
 import { useEffect, useRef, useState } from "react";
 import {
   PlusIcon,
+  TrashIcon,
   ArrowCounterClockwiseIcon,
   MoneyIcon,
 } from "@phosphor-icons/react";
@@ -24,33 +25,39 @@ import { Empty, ErrorMessage, Field, Modal, NumericInput } from "./ui";
 import type { PageProps } from "./Pages";
 import "./resale.css";
 type DialogProps = { close: () => void; done: (message: string) => void };
-function useChoices(command: string, q: string, kind?: string, enabled = true) {
-  const [rows, setRows] = useState<any[]>([]),
-    [error, setError] = useState("");
-  useEffect(() => {
-    let active = true;
-    setError("");
-    if (!enabled) {
-      setRows([]);
-      return;
-    }
-    const timer = setTimeout(
-      () =>
-        api(command, { q, limit: 50, ...(kind ? { kind } : {}) })
-          .then((d) => {
-            if (active) setRows(d.rows);
-          })
-          .catch((e) => {
-            if (active) setError(e.message);
-          }),
-      180,
-    );
-    return () => {
-      active = false;
-      clearTimeout(timer);
-    };
-  }, [command, q, kind, enabled]);
-  return { rows, error };
+type IntakeLine = {
+  key: string;
+  name: string;
+  category: string;
+  brand: string;
+  customBrand: string;
+  model: string;
+  accessoryType: string;
+  condition: string;
+  sellingPrice: string;
+  quantity: string;
+  ownerAmount: string;
+  specs: Record<string, string>;
+  showSpecs: boolean;
+  units: DeviceDetails[];
+};
+function blankIntakeLine(): IntakeLine {
+  return {
+    key: requestKey(),
+    name: "",
+    category: "Computers",
+    brand: "Dell",
+    customBrand: "",
+    model: "",
+    accessoryType: "",
+    condition: "Used",
+    sellingPrice: "",
+    quantity: "1",
+    ownerAmount: "",
+    specs: {},
+    showSpecs: false,
+    units: [],
+  };
 }
 export function CustomerResalePage({ refresh, open, user }: PageProps) {
   const { t } = useI18n();
@@ -110,24 +117,14 @@ export function CustomerResalePage({ refresh, open, user }: PageProps) {
     <div className="page-content resale-page">
       <div className="resale-header">
         <div className="inline-actions">
-          {user.permissions.includes("people") && (
-            <button className="button" onClick={() => open("customer")}>
-              {t("people.addCustomer")}
-            </button>
-          )}
           {user.permissions.includes("inventory") && (
-            <>
-              <button className="button" onClick={() => open("product")}>
-                {t("resale.newProduct")}
-              </button>
-              <button
-                className="button button-dark"
-                onClick={() => open("consignmentReceive")}
-              >
-                <PlusIcon size={16} />
-                {t("resale.receive")}
-              </button>
-            </>
+            <button
+              className="button button-dark"
+              onClick={() => open("consignmentReceive")}
+            >
+              <PlusIcon size={16} />
+              {t("resale.receive")}
+            </button>
           )}
         </div>
       </div>
@@ -308,72 +305,78 @@ export function ResaleReceiveDialog({
   const [newOwner, setNewOwner] = useState(
       !party && user.permissions.includes("people"),
     ),
-    [newProduct, setNewProduct] = useState(true),
-    [category, setCategory] = useState("Computers"),
-    [brand, setBrand] = useState("Dell"),
-    [customBrand, setCustomBrand] = useState(""),
-    [accessoryType, setAccessoryType] = useState(""),
-    [model, setModel] = useState(""),
-    [photo, setPhoto] = useState<PhotoValue>({ image: "" }),
-    [photoBusy, setPhotoBusy] = useState(false),
-    [ownerSearch, setOwnerSearch] = useState(party?.name || ""),
-    [productSearch, setProductSearch] = useState(""),
-    [owner, setOwner] = useState(party?.id || ""),
-    [product, setProduct] = useState(""),
+    [selectedOwner, setSelectedOwner] = useState<Party | null>(party || null),
+    [ownerName, setOwnerName] = useState(""),
+    [ownerPhone, setOwnerPhone] = useState(""),
+    [date, setDate] = useState(businessDate()),
+    [note, setNote] = useState(""),
+    [lines, setLines] = useState<IntakeLine[]>([blankIntakeLine()]),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
-  const owners = useChoices("parties", ownerSearch, "customer", !newOwner),
-    products = useChoices("catalog", productSearch, undefined, !newProduct);
-  const [receiptQty, setReceiptQty] = useState("1"),
-    [receiptUnits, setReceiptUnits] = useState<DeviceDetails[]>([]);
   const key = useRef(requestKey());
+  function patchLine(lineKey: string, patch: Partial<IntakeLine>) {
+    setLines((rows) =>
+      rows.map((row) => (row.key === lineKey ? { ...row, ...patch } : row)),
+    );
+  }
+  function patchSpec(lineKey: string, specKey: string, value: string) {
+    setLines((rows) =>
+      rows.map((row) =>
+        row.key === lineKey
+          ? {
+              ...row,
+              accessoryType: specKey === "Type" ? value : row.accessoryType,
+              specs: { ...row.specs, [specKey]: value },
+            }
+          : row,
+      ),
+    );
+  }
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const form = new FormData(e.currentTarget);
     setBusy(true);
     setError("");
     try {
-      const attributes = Object.fromEntries(
-        specOrder(category)
-          .map((k) => [k, String(form.get("spec-" + k) || "")])
-          .filter(([, v]) => v),
-      );
+      if (!newOwner && !selectedOwner?.id)
+        throw new Error(t("resale.chooseOwner"));
       await api("consignmentReceive", {
         ...(newOwner
-          ? {
-              new_owner: {
-                name: form.get("owner_name"),
-                phone: form.get("owner_phone"),
-              },
-            }
-          : { owner_id: owner }),
-        ...(newProduct
-          ? {
-              new_product: {
-                ...photo,
-                name: form.get("product_name"),
-                brand: brand === "Other" ? form.get("custom_brand") : brand,
-                model: form.get("model"),
-                category,
-                serialized: ["Computers", "Mobiles", "Tablets"].includes(
-                  category,
-                ),
-                price: toMoney(form.get("selling_price")),
-                condition: form.get("condition"),
-                attributes,
-              },
-            }
-          : { product_id: product }),
-        quantity: Number(form.get("quantity")),
-        units: receiptUnits.length
-          ? Array.from(
-              { length: Number(receiptQty) },
-              (_, i) => receiptUnits[i] || {},
-            )
-          : undefined,
-        owner_unit_amount: toMoney(form.get("amount")),
-        date: form.get("date"),
-        note: form.get("note"),
+          ? { new_owner: { name: ownerName, phone: ownerPhone } }
+          : { owner_id: selectedOwner!.id }),
+        date,
+        note,
+        lines: lines.map((line) => {
+          const qty = Number(line.quantity);
+          const attributes = Object.fromEntries(
+            specOrder(line.category)
+              .map((k) => [
+                k,
+                k === "Type"
+                  ? line.accessoryType
+                  : String(line.specs[k] || ""),
+              ])
+              .filter(([, v]) => v),
+          );
+          return {
+            new_product: {
+              name: line.name,
+              brand: line.brand === "Other" ? line.customBrand : line.brand,
+              model: line.model,
+              category: line.category,
+              serialized: ["Computers", "Mobiles", "Tablets"].includes(
+                line.category,
+              ),
+              price: toMoney(line.sellingPrice),
+              condition: line.condition,
+              attributes,
+            },
+            quantity: qty,
+            owner_unit_amount: toMoney(line.ownerAmount),
+            units: ["Computers", "Mobiles", "Tablets"].includes(line.category)
+              ? Array.from({ length: qty }, (_, i) => line.units[i] || {})
+              : undefined,
+          };
+        }),
         request_key: key.current,
       });
       done(t("resale.received"));
@@ -389,10 +392,11 @@ export function ResaleReceiveDialog({
       subtitle={t("resale.receiveHint")}
       onClose={close}
       wide
+      className="resale-receive-modal"
     >
-      <form onSubmit={submit}>
-        <div className="form-body resale-intake">
-          <section className="resale-intake-section">
+      <form onSubmit={submit} className="resale-receive-form">
+        <div className="form-body resale-intake resale-intake-compact">
+          <section className="resale-intake-section resale-intake-owner">
             <div className="resale-intake-heading">
               <h3>{t("resale.owner")}</h3>
               <div className="resale-mode-switch">
@@ -413,253 +417,300 @@ export function ResaleReceiveDialog({
                 </button>
               </div>
             </div>
-            {newOwner ? (
-              <div className="form-grid">
-                <Field label={t("resale.ownerName")}>
-                  <input
-                    name="owner_name"
-                    required
-                    minLength={2}
-                    maxLength={500}
-                  />
-                </Field>
-                <Field label={t("people.phone")}>
-                  <input name="owner_phone" type="tel" maxLength={500} />
-                </Field>
-              </div>
-            ) : (
-              <Field label={t("resale.findOwner")}>
-                <input
-                  aria-label={t("resale.findOwner")}
-                  value={ownerSearch}
-                  onChange={(e) => {
-                    setOwnerSearch(e.target.value);
-                    setOwner("");
-                  }}
-                  placeholder={t("resale.findOwner")}
-                />
-                <select
-                  value={owner}
-                  onChange={(e) => setOwner(e.target.value)}
-                  required
-                >
-                  <option value="">{t("resale.chooseOwner")}</option>
-                  {owners.rows
-                    .filter((p) => !p.walk_in)
-                    .map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} {p.phone}
-                      </option>
-                    ))}
-                </select>
-              </Field>
-            )}
-          </section>
-          <section className="resale-intake-section">
-            <div className="resale-intake-heading">
-              <h3>{t("invoice.product")}</h3>
-              <div className="resale-mode-switch">
-                <button
-                  type="button"
-                  aria-pressed={newProduct}
-                  onClick={() => setNewProduct(true)}
-                >
-                  {t("resale.unlistedProduct")}
-                </button>
-                <button
-                  type="button"
-                  aria-pressed={!newProduct}
-                  onClick={() => setNewProduct(false)}
-                >
-                  {t("resale.existingProduct")}
-                </button>
-              </div>
-            </div>
-            {newProduct ? (
-              <>
-                <ProductPhotoPicker
-                  product={{
-                    brand: brand === "Other" ? customBrand : brand,
-                    model,
-                    category,
-                    attributes: { Type: accessoryType },
-                  }}
-                  onChange={setPhoto}
-                  onBusy={setPhotoBusy}
-                />
-                <div className="form-grid">
-                  <Field label={t("product.name")}>
+            <div
+              className={
+                "form-grid four resale-owner-row" +
+                (newOwner ? "" : " existing-owner")
+              }
+            >
+              {newOwner ? (
+                <>
+                  <Field label={t("resale.ownerName")}>
                     <input
-                      name="product_name"
+                      value={ownerName}
+                      onChange={(e) => setOwnerName(e.target.value)}
                       required
                       minLength={2}
                       maxLength={500}
                     />
                   </Field>
-                  <Field label={t("product.category")}>
-                    <select
-                      value={category}
-                      onChange={(e) => setCategory(e.target.value)}
-                    >
-                      {PRODUCT_CATEGORIES.map((c) => (
-                        <option key={c} value={c}>
-                          {categoryLabel(t, c)}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
-                </div>
-                <div className="form-grid">
-                  <Field label={t("product.brand")}>
-                    <select
-                      value={brand}
-                      onChange={(e) => setBrand(e.target.value)}
-                    >
-                      {PRODUCT_BRANDS.map((b) => (
-                        <option key={b} value={b}>
-                          {b === "Other" ? t("common.other") : b}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
-                  <Field label={t("product.model")}>
+                  <Field label={t("common.phone")}>
                     <input
-                      name="model"
-                      value={model}
-                      onChange={(e) => setModel(e.target.value)}
-                      required
+                      value={ownerPhone}
+                      onChange={(e) => setOwnerPhone(e.target.value)}
+                      type="tel"
                       maxLength={500}
                     />
                   </Field>
-                </div>
-                {brand === "Other" && (
-                  <Field label={t("product.brand")}>
-                    <input
-                      name="custom_brand"
-                      value={customBrand}
-                      onChange={(e) => setCustomBrand(e.target.value)}
-                      required
-                      maxLength={500}
-                    />
-                  </Field>
-                )}
-                <div className="form-grid">
-                  <Field label={t("product.condition")}>
-                    <select name="condition" defaultValue="Used">
-                      {["New", "Used", "Refurbished"].map((c) => (
-                        <option key={c} value={c}>
-                          {t(
-                            "productForm." +
-                              {
-                                New: "conditionNew",
-                                Used: "conditionUsed",
-                                Refurbished: "conditionRefurb",
-                              }[c],
-                          )}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
-                  <Field label={t("resale.expectedPrice")}>
-                    <NumericInput
-                      name="selling_price"
-                      min="0"
-                      step="0.01"
-                      placeholder={t("resale.priceLater")}
-                    />
-                  </Field>
-                </div>
-                <div className="form-grid">
-                  {specOrder(category).map((k) => (
-                    <Field
-                      key={category + k}
-                      label={
-                        k === "Type"
-                          ? t("product.accessoryType")
-                          : specFieldLabel(t, k)
-                      }
-                    >
-                      <input
-                        name={"spec-" + k}
-                        maxLength={200}
-                        value={k === "Type" ? accessoryType : undefined}
-                        onChange={(e) => {
-                          if (k === "Type") setAccessoryType(e.target.value);
-                        }}
-                      />
-                    </Field>
-                  ))}
-                </div>
-                <p className="help-note">{t("resale.newProductHint")}</p>
-              </>
-            ) : (
-              <Field label={t("resale.findProduct")}>
-                <input
-                  aria-label={t("resale.findProduct")}
-                  value={productSearch}
-                  onChange={(e) => {
-                    setProductSearch(e.target.value);
-                    setProduct("");
-                  }}
-                  placeholder={t("resale.findProduct")}
-                />
-                <select
-                  value={product}
-                  onChange={(e) => setProduct(e.target.value)}
-                  required
-                >
-                  <option value="">{t("resale.chooseProduct")}</option>
-                  {products.rows.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} · {p.sku}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-            )}
-          </section>
-          <section className="resale-intake-section">
-            <h3>{t("resale.ownerAgreement")}</h3>
-            <div className="form-grid">
-              <Field label={t("invoice.quantity")}>
-                <NumericInput
-                  name="quantity"
-                  value={receiptQty}
-                  onChange={(e) => setReceiptQty(e.target.value)}
-                  min="1"
-                  max="100000"
-                  step="1"
-                  required
-                />
-              </Field>
-              <Field label={t("resale.ownerUnitAmount")}>
-                <NumericInput name="amount" min="0" step="0.01" required />
-              </Field>
+                </>
+              ) : (
+                <Field label={t("sales.customer")}>
+                  <PartySearchSelect
+                    kind="customer"
+                    value={selectedOwner?.id || ""}
+                    selected={selectedOwner}
+                    onChange={setSelectedOwner}
+                    placeholder={t("people.searchCustomers")}
+                    excludeWalkIn
+                    required
+                  />
+                </Field>
+              )}
               <Field label={t("common.date")}>
                 <input
-                  name="date"
                   type="date"
-                  defaultValue={businessDate()}
+                  value={date}
                   max={businessDate()}
+                  onChange={(e) => setDate(e.target.value)}
                   required
                 />
               </Field>
               <Field label={t("resale.agreementNote")}>
-                <input name="note" maxLength={500} />
+                <input
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  maxLength={500}
+                />
               </Field>
             </div>
-            {(newProduct
-              ? ["Computers", "Mobiles", "Tablets"].includes(category)
-              : products.rows.find((p) => p.id === product)?.serialized) && (
-              <ReceiveDevices
-                quantity={Number(receiptQty)}
-                values={receiptUnits}
-                onChange={setReceiptUnits}
-              />
-            )}
-            <p className="help-note">{t("resale.intakeNote")}</p>
           </section>
-          <ErrorMessage error={error || owners.error || products.error} />
+          <div className="resale-intake-lines">
+            {lines.map((line, index) => {
+              const serialized = ["Computers", "Mobiles", "Tablets"].includes(
+                line.category,
+              );
+              return (
+                <section
+                  className="resale-intake-section resale-intake-line"
+                  key={line.key}
+                >
+                  <div className="resale-intake-heading">
+                    <h3>
+                      {t("invoice.product")}
+                      {lines.length > 1 ? ` ${index + 1}` : ""}
+                    </h3>
+                    {lines.length > 1 && (
+                      <button
+                        type="button"
+                        className="icon-button"
+                        aria-label={t("resale.removeProduct")}
+                        onClick={() =>
+                          setLines((rows) =>
+                            rows.filter((row) => row.key !== line.key),
+                          )
+                        }
+                      >
+                        <TrashIcon size={16} />
+                      </button>
+                    )}
+                  </div>
+                  <div className="form-grid four">
+                    <Field label={t("product.name")}>
+                      <input
+                        value={line.name}
+                        onChange={(e) =>
+                          patchLine(line.key, { name: e.target.value })
+                        }
+                        required
+                        minLength={2}
+                        maxLength={500}
+                      />
+                    </Field>
+                    <Field label={t("product.category")}>
+                      <select
+                        value={line.category}
+                        onChange={(e) =>
+                          patchLine(line.key, {
+                            category: e.target.value,
+                            accessoryType: "",
+                            specs: {},
+                            units: [],
+                            showSpecs: e.target.value === "Accessories",
+                          })
+                        }
+                      >
+                        {PRODUCT_CATEGORIES.map((c) => (
+                          <option key={c} value={c}>
+                            {categoryLabel(t, c)}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                    <Field label={t("product.brand")}>
+                      <select
+                        value={line.brand}
+                        onChange={(e) =>
+                          patchLine(line.key, { brand: e.target.value })
+                        }
+                      >
+                        {PRODUCT_BRANDS.map((b) => (
+                          <option key={b} value={b}>
+                            {b === "Other" ? t("common.other") : b}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                    <Field label={t("product.model")}>
+                      <input
+                        value={line.model}
+                        onChange={(e) =>
+                          patchLine(line.key, { model: e.target.value })
+                        }
+                        required
+                        maxLength={500}
+                      />
+                    </Field>
+                  </div>
+                  {line.brand === "Other" && (
+                    <Field label={t("product.brand")}>
+                      <input
+                        value={line.customBrand}
+                        onChange={(e) =>
+                          patchLine(line.key, {
+                            customBrand: e.target.value,
+                          })
+                        }
+                        required
+                        maxLength={500}
+                      />
+                    </Field>
+                  )}
+                  <div className="form-grid four">
+                    <Field label={t("product.condition")}>
+                      <select
+                        value={line.condition}
+                        onChange={(e) =>
+                          patchLine(line.key, { condition: e.target.value })
+                        }
+                      >
+                        {["New", "Used", "Refurbished"].map((c) => (
+                          <option key={c} value={c}>
+                            {t(
+                              "productForm." +
+                                {
+                                  New: "conditionNew",
+                                  Used: "conditionUsed",
+                                  Refurbished: "conditionRefurb",
+                                }[c],
+                            )}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                    <Field label={t("resale.expectedPriceShort")}>
+                      <NumericInput
+                        value={line.sellingPrice}
+                        onChange={(e) =>
+                          patchLine(line.key, {
+                            sellingPrice: e.target.value,
+                          })
+                        }
+                        min="0"
+                        step="0.01"
+                        placeholder={t("resale.priceLater")}
+                      />
+                    </Field>
+                    <Field label={t("invoice.quantity")}>
+                      <NumericInput
+                        value={line.quantity}
+                        onChange={(e) =>
+                          patchLine(line.key, {
+                            quantity: e.target.value,
+                            units: [],
+                          })
+                        }
+                        min="1"
+                        max="100000"
+                        step="1"
+                        required
+                      />
+                    </Field>
+                    <Field label={t("resale.ownerUnitAmount")}>
+                      <NumericInput
+                        value={line.ownerAmount}
+                        onChange={(e) =>
+                          patchLine(line.key, {
+                            ownerAmount: e.target.value,
+                          })
+                        }
+                        min="0"
+                        step="0.01"
+                        required
+                      />
+                    </Field>
+                  </div>
+                  {!!specOrder(line.category).length && (
+                    <div className="resale-line-extras">
+                      <button
+                        type="button"
+                        className="text-button"
+                        onClick={() =>
+                          patchLine(line.key, { showSpecs: !line.showSpecs })
+                        }
+                      >
+                        {line.showSpecs
+                          ? t("resale.hideSpecs")
+                          : t("resale.showSpecs")}
+                      </button>
+                      {serialized && (
+                        <ReceiveDevices
+                          quantity={Number(line.quantity) || 0}
+                          values={line.units}
+                          onChange={(units) =>
+                            patchLine(line.key, { units })
+                          }
+                          defaultCondition={line.condition}
+                        />
+                      )}
+                    </div>
+                  )}
+                  {line.showSpecs && (
+                    <div className="form-grid four">
+                      {specOrder(line.category).map((k) => (
+                        <Field
+                          key={line.key + k}
+                          label={
+                            k === "Type"
+                              ? t("product.accessoryType")
+                              : specFieldLabel(t, k)
+                          }
+                        >
+                          <input
+                            maxLength={200}
+                            value={
+                              k === "Type"
+                                ? line.accessoryType
+                                : line.specs[k] || ""
+                            }
+                            onChange={(e) =>
+                              patchSpec(line.key, k, e.target.value)
+                            }
+                          />
+                        </Field>
+                      ))}
+                    </div>
+                  )}
+                  {!specOrder(line.category).length && serialized && (
+                    <ReceiveDevices
+                      quantity={Number(line.quantity) || 0}
+                      values={line.units}
+                      onChange={(units) => patchLine(line.key, { units })}
+                      defaultCondition={line.condition}
+                    />
+                  )}
+                </section>
+              );
+            })}
+          </div>
+          <button
+            type="button"
+            className="button resale-add-product"
+            onClick={() => setLines((rows) => [...rows, blankIntakeLine()])}
+          >
+            <PlusIcon size={15} />
+            {t("resale.addProduct")}
+          </button>
+          <ErrorMessage error={error} />
         </div>
         <div className="modal-actions">
           <button type="button" className="button" onClick={close}>
@@ -667,12 +718,7 @@ export function ResaleReceiveDialog({
           </button>
           <button
             className="button button-dark"
-            disabled={
-              busy ||
-              (newProduct && photoBusy) ||
-              (!newOwner && !owner) ||
-              (!newProduct && !product)
-            }
+            disabled={busy || (!newOwner && !selectedOwner?.id)}
           >
             {t(busy ? "common.saving" : "resale.receive")}
           </button>

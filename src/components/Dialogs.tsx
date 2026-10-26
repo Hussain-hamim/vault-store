@@ -67,6 +67,7 @@ export {
 } from "./product-fields";
 import { PRODUCT_CATEGORIES, categoryLabel } from "./product-fields";
 import { ProductForm } from "./ProductForm";
+import { PartySearchSelect } from "./PartySearchSelect";
 export { ProductForm } from "./ProductForm";
 
 type CartLine = {
@@ -111,8 +112,8 @@ export function TradeForm({
   const [q, setQ] = useState(""),
     [products, setProducts] = useState<Product[]>([]),
     [next, setNext] = useState<string | null>(null),
-    [parties, setParties] = useState<Party[]>([]),
     [party, setParty] = useState(""),
+    [selectedParty, setSelectedParty] = useState<Party | null>(null),
     [lines, setLines] = useState<CartLine[]>([]),
     [paid, setPaid] = useState(""),
     [paymentInForeign, setPaymentInForeign] = useState(true),
@@ -137,12 +138,15 @@ export function TradeForm({
   const barcodeRef = useRef<HTMLInputElement>(null);
   const Frame = inline ? BillFrame : Modal;
   const purchase = kind === "purchase";
-  const selectedParty = parties.find((p) => p.id === party);
   const saleCustomerReady = purchase
     ? Boolean(party)
     : customerMode === "new"
       ? customerName.trim().length >= 2
       : Boolean(party);
+  function chooseParty(next: Party | null) {
+    setSelectedParty(next);
+    setParty(next?.id || "");
+  }
   useEffect(() => {
     let active = true;
     setSearching(true);
@@ -193,15 +197,15 @@ export function TradeForm({
     }
   }
   useEffect(() => {
+    if (!purchase || documentId) return;
     let active = true;
     api<{ rows: Party[] }>("parties", {
-      kind: purchase ? "supplier" : "customer",
-      limit: 100,
+      kind: "supplier",
+      limit: 1,
     })
       .then((d) => {
-        if (!active) return;
-        setParties(d.rows);
-        if (!documentId && purchase) setParty(d.rows[0]?.id || "");
+        if (!active || !d.rows[0]) return;
+        chooseParty(d.rows[0]);
       })
       .catch((e) => {
         if (active) setError(e.message);
@@ -242,7 +246,20 @@ export function TradeForm({
         );
         if (active) {
           setInitial(doc);
-          setParty(doc.party_id);
+          chooseParty(
+            doc.party_id
+              ? ({
+                  id: doc.party_id,
+                  name: doc.party_name || "",
+                  phone: "",
+                  email: "",
+                  address: "",
+                  balance: 0,
+                  walk_in: 0,
+                  kind: purchase ? "supplier" : "customer",
+                } as Party)
+              : null,
+          );
           setCustomerMode("existing");
           setCustomerName(doc.party_name || "");
           const hasForeignPayment = doc.paid_foreign != null;
@@ -433,21 +450,33 @@ export function TradeForm({
     }
     const name = customerName.trim();
     if (name.length < 2) throw new Error(t("sales.errCustomerName"));
-    const match = parties.find(
+    const found = await api<{ rows: Party[] }>("parties", {
+      kind: "customer",
+      q: name,
+      limit: 20,
+    });
+    const match = found.rows.find(
       (p) => !p.walk_in && p.name.toLowerCase() === name.toLowerCase(),
     );
-    if (match) return match.id;
+    if (match) {
+      chooseParty(match);
+      return match.id;
+    }
     const created = await api<{ id: string }>("partyCreate", {
       kind: "customer",
       name,
       request_key: requestKey(),
     });
-    const refreshed = await api<{ rows: Party[] }>("parties", {
+    chooseParty({
+      id: created.id,
       kind: "customer",
-      limit: 100,
+      name,
+      phone: "",
+      email: "",
+      address: "",
+      balance: 0,
+      walk_in: 0,
     });
-    setParties(refreshed.rows);
-    setParty(created.id);
     return created.id;
   }
   async function submit(e: React.FormEvent<HTMLFormElement>) {
@@ -573,20 +602,14 @@ export function TradeForm({
                         <label className="sale-customer-name">
                           <span>{t("sales.supplier")}</span>
                           <div className="inline-actions party-picker">
-                            <select
+                            <PartySearchSelect
+                              kind="supplier"
                               value={party}
-                              onChange={(e) => setParty(e.target.value)}
+                              selected={selectedParty}
+                              onChange={chooseParty}
+                              placeholder={t("people.searchSuppliers")}
                               required
-                            >
-                              <option value="">
-                                {t("sales.chooseSupplier")}
-                              </option>
-                              {parties.map((p) => (
-                                <option value={p.id} key={p.id}>
-                                  {p.name}
-                                </option>
-                              ))}
-                            </select>
+                            />
                             <button
                               type="button"
                               className="button"
@@ -681,23 +704,15 @@ export function TradeForm({
                             <label className="sale-customer-name">
                               <span>{t("sales.customer")}</span>
                               <div className="inline-actions party-picker">
-                                <select
+                                <PartySearchSelect
+                                  kind="customer"
                                   value={party}
-                                  onChange={(e) => setParty(e.target.value)}
+                                  selected={selectedParty}
+                                  onChange={chooseParty}
+                                  placeholder={t("people.searchCustomers")}
+                                  walkInLabel={t("sales.walkInCashOnly")}
                                   required
-                                >
-                                  <option value="">
-                                    {t("sales.chooseCustomer")}
-                                  </option>
-                                  {parties.map((p) => (
-                                    <option value={p.id} key={p.id}>
-                                      {p.name}
-                                      {p.walk_in
-                                        ? t("sales.walkInCashOnly")
-                                        : ""}
-                                    </option>
-                                  ))}
-                                </select>
+                                />
                                 <button
                                   type="button"
                                   className="button"
@@ -1228,20 +1243,14 @@ export function TradeForm({
                     <div className="form-grid three">
                       <Field label={t("sales.supplier")}>
                         <div className="inline-actions party-picker">
-                          <select
+                          <PartySearchSelect
+                            kind="supplier"
                             value={party}
-                            onChange={(e) => setParty(e.target.value)}
+                            selected={selectedParty}
+                            onChange={chooseParty}
+                            placeholder={t("people.searchSuppliers")}
                             required
-                          >
-                            <option value="">
-                              {t("sales.chooseSupplier")}
-                            </option>
-                            {parties.map((p) => (
-                              <option value={p.id} key={p.id}>
-                                {p.name}
-                              </option>
-                            ))}
-                          </select>
+                          />
                           <button
                             type="button"
                             className="button"
@@ -1643,15 +1652,20 @@ export function TradeForm({
           close={() => setAddingParty(false)}
           done={(_message, result) => {
             setAddingParty(false);
-            const created = result as { id?: string } | undefined;
-            api<{ rows: Party[] }>("parties", {
-              kind: purchase ? "supplier" : "customer",
-            })
-              .then((d) => {
-                setParties(d.rows);
-                if (created?.id) setParty(created.id);
-              })
-              .catch((e) => setError(e.message));
+            const created = result as Party | { id?: string } | undefined;
+            if (created?.id) {
+              chooseParty({
+                id: created.id,
+                kind: purchase ? "supplier" : "customer",
+                name: (created as Party).name || "",
+                phone: (created as Party).phone || "",
+                email: (created as Party).email || "",
+                address: (created as Party).address || "",
+                balance: (created as Party).balance || 0,
+                walk_in: (created as Party).walk_in || 0,
+              });
+              if (!purchase) setCustomerMode("existing");
+            }
           }}
         />
       )}

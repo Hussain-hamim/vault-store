@@ -32,6 +32,41 @@ export function consignmentCredits(s, documentId) {
     documentId,
   );
 }
+const newProductSchema = z.object({
+  name: z.string().trim().min(2).max(500),
+  brand: z.string().trim().min(1).max(500),
+  model: z.string().trim().min(1).max(500),
+  sku: z.string().trim().max(500).optional(),
+  category: z.enum([
+    "Computers",
+    "Mobiles",
+    "Tablets",
+    "Storage",
+    "Accessories",
+  ]),
+  serialized: z.boolean().optional(),
+  price: amount.default(0),
+  image: z.string().max(500).default(""),
+  photo_data: z.string().max(500000).optional(),
+  condition: z.enum(["New", "Used", "Refurbished"]).default("Used"),
+  attributes: z.record(z.string(), z.string().max(200)).default({}),
+});
+const receiveLineSchema = z
+  .object({
+    product_id: z.string().optional(),
+    new_product: newProductSchema.optional(),
+    quantity,
+    owner_unit_amount: amount,
+    ...unitFields,
+  })
+  .superRefine((line, ctx) => {
+    if (!!line.product_id === !!line.new_product) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Each receive line needs a new product or an existing product.",
+      });
+    }
+  });
 export function receiveConsignment(s, user, input) {
   const d = z
     .object({
@@ -44,29 +79,10 @@ export function receiveConsignment(s, user, input) {
         })
         .optional(),
       product_id: z.string().optional(),
-      new_product: z
-        .object({
-          name: z.string().trim().min(2).max(500),
-          brand: z.string().trim().min(1).max(500),
-          model: z.string().trim().min(1).max(500),
-          sku: z.string().trim().max(500).optional(),
-          category: z.enum([
-            "Computers",
-            "Mobiles",
-            "Tablets",
-            "Storage",
-            "Accessories",
-          ]),
-          serialized: z.boolean().optional(),
-          price: amount.default(0),
-          image: z.string().max(500).default(""),
-          photo_data: z.string().max(500000).optional(),
-          condition: z.enum(["New", "Used", "Refurbished"]).default("Used"),
-          attributes: z.record(z.string(), z.string().max(200)).default({}),
-        })
-        .optional(),
-      quantity,
-      owner_unit_amount: amount,
+      new_product: newProductSchema.optional(),
+      quantity: quantity.optional(),
+      owner_unit_amount: amount.optional(),
+      lines: z.array(receiveLineSchema).min(1).max(50).optional(),
       date: date.optional(),
       note: z.string().trim().max(500).default(""),
       request_key,
@@ -79,77 +95,107 @@ export function receiveConsignment(s, user, input) {
     if (previous) return s.getDocument(previous.id);
     if (!!d.owner_id === !!d.new_owner)
       throw new Error("Choose an existing owner or enter one new customer.");
-    if (!!d.product_id === !!d.new_product)
-      throw new Error("Choose an existing product or enter one new product.");
+    const lines = d.lines?.length
+      ? d.lines
+      : d.quantity != null && d.owner_unit_amount != null
+        ? [
+            {
+              product_id: d.product_id,
+              new_product: d.new_product,
+              quantity: d.quantity,
+              owner_unit_amount: d.owner_unit_amount,
+              units: d.units,
+              unit_ids: d.unit_ids,
+            },
+          ]
+        : null;
+    if (!lines?.length)
+      throw new Error("Enter the customer product details for this intake.");
+    if (lines.some((line) => !!line.product_id === !!line.new_product))
+      throw new Error(
+        "Choose an existing product or enter one new product.",
+      );
     if (d.new_owner) {
       if (!user.permissions.includes("people"))
         throw new Error("Permission required: people");
       d.owner_id = s.createParty(user, { kind: "customer", ...d.new_owner }).id;
     }
-    if (d.new_product) {
-      d.product_id = s.createProduct(user, {
-        ...d.new_product,
-        sku: d.new_product.sku || "RES-" + id(),
-        reorder_level: 0,
-        opening_quantity: 0,
-        unit_cost: 0,
-      }).id;
-      s.run("UPDATE products SET consignment_only=1 WHERE id=?", d.product_id);
-    }
     party(s, d.owner_id);
-    const product = s.one(
-      "SELECT * FROM products WHERE id=? AND active=1",
-      d.product_id,
-    );
-    if (!product) throw new Error("Product is unavailable.");
-    if (
-      !Number.isSafeInteger(d.quantity * d.owner_unit_amount) ||
-      d.quantity * d.owner_unit_amount > 1e12
-    )
-      throw new Error("Owner agreement exceeds supported amount.");
+    for (const line of lines) {
+      if (
+        !Number.isSafeInteger(line.quantity * line.owner_unit_amount) ||
+        line.quantity * line.owner_unit_amount > 1e12
+      )
+        throw new Error("Owner agreement exceeds supported amount.");
+    }
     const doc = s.document("consignment_receipt", user, {
       ...d,
       party_id: d.owner_id,
+      quantity: lines.reduce((n, line) => n + line.quantity, 0),
+      owner_unit_amount: lines[0].owner_unit_amount,
     });
-    const lineId = id(),
-      batchId = id();
-    s.run(
-      "INSERT INTO document_lines(id,document_id,product_id,quantity,price,cost) VALUES (?,?,?,?,0,0)",
-      lineId,
-      doc.id,
-      product.id,
-      d.quantity,
-    );
-    s.run(
-      "INSERT INTO batches(id,product_id,line_id,quantity,remaining,unit_cost,received_at,owner_id,owner_unit_amount) VALUES (?,?,?,?,?,0,?,?,?)",
-      batchId,
-      product.id,
-      lineId,
-      d.quantity,
-      d.quantity,
-      `${doc.date}T${new Date().toISOString().slice(11)}`,
-      d.owner_id,
-      d.owner_unit_amount,
-    );
-    if (product.serialized) {
-      if (d.units && d.units.length !== d.quantity)
-        throw new Error("Enter device details for the received quantity.");
-      receiveUnits(
-        s,
-        product,
-        batchId,
-        d.quantity,
-        { id: lineId },
-        doc.kind,
-        d.units,
+    const received = [];
+    const stamped = `${doc.date}T${new Date().toISOString().slice(11)}`;
+    for (const line of lines) {
+      let productId = line.product_id;
+      if (line.new_product) {
+        productId = s.createProduct(user, {
+          ...line.new_product,
+          sku: line.new_product.sku || "RES-" + id(),
+          reorder_level: 0,
+          opening_quantity: 0,
+          unit_cost: 0,
+        }).id;
+        s.run("UPDATE products SET consignment_only=1 WHERE id=?", productId);
+      }
+      const product = s.one(
+        "SELECT * FROM products WHERE id=? AND active=1",
+        productId,
       );
+      if (!product) throw new Error("Product is unavailable.");
+      const lineId = id(),
+        batchId = id();
+      s.run(
+        "INSERT INTO document_lines(id,document_id,product_id,quantity,price,cost) VALUES (?,?,?,?,0,0)",
+        lineId,
+        doc.id,
+        product.id,
+        line.quantity,
+      );
+      s.run(
+        "INSERT INTO batches(id,product_id,line_id,quantity,remaining,unit_cost,received_at,owner_id,owner_unit_amount) VALUES (?,?,?,?,?,0,?,?,?)",
+        batchId,
+        product.id,
+        lineId,
+        line.quantity,
+        line.quantity,
+        stamped,
+        d.owner_id,
+        line.owner_unit_amount,
+      );
+      if (product.serialized) {
+        if (line.units && line.units.length !== line.quantity)
+          throw new Error("Enter device details for the received quantity.");
+        receiveUnits(
+          s,
+          product,
+          batchId,
+          line.quantity,
+          { id: lineId },
+          doc.kind,
+          line.units,
+        );
+      }
+      s.move(doc, product, line.quantity, 0);
+      received.push({
+        product_id: product.id,
+        quantity: line.quantity,
+        owner_unit_amount: line.owner_unit_amount,
+      });
     }
-    s.move(doc, product, d.quantity, 0);
     s.audit(user, "Receive customer-owned stock", doc.id, {
       owner_id: d.owner_id,
-      product_id: product.id,
-      quantity: d.quantity,
-      owner_unit_amount: d.owner_unit_amount,
+      lines: received,
     });
     return s.getDocument(doc.id);
   });

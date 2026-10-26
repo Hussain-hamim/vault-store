@@ -1532,7 +1532,16 @@ export class Store {
         }
       }
       this.audit(user, "Create contact", pid, { name: d.name });
-      return { id: pid };
+      return {
+        id: pid,
+        kind: d.kind,
+        name: d.name,
+        phone: d.phone,
+        email: d.email,
+        address: d.address,
+        balance: d.opening_balance || 0,
+        walk_in: 0,
+      };
     });
   }
   updateParty(user, data) {
@@ -2117,6 +2126,9 @@ export class Store {
     if (d.id) {
       clauses.push("p.id=?");
       params.push(d.id);
+    } else {
+      // Customer-resale one-offs stay on the resale tab, not shop inventory/catalog.
+      clauses.push("p.consignment_only=0");
     }
     if (d.barcode) {
       clauses.push("p.barcode=?");
@@ -2216,7 +2228,7 @@ export class Store {
         d.to,
       );
     const stock = this.one(
-      "SELECT COUNT(*) products,COALESCE(SUM(stock),0) units,COALESCE(SUM(CASE WHEN consignment_only=0 AND stock<=reorder_level THEN 1 ELSE 0 END),0) low FROM products WHERE active=1",
+      "SELECT COUNT(*) products,COALESCE(SUM(stock),0) units,COALESCE(SUM(CASE WHEN stock<=reorder_level THEN 1 ELSE 0 END),0) low FROM products WHERE active=1 AND consignment_only=0",
     );
     const inventory = this.one(
       "SELECT COALESCE(SUM(remaining*unit_cost),0) value FROM batches WHERE remaining>0",
@@ -2233,7 +2245,7 @@ export class Store {
       "SELECT d.*,p.name party_name FROM documents d LEFT JOIN parties p ON p.id=d.party_id WHERE d.kind='sale' ORDER BY d.date DESC,d.created_at DESC LIMIT 5",
     );
     const categories = this.all(
-      "SELECT category,SUM(stock) stock FROM products WHERE active=1 GROUP BY category ORDER BY stock DESC",
+      "SELECT category,SUM(stock) stock FROM products WHERE active=1 AND consignment_only=0 GROUP BY category ORDER BY stock DESC",
     );
     const result = {
       totals,
@@ -2673,11 +2685,15 @@ export class Store {
       })
       .parse(input);
     const account = d.kind === "customer" ? "receivables" : "payables";
+    const like = d.q
+      ? "%" + d.q.replace(/[\\%_]/g, "\\$&") + "%"
+      : "%";
     const rows = this.all(
-      `SELECT p.*,COALESCE((SELECT SUM(${d.kind === "customer" ? "debit-credit" : "credit-debit"}) FROM party_totals j WHERE j.party_id=p.id AND j.account=?),0) balance FROM parties p WHERE p.kind=? AND COALESCE(p.active,1)=1 AND p.name LIKE ? AND p.id>? ORDER BY p.id LIMIT ?`,
+      `SELECT p.*,COALESCE((SELECT SUM(${d.kind === "customer" ? "debit-credit" : "credit-debit"}) FROM party_totals j WHERE j.party_id=p.id AND j.account=?),0) balance FROM parties p WHERE p.kind=? AND COALESCE(p.active,1)=1 AND (p.name LIKE ? ESCAPE '\\' OR p.phone LIKE ? ESCAPE '\\') AND p.id>? ORDER BY p.id LIMIT ?`,
       account,
       d.kind,
-      d.q + "%",
+      like,
+      like,
       d.after,
       d.limit + 1,
     );
@@ -3111,7 +3127,7 @@ export class Store {
         if (!user.permissions.includes("view_costs"))
           throw new Error("Permission required: view_costs");
         const stock = this.all(
-          "SELECT p.id,p.name,p.sku,p.category,p.stock,p.reorder_level,p.image,COALESCE(SUM(b.remaining*b.unit_cost),0) value,MIN(CASE WHEN b.remaining>0 THEN SUBSTR(b.received_at,1,10) END) oldest FROM products p LEFT JOIN batches b ON b.product_id=p.id WHERE p.active=1 GROUP BY p.id ORDER BY value DESC LIMIT 100",
+          "SELECT p.id,p.name,p.sku,p.category,p.stock,p.reorder_level,p.image,COALESCE(SUM(b.remaining*b.unit_cost),0) value,MIN(CASE WHEN b.remaining>0 THEN SUBSTR(b.received_at,1,10) END) oldest FROM products p LEFT JOIN batches b ON b.product_id=p.id WHERE p.active=1 AND p.consignment_only=0 GROUP BY p.id ORDER BY value DESC LIMIT 100",
         );
         const balances = (kind) =>
           this.all(
@@ -3202,7 +3218,7 @@ export class Store {
         const canPeople = user.permissions.includes("people");
         if (canProducts) {
           const products = this.all(
-            `SELECT p.* FROM products p WHERE p.active=1 AND (p.name LIKE ? ESCAPE '\\' OR p.sku LIKE ? ESCAPE '\\' OR p.brand LIKE ? ESCAPE '\\' OR p.model LIKE ? ESCAPE '\\' OR p.barcode=?) ORDER BY p.name LIMIT ?`,
+            `SELECT p.* FROM products p WHERE p.active=1 AND p.consignment_only=0 AND (p.name LIKE ? ESCAPE '\\' OR p.sku LIKE ? ESCAPE '\\' OR p.brand LIKE ? ESCAPE '\\' OR p.model LIKE ? ESCAPE '\\' OR p.barcode=?) ORDER BY p.name LIMIT ?`,
             contains,
             prefix,
             contains,
