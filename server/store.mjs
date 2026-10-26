@@ -2194,6 +2194,7 @@ export class Store {
         q: z.string().max(100).default(""),
         barcode: z.string().max(80).optional(),
         id: z.string().optional(),
+        ids: z.array(z.string()).max(100).optional(),
         category: z.string().max(30).default("All products"),
         filter: z.string().default("all"),
         after: z.string().default(""),
@@ -2202,7 +2203,10 @@ export class Store {
       .parse(args);
     let clauses = ["p.active=1"],
       params = [];
-    if (d.id) {
+    if (d.ids?.length) {
+      clauses.push(`p.id IN (${d.ids.map(() => "?").join(",")})`);
+      params.push(...d.ids);
+    } else if (d.id) {
       clauses.push("p.id=?");
       params.push(d.id);
     } else {
@@ -2225,42 +2229,58 @@ export class Store {
     }
     if (d.filter === "low")
       clauses.push("p.stock<=p.reorder_level AND p.consignment_only=0");
-    if (d.after) {
+    if (d.after && !d.ids?.length && !d.id) {
       clauses.push("p.sku>?");
       params.push(d.after);
     }
+    const byIds = !!(d.ids?.length || d.id);
+    const fetchLimit = d.ids?.length
+      ? Math.min(Math.max(d.ids.length, 1), 100)
+      : d.limit;
     const rows = this.all(
       `SELECT p.* FROM products p WHERE ${clauses.join(" AND ")} ORDER BY p.sku LIMIT ?`,
       ...params,
-      d.limit + 1,
+      byIds ? fetchLimit : d.limit + 1,
     );
-    const more = rows.length > d.limit;
-    rows.length = Math.min(rows.length, d.limit);
+    const more = byIds ? false : rows.length > d.limit;
+    if (!byIds) rows.length = Math.min(rows.length, d.limit);
+    const ids = rows.map((p) => p.id);
+    const consignmentById = new Map();
+    const costById = new Map();
+    if (ids.length) {
+      const placeholders = ids.map(() => "?").join(",");
+      for (const row of this.all(
+        `SELECT product_id, COALESCE(SUM(remaining),0) n FROM batches WHERE product_id IN (${placeholders}) AND owner_id IS NOT NULL AND remaining>0 GROUP BY product_id`,
+        ...ids,
+      ))
+        consignmentById.set(row.product_id, row.n);
+      if (
+        user?.permissions.includes("view_costs") ||
+        user?.permissions.includes("purchases")
+      ) {
+        for (const row of this.all(
+          `SELECT product_id, COALESCE(SUM(remaining*unit_cost),0) cost FROM batches WHERE product_id IN (${placeholders}) AND remaining>0 GROUP BY product_id`,
+          ...ids,
+        ))
+          costById.set(row.product_id, row.cost);
+      }
+    }
+    const hideCosts =
+      !user?.permissions.includes("view_costs") &&
+      !user?.permissions.includes("purchases");
     for (const p of rows) {
       p.attributes = JSON.parse(p.attributes);
-      p.consignment_stock = this.one(
-        "SELECT COALESCE(SUM(remaining),0) n FROM batches WHERE product_id=? AND owner_id IS NOT NULL AND remaining>0",
-        p.id,
-      ).n;
-      if (
-        !user?.permissions.includes("view_costs") &&
-        !user?.permissions.includes("purchases")
-      ) {
+      p.consignment_stock = consignmentById.get(p.id) || 0;
+      if (hideCosts) {
         delete p.unit_cost;
         delete p.cost_aed;
         delete p.cost_foreign;
         delete p.fx_rate;
+      } else {
+        p.cost = costById.get(p.id) || 0;
       }
-      if (
-        user?.permissions.includes("view_costs") ||
-        user?.permissions.includes("purchases")
-      )
-        p.cost = this.one(
-          "SELECT COALESCE(SUM(remaining*unit_cost),0) cost FROM batches WHERE product_id=? AND remaining>0",
-          p.id,
-        ).cost;
     }
-    return { rows, next: more ? rows.at(-1).sku : null };
+    return { rows, next: more ? rows.at(-1)?.sku : null };
   }
   dateRange(input = {}) {
     return z

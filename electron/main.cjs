@@ -78,15 +78,35 @@ app.on("second-instance", () => {
     mainWindow.focus();
   }
 });
+function normalizeFrameUrl(value) {
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol === "file:") {
+      let filePath = decodeURIComponent(parsed.pathname);
+      // Windows file URLs look like /C:/path — drop the leading slash.
+      if (/^\/[A-Za-z]:/.test(filePath)) filePath = filePath.slice(1);
+      return path.normalize(filePath).toLowerCase();
+    }
+    return parsed.href.toLowerCase();
+  } catch {
+    return String(value || "").toLowerCase();
+  }
+}
 function trusted(event) {
   const url = event.senderFrame?.url || "";
-  const ok =
-    app.isPackaged || process.env.VAULT_DESKTOP_STATIC
-      ? url.startsWith(
-          pathToFileURL(path.join(app.getAppPath(), "dist/client/")).href,
-        )
-      : url.startsWith("http://localhost:4173/") ||
-        url.startsWith("http://127.0.0.1:4173/");
+  let ok = false;
+  if (app.isPackaged || process.env.VAULT_DESKTOP_STATIC) {
+    const allowed = normalizeFrameUrl(
+      pathToFileURL(path.join(app.getAppPath(), "dist", "client") + path.sep)
+        .href,
+    );
+    const actual = normalizeFrameUrl(url);
+    ok = actual === allowed || actual.startsWith(allowed);
+  } else {
+    ok =
+      url.startsWith("http://localhost:4173/") ||
+      url.startsWith("http://127.0.0.1:4173/");
+  }
   if (!ok) throw new Error("Untrusted application frame.");
 }
 async function createDatabaseWorker() {

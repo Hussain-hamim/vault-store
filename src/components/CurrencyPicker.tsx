@@ -4,26 +4,42 @@ import { api } from "../api";
 import { useI18n } from "../i18n";
 import {
   DEFAULT_CURRENCIES,
+  SUPPORTED_FLAG_COUNTRIES,
   currencyCountry,
 } from "../../shared/currencies.mjs";
 import { Modal, Field, ErrorMessage } from "./ui";
 import "./currencies.css";
 
 export type Currency = { code: string; name: string; country: string };
-const flags = import.meta.glob<string>(
+
+/** Lazy flag modules — do not eager-load hundreds of SVGs into the app bundle. */
+const flagModules = import.meta.glob<string>(
   "../../node_modules/flag-icons/flags/4x3/*.svg",
-  { eager: true, query: "?url", import: "default" },
+  { query: "?url", import: "default" },
 );
-const flagUrls = Object.fromEntries(
-  Object.entries(flags).map(([path, url]) => [
-    path.split("/").at(-1)!.replace(".svg", ""),
-    url,
-  ]),
-);
+
+const flagCache = new Map<string, string>();
+
+function flagModuleKey(country: string) {
+  return `../../node_modules/flag-icons/flags/4x3/${country.toLowerCase()}.svg`;
+}
+
+function loadFlagUrl(country: string): Promise<string | undefined> {
+  const code = country.toLowerCase();
+  if (flagCache.has(code)) return Promise.resolve(flagCache.get(code));
+  const loader = flagModules[flagModuleKey(code)];
+  if (!loader) return Promise.resolve(undefined);
+  return loader().then((url) => {
+    flagCache.set(code, url);
+    return url;
+  });
+}
+
 export const flagEmoji = (country: string) =>
   country
     .toUpperCase()
     .replace(/[A-Z]/g, (c) => String.fromCodePoint(127397 + c.charCodeAt(0)));
+
 export function CurrencyFlag({
   code,
   country,
@@ -32,6 +48,7 @@ export function CurrencyFlag({
   country?: string;
 }) {
   const [savedCountry, setSavedCountry] = useState<string>();
+  const [src, setSrc] = useState<string>();
   useEffect(() => {
     let active = true;
     setSavedCountry(undefined);
@@ -48,11 +65,22 @@ export function CurrencyFlag({
     };
   }, [code, country]);
   const region = country || currencyCountry(code || "AFN") || savedCountry;
-  return region && flagUrls[region] ? (
+  useEffect(() => {
+    let active = true;
+    setSrc(undefined);
+    if (!region) return;
+    loadFlagUrl(region).then((url) => {
+      if (active) setSrc(url);
+    });
+    return () => {
+      active = false;
+    };
+  }, [region]);
+  return src ? (
     <img
       className="currency-flag"
-      src={flagUrls[region]}
-      alt={code || region.toUpperCase()}
+      src={src}
+      alt={code || region?.toUpperCase() || ""}
     />
   ) : (
     <span aria-hidden="true">¤</span>
@@ -80,12 +108,10 @@ export function CurrencyPicker({
     let active = true;
     const refresh = () =>
       api<Currency[]>("currencies")
-        .then((result) => {
-          if (active) setRows(result);
+        .then((data) => {
+          if (active) setRows(data);
         })
-        .catch((e) => {
-          if (active) setError(e.message);
-        });
+        .catch(() => {});
     refresh();
     window.addEventListener("currencies-changed", refresh);
     return () => {
@@ -97,7 +123,7 @@ export function CurrencyPicker({
   const names = new Intl.DisplayNames([locale === "prs" ? "fa-AF" : locale], {
     type: "region",
   });
-  const countries = Object.keys(flagUrls)
+  const countries = [...SUPPORTED_FLAG_COUNTRIES]
     .filter((c) => /^[a-z]{2}$/.test(c))
     .sort((a, b) =>
       (names.of(a.toUpperCase()) || a).localeCompare(
@@ -231,9 +257,9 @@ export function CurrencyPicker({
                 disabled={
                   busy || code.trim().length !== 3 || name.trim().length < 2
                 }
-                onClick={save}
+                onClick={() => void save()}
               >
-                {busy ? t("common.saving") : t("currencies.save")}
+                {busy ? t("common.saving") : t("currencies.add")}
               </button>
             </div>
           </Modal>,

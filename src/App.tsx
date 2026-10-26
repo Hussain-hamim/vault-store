@@ -300,16 +300,16 @@ export function App() {
     () => setModal((m) => (m?.returnTo ? { ...m.returnTo } : null)),
     [],
   );
-  const toast = useCallback((s: string) => {
+  const toast = useCallback((s: string, opts?: { reload?: boolean }) => {
     setMessage(s);
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => setMessage(""), 5000);
-    setRefresh((v) => v + 1);
+    if (opts?.reload) setRefresh((v) => v + 1);
   }, []);
   const done = useCallback(
     (s: string) => {
       setModal((m) => (m?.returnTo ? { ...m.returnTo } : null));
-      toast(s);
+      toast(s, { reload: true });
     },
     [toast],
   );
@@ -768,7 +768,7 @@ export function App() {
                     setBillEpoch((v) => v + 1);
                   }}
                   done={(s, result: any) => {
-                    toast(s);
+                    toast(s, { reload: true });
                     setSaleTab("history");
                     setSaleEditId(undefined);
                     setSaleSeed(undefined);
@@ -782,14 +782,15 @@ export function App() {
                   }}
                 />
               </div>
-              <div
-                role="tabpanel"
-                id="history-panel"
-                aria-labelledby="history-tab"
-                hidden={saleTab !== "history"}
-              >
-                <DocumentsPage {...props} kind="sale" />
-              </div>
+              {saleTab === "history" && (
+                <div
+                  role="tabpanel"
+                  id="history-panel"
+                  aria-labelledby="history-tab"
+                >
+                  <DocumentsPage {...props} kind="sale" />
+                </div>
+              )}
               {saleTab === "resale" &&
                 user.permissions.includes("finance") &&
                 user.permissions.includes("view_costs") && (
@@ -849,7 +850,7 @@ export function App() {
                     setPurchaseEpoch((v) => v + 1);
                   }}
                   done={(s, result: any) => {
-                    toast(s);
+                    toast(s, { reload: true });
                     setPurchaseTab("history");
                     setPurchaseEditId(undefined);
                     setPurchaseEpoch((v) => v + 1);
@@ -862,14 +863,15 @@ export function App() {
                   }}
                 />
               </div>
-              <div
-                role="tabpanel"
-                id="purchase-history-panel"
-                aria-labelledby="purchase-history-tab"
-                hidden={purchaseTab !== "history"}
-              >
-                <DocumentsPage {...props} kind="purchase" />
-              </div>
+              {purchaseTab === "history" && (
+                <div
+                  role="tabpanel"
+                  id="purchase-history-panel"
+                  aria-labelledby="purchase-history-tab"
+                >
+                  <DocumentsPage {...props} kind="purchase" />
+                </div>
+              )}
             </div>
           ) : page === "customers" ? (
             <PeoplePage key="customer" {...props} kind="customer" />
@@ -939,7 +941,11 @@ export function App() {
         </div>
       )}
       {modal?.name === "product" && (
-        <ProductForm product={modal.data} close={close} done={toast} />
+        <ProductForm
+          product={modal.data}
+          close={close}
+          done={(s) => toast(s, { reload: true })}
+        />
       )}
       {modal?.name === "productDetail" && (
         <ProductDetail

@@ -61,10 +61,18 @@ import {
 export type PageProps = {
   refresh: number;
   open: (name: string, data?: any) => void;
-  toast: (s: string) => void;
+  toast: (s: string, opts?: { reload?: boolean }) => void;
   user: User;
   globalSearch?: string;
 };
+function useDebouncedValue<T>(value: T, ms = 200) {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const id = setTimeout(() => setDebounced(value), ms);
+    return () => clearTimeout(id);
+  }, [value, ms]);
+  return debounced;
+}
 function useLoad<T = any>(command: string, args: unknown, refresh: number) {
   const [data, setData] = useState<T | null>(null),
     [error, setError] = useState(""),
@@ -125,6 +133,7 @@ export function ProductsPage({
     [loading, setLoading] = useState(true),
     [loadingMore, setLoadingMore] = useState(false),
     [error, setError] = useState("");
+  const searchQ = useDebouncedValue(q, 200);
   useEffect(() => {
     setQ(globalSearch);
   }, [globalSearch]);
@@ -137,7 +146,7 @@ export function ProductsPage({
     setError("");
     setNext(null);
     api<{ rows: Product[]; next: string | null }>("products", {
-      q,
+      q: searchQ,
       category,
       filter,
       limit: LIST_PAGE,
@@ -156,14 +165,14 @@ export function ProductsPage({
     return () => {
       active = false;
     };
-  }, [q, category, filter, refresh]);
+  }, [searchQ, category, filter, refresh]);
   async function loadMore() {
     if (!next || loadingMore) return;
     setLoadingMore(true);
     try {
       const d = await api<{ rows: Product[]; next: string | null }>(
         "products",
-        { q, category, filter, after: next, limit: LIST_PAGE },
+        { q: searchQ, category, filter, after: next, limit: LIST_PAGE },
       );
       setRows((prev) => {
         const seen = new Set(prev.map((p) => p.id));
@@ -512,6 +521,7 @@ export function DocumentsPage({
     [loading, setLoading] = useState(true),
     [loadingMore, setLoadingMore] = useState(false),
     [error, setError] = useState("");
+  const searchQ = useDebouncedValue(q, 200);
   useEffect(() => {
     setQ(globalSearch);
   }, [globalSearch]);
@@ -541,7 +551,7 @@ export function DocumentsPage({
     setNext(null);
     api<any>("documents", {
       kind,
-      q,
+      q: searchQ,
       limit: LIST_PAGE,
       ...(kind === "expense" && accountId
         ? { expense_account_id: accountId }
@@ -563,14 +573,14 @@ export function DocumentsPage({
     return () => {
       active = false;
     };
-  }, [kind, q, accountId, refresh]);
+  }, [kind, searchQ, accountId, refresh]);
   async function loadMore() {
     if (!next || loadingMore) return;
     setLoadingMore(true);
     try {
       const d = await api<any>("documents", {
         kind,
-        q,
+        q: searchQ,
         after: next,
         limit: LIST_PAGE,
         ...(kind === "expense" && accountId
@@ -1019,6 +1029,7 @@ export function PeoplePage({
     [busy, setBusy] = useState(false),
     [ledgerAfter, setLedgerAfter] = useState(""),
     [ledgerHistory, setLedgerHistory] = useState<string[]>([]);
+  const searchQ = useDebouncedValue(q, 200);
   const canManage = user.permissions.includes("people");
   useEffect(() => {
     let active = true;
@@ -1027,7 +1038,7 @@ export function PeoplePage({
     setNext(null);
     api<{ rows: Party[]; next: string | null }>("parties", {
       kind,
-      q,
+      q: searchQ,
       limit: LIST_PAGE,
     })
       .then((d) => {
@@ -1044,14 +1055,14 @@ export function PeoplePage({
     return () => {
       active = false;
     };
-  }, [kind, q, refresh]);
+  }, [kind, searchQ, refresh]);
   async function loadMore() {
     if (!next || loadingMore) return;
     setLoadingMore(true);
     try {
       const d = await api<{ rows: Party[]; next: string | null }>("parties", {
         kind,
-        q,
+        q: searchQ,
         after: next,
         limit: LIST_PAGE,
       });
@@ -1361,6 +1372,7 @@ export function PeoplePage({
                                       kind === "customer"
                                         ? t("partyDetail.customerDeleted")
                                         : t("partyDetail.supplierDeleted"),
+                                      { reload: true },
                                     );
                                   } catch (e: any) {
                                     setDetailActionError(e.message);
@@ -2536,7 +2548,7 @@ export function SettingsPage({
         language,
       });
       setLocale(language);
-      toast(t("settings.saved"));
+      toast(t("settings.saved"), { reload: true });
     } catch (e: any) {
       setLocalError(e.message);
     } finally {
@@ -2569,7 +2581,9 @@ export function SettingsPage({
   async function toggle(u: any) {
     try {
       await api("userUpdate", { id: u.id, active: !u.active });
-      toast(u.active ? t("toast.userDisabled") : t("toast.userEnabled"));
+      toast(u.active ? t("toast.userDisabled") : t("toast.userEnabled"), {
+        reload: true,
+      });
     } catch (e: any) {
       setLocalError(e.message);
     }
@@ -2929,7 +2943,7 @@ export function SettingsPage({
                     await api("closePeriod", {
                       date: new FormData(e.currentTarget).get("date"),
                     });
-                    toast(t("toast.periodLocked"));
+                    toast(t("toast.periodLocked"), { reload: true });
                   } catch (e: any) {
                     setLocalError(e.message);
                   }

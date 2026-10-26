@@ -220,30 +220,39 @@ export function TradeForm({
     setLoading(true);
     api("document", { id: documentId })
       .then(async (doc) => {
-        const loaded = await Promise.all(
-          doc.lines.map(async (line: any) => {
-            const catalog = await api("catalog", { id: line.product_id });
-            const found = catalog.rows.find(
-              (p: Product) => p.id === line.product_id,
-            );
-            if (!found)
-              throw new Error(t("sales.errProductGone", { name: line.name }));
-            return {
-              key: line.id,
-              units: line.units || [],
-              selectedUnits: line.units || [],
-              product: { ...found, stock: found.stock + line.quantity },
-              quantity: line.quantity,
-              price: String(line.price / 100),
-              discount: String(line.discount / 100),
-              costAed:
-                (line.cost_foreign ?? line.cost_aed)
-                  ? moneyInput(line.cost_foreign ?? line.cost_aed)
-                  : "0",
-              cargoRent: line.cargo_rent ? moneyInput(line.cargo_rent) : "0",
-            };
-          }),
-        );
+        const productIds = [
+          ...new Set(
+            doc.lines
+              .map((line: any) => line.product_id)
+              .filter((id: string) => !!id),
+          ),
+        ];
+        const catalog = productIds.length
+          ? await api<{ rows: Product[] }>("catalog", {
+              ids: productIds,
+              limit: Math.max(productIds.length, 1),
+            })
+          : { rows: [] as Product[] };
+        const byId = new Map(catalog.rows.map((p) => [p.id, p]));
+        const loaded = doc.lines.map((line: any) => {
+          const found = byId.get(line.product_id);
+          if (!found)
+            throw new Error(t("sales.errProductGone", { name: line.name }));
+          return {
+            key: line.id,
+            units: line.units || [],
+            selectedUnits: line.units || [],
+            product: { ...found, stock: found.stock + line.quantity },
+            quantity: line.quantity,
+            price: String(line.price / 100),
+            discount: String(line.discount / 100),
+            costAed:
+              line.cost_foreign ?? line.cost_aed
+                ? moneyInput(line.cost_foreign ?? line.cost_aed)
+                : "0",
+            cargoRent: line.cargo_rent ? moneyInput(line.cargo_rent) : "0",
+          };
+        });
         if (active) {
           setInitial(doc);
           chooseParty(
@@ -844,7 +853,7 @@ export function TradeForm({
                           type="button"
                           className="button"
                           disabled={scanBusy || !scanCode.trim()}
-                          onClick={scanBarcode}
+                          onClick={() => void scanBarcode()}
                         >
                           {scanBusy ? t("sales.looking") : t("common.add")}
                         </button>
@@ -1371,7 +1380,7 @@ export function TradeForm({
                             type="button"
                             className="button"
                             disabled={scanBusy || !scanCode.trim()}
-                            onClick={scanBarcode}
+                            onClick={() => void scanBarcode()}
                           >
                             {scanBusy ? t("sales.looking") : t("common.add")}
                           </button>
