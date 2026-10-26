@@ -305,9 +305,20 @@ export function Dashboard({ user, refresh, open, navigate }: Props) {
         <span className="stat-label">
           {costs ? t("dashboard.grossProfit") : t("dashboard.stockCategories")}
         </span>
-        <strong className="stat-value">
-          {costs ? af(totals.gross) : categories.length}
-        </strong>
+        <div className="stat-main">
+          <strong className="stat-value">
+            {costs ? af(totals.gross) : categories.length}
+          </strong>
+          <div className="mini-gauge lime-gauge">
+            <Gauge coral={false} value={costs ? margin : 100} />
+            <span>
+              <b>{costs ? margin + "%" : stock.products}</b>
+              <small>
+                {costs ? t("dashboard.margin") : t("dashboard.products")}
+              </small>
+            </span>
+          </div>
+        </div>
         <div className="stat-foot">
           <span className="trend yellow">
             <ArrowUpRightIcon size={12} />
@@ -315,15 +326,6 @@ export function Dashboard({ user, refresh, open, navigate }: Props) {
           </span>
           <span>
             {costs ? t("dashboard.tradingMargin") : t("dashboard.inInventory")}
-          </span>
-        </div>
-        <div className="mini-gauge lime-gauge">
-          <Gauge coral={false} value={costs ? margin : 100} />
-          <span>
-            <b>{costs ? margin + "%" : stock.products}</b>
-            <small>
-              {costs ? t("dashboard.margin") : t("dashboard.products")}
-            </small>
           </span>
         </div>
       </div>
@@ -343,23 +345,25 @@ export function Dashboard({ user, refresh, open, navigate }: Props) {
           </button>
         </div>
         <span className="stat-label">{t("dashboard.lowStock")}</span>
-        <strong className="stat-value">
-          {stock.low}
-          <small> / {stock.products}</small>
-        </strong>
+        <div className="stat-main">
+          <strong className="stat-value">
+            {stock.low}
+            <small> / {stock.products}</small>
+          </strong>
+          <div className="mini-gauge coral-gauge">
+            <Gauge coral value={lowPercent} />
+            <span>
+              <b>{stock.low}</b>
+              <small>{t("dashboard.products")}</small>
+            </span>
+          </div>
+        </div>
         <div className="stat-foot">
           <span className="trend negative">
             <ArrowDownIcon size={12} />
             {lowPercent}%
           </span>
           <span>{t("dashboard.needAttention")}</span>
-        </div>
-        <div className="mini-gauge coral-gauge">
-          <Gauge coral value={lowPercent} />
-          <span>
-            <b>{stock.low}</b>
-            <small>{t("dashboard.products")}</small>
-          </span>
         </div>
       </div>
     ),

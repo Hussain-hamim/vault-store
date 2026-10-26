@@ -597,8 +597,8 @@ export const en: MessageTree = {
     productCatalog: "Product catalog",
     billLines: "Bill lines",
     addFromCatalog: "Add products from the catalog",
-    emptyBill: "Add products from the left to build this sale.",
-    emptyPurchase: "Add products from the left to build this purchase.",
+    emptyBill: "Add products from the catalog to build this sale.",
+    emptyPurchase: "Add products from the catalog to build this purchase.",
     invoiceTotal: "Invoice total",
     balanceRemaining: "Balance remaining",
     amountPaid: "Amount paid now (AF)",
@@ -680,7 +680,7 @@ export const en: MessageTree = {
     linesOnInvoice: "{n} on this invoice",
     addedProductsHere: "Added products appear here.",
     emptyPurchaseBrowse:
-      "Browse the catalog on the left and add products to start your purchase.",
+      "Browse the catalog and add products to start your purchase.",
     setAedRateAbove: "Set AED rate above",
     catalogLabel: "Catalog",
     errChooseSupplier: "Choose a supplier.",
@@ -1379,6 +1379,7 @@ export const en: MessageTree = {
     eyebrow: "Administration",
     title: "Store settings",
     description: "Your store details, team access, and accounting controls.",
+    tabAccount: "Account",
     tabStore: "Store",
     tabUsers: "Users & access",
     tabAudit: "Audit history",
@@ -1642,6 +1643,10 @@ export const en: MessageTree = {
       "How much you already owe this supplier. Leave 0 if none.",
     openingDate: "Opening date",
     openingDateHint: "Used only when an opening balance is entered.",
+    openingEditHintCustomer:
+      "Add more opening debt they owe you (AF). Leave 0 to keep the current balance unchanged.",
+    openingEditHintSupplier:
+      "Add more opening debt you owe them (AF). Leave 0 to keep the current balance unchanged.",
     customerAdded: "Customer added.",
     supplierAdded: "Supplier added.",
     customerUpdated: "Customer updated.",

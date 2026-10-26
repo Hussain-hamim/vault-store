@@ -41,12 +41,6 @@ import {
   ReceiptIcon,
   CoinsIcon,
   GearSixIcon,
-  SignOutIcon,
-  ArrowUpRightIcon,
-  MagnifyingGlassIcon,
-  SlidersHorizontalIcon,
-  BellIcon,
-  EnvelopeSimpleIcon,
   CheckCircleIcon,
   XIcon,
   ArrowRightIcon,
@@ -55,7 +49,7 @@ import {
   CommandIcon,
 } from "@phosphor-icons/react";
 import { api, setToken, Product, User, normalizeDigits } from "./api";
-import { useI18n, LOCALES, type Locale } from "./i18n";
+import { useI18n, type Locale } from "./i18n";
 import { Dashboard } from "./components/Dashboard";
 import {
   ProductsPage,
@@ -232,35 +226,12 @@ export function App() {
     [search, setSearch] = useState(""),
     [categoryFilter, setCategoryFilter] = useState("All products"),
     [collapsed, setCollapsed] = useState(false),
-    [profile, setProfile] = useState(false),
     [globalOpen, setGlobalOpen] = useState(false),
     [palette, setPalette] = useState(false),
     [saleSeed, setSaleSeed] = useState<Product | undefined>();
-  const [canSwitchAccount, setCanSwitchAccount] = useState(false);
-  const [savedAccounts, setSavedAccounts] = useState<any>(null);
-  useEffect(() => {
-    let active = true;
-    window.vault
-      ?.accounts?.("list")
-      .then((saved) => {
-        if (active) {
-          setSavedAccounts(saved);
-          setCanSwitchAccount(
-            saved.users.length > 1 || saved.profiles.length > 1,
-          );
-        }
-      })
-      .catch(() => {
-        if (active) setCanSwitchAccount(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, [user?.id, profile]);
   useUserTheme(user?.id);
   const notifications = useNotificationSummary(user, refresh);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const searchRef = useRef<HTMLInputElement>(null);
   const workspaceRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
@@ -415,7 +386,6 @@ export function App() {
     else setReportTab(undefined);
     if (id === "inventory") setCategoryFilter("All products");
     setSearch("");
-    setProfile(false);
   }, []);
   async function changeLanguage(next: Locale) {
     setLocale(next);
@@ -458,7 +428,6 @@ export function App() {
       )
         return;
       setPalette(false);
-      setProfile(false);
       if (id === "palette") {
         setPalette(true);
         return;
@@ -493,7 +462,6 @@ export function App() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        setProfile(false);
         setGlobalOpen(false);
         setPalette(false);
       }
@@ -586,7 +554,6 @@ export function App() {
     await api("logout");
     setToken("");
     setUser(null);
-    setProfile(false);
     setPalette(false);
     setGlobalOpen(false);
   }
@@ -721,166 +688,9 @@ export function App() {
             <WifiSlashIcon size={13} />
           </div>
         </div>
-        <div className="profile-container">
-          <button
-            className="profile-button"
-            onClick={() => setProfile(!profile)}
-            aria-expanded={profile}
-          >
-            <span className="profile-avatar">
-              {user.name
-                .split(" ")
-                .map((n) => n[0])
-                .slice(0, 2)
-                .join("")}
-            </span>
-            <span className="profile-info">
-              <strong>{user.name}</strong>
-              <small>
-                {user.role}
-                {status.store.demo ? ` · ${t("app.demoWorkspace")}` : ""}
-              </small>
-            </span>
-            <span className="profile-menu-dots">···</span>
-          </button>
-          {profile && (
-            <div className="profile-popover">
-              <strong>{user.name}</strong>
-              <small>
-                {user.username} · {user.role}
-              </small>
-              <label className="profile-lang">
-                <span>{t("language.label")}</span>
-                <select
-                  value={locale}
-                  onChange={(e) => changeLanguage(e.target.value as Locale)}
-                  aria-label={t("language.label")}
-                >
-                  {LOCALES.map((l) => (
-                    <option key={l.id} value={l.id}>
-                      {l.nativeLabel}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              {canSwitchAccount && savedAccounts && (
-                <label className="profile-lang">
-                  <span>{t("rememberedAccounts.switch")}</span>
-                  <select
-                    aria-label={t("rememberedAccounts.switch")}
-                    value=""
-                    onChange={async (e) => {
-                      const [kind, id] = e.target.value.split(":");
-                      if (!id) return;
-                      try {
-                        if (kind === "shop") {
-                          await window.vault!.accounts!("profile", id);
-                          return;
-                        }
-                        await window.vault!.accounts!("select", id);
-                        const token = await window.vault!.accounts!("resume");
-                        setToken(token || "");
-                        setUser(token ? await api<User>("me") : null);
-                        setProfile(false);
-                        setModal(null);
-                        setPalette(false);
-                        setGlobalOpen(false);
-                        setRefresh((value) => value + 1);
-                      } catch (error: any) {
-                        setMessage(error.message);
-                      }
-                    }}
-                  >
-                    <option value="">{t("rememberedAccounts.switch")}</option>
-                    {savedAccounts.profiles
-                      .filter((p: any) => p.id !== savedAccounts.current)
-                      .map((p: any) => (
-                        <option key={p.id} value={"shop:" + p.id}>
-                          {p.name} · {p.username}
-                        </option>
-                      ))}
-                    {savedAccounts.users
-                      .filter((u: any) => u.id !== user.id)
-                      .map((u: any) => (
-                        <option key={u.id} value={"user:" + u.id}>
-                          {u.name} · {u.username}
-                        </option>
-                      ))}
-                  </select>
-                </label>
-              )}
-              <button onClick={signOut}>
-                <SignOutIcon size={16} />
-                {t("nav.signOut")}
-              </button>
-            </div>
-          )}
-        </div>
       </aside>
       <main className="main-workspace">
         <StoreDecor />
-        {page === "dashboard" && (
-          <header className="topbar">
-            <form
-              className="global-search"
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (search.trim()) {
-                  if (user.permissions.includes("inventory"))
-                    setPage("inventory");
-                  else if (user.permissions.includes("sales")) setPage("sales");
-                }
-              }}
-            >
-              <MagnifyingGlassIcon size={18} />
-              <input
-                ref={searchRef}
-                aria-label={t("topbar.searchStore")}
-                placeholder={t("topbar.searchHere")}
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-              <kbd>{shortcutLabel("Ctrl + F", isMac())}</kbd>
-            </form>
-            <div className="topbar-actions">
-              <button
-                className="header-icon filter-icon"
-                aria-label={t("topbar.viewInventory")}
-                title={t("topbar.viewInventory")}
-                onClick={() =>
-                  navigate(
-                    user.permissions.includes("inventory")
-                      ? "inventory"
-                      : "dashboard",
-                  )
-                }
-              >
-                <SlidersHorizontalIcon size={19} />
-              </button>
-              <span className="header-divider" />
-              <NotificationButton
-                data={notifications.data}
-                error={notifications.error}
-                open={() => open("notifications")}
-              />
-              <button
-                className="header-icon messages-icon"
-                aria-label={t("topbar.backupStatus")}
-                title={t("topbar.backupStatus")}
-                onClick={() =>
-                  navigate(
-                    user.permissions.includes("backups")
-                      ? "backups"
-                      : "dashboard",
-                  )
-                }
-              >
-                <EnvelopeSimpleIcon size={21} />
-                <i />
-              </button>
-            </div>
-          </header>
-        )}
         <div
           ref={workspaceRef}
           className={`workspace-scroll${
@@ -1093,13 +903,17 @@ export function App() {
             <SettingsPage
               {...props}
               key={page}
+              onSignOut={signOut}
+              onLanguageChange={changeLanguage}
               initialTab={
                 page === "about" ||
                 page === "support" ||
                 page === "help" ||
                 page === "backups"
                   ? page
-                  : undefined
+                  : page === "settings"
+                    ? "account"
+                    : undefined
               }
             />
           )}
@@ -1141,6 +955,7 @@ export function App() {
         <PartyForm
           kind={modal!.name as "customer" | "supplier"}
           party={modal?.data || null}
+          user={user}
           close={close}
           done={done}
         />

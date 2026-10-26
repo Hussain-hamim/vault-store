@@ -822,13 +822,16 @@ html[dir="rtl"] .period-picker select {
   gap: 14px;
 }
 .stat-card {
-  height: 169px;
+  min-height: 169px;
+  height: auto;
   background: var(--paint-bg-fff, #fff);
   border-radius: 14px;
   padding: 17px 18px;
   position: relative;
   overflow: hidden;
   border: 1px solid var(--paint-border-f0f0ef, #f0f0ef);
+  display: flex;
+  flex-direction: column;
 }
 .dark-card {
   background: var(--paint-bg-29292b, #29292b);
@@ -879,18 +882,36 @@ html[dir="rtl"] .period-picker select {
   display: block;
   margin-bottom: 8px;
   color: var(--paint-fg-56565a, #56565a);
+  line-height: 1.35;
+  max-width: 100%;
 }
 .dark-card .stat-label {
   color: var(--paint-fg-d8d8da, #d8d8da);
+}
+.stat-main {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+.stat-main .stat-value {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 22px;
+}
+.stat-main .mini-gauge {
+  flex: 0 0 auto;
 }
 .stat-value {
   font-size: 24px;
   letter-spacing: -0.055em;
   font-weight: 750;
   display: block;
-  line-height: 1.1;
+  line-height: 1.15;
   position: relative;
   z-index: 1;
+  overflow-wrap: anywhere;
 }
 .stat-value small {
   font-size: 14px;
@@ -901,10 +922,12 @@ html[dir="rtl"] .period-picker select {
   display: flex;
   gap: 8px;
   align-items: center;
-  margin-top: 14px;
+  margin-top: auto;
+  padding-top: 14px;
   font-size: 8px;
   color: var(--paint-fg-a7a7a9, #a7a7a9);
-  white-space: nowrap;
+  flex-wrap: wrap;
+  row-gap: 6px;
 }
 .trend {
   display: flex;
@@ -932,16 +955,15 @@ html[dir="rtl"] .period-picker select {
   color: var(--paint-fg-dd929e, #dd929e);
 }
 .mini-gauge {
-  position: absolute;
-  inset-inline-end: 16px;
-  top: 73px;
-  width: 72px;
+  position: relative;
+  width: 62px;
   height: 40px;
+  flex-shrink: 0;
 }
 .gauge-track {
-  height: 36px;
-  width: 72px;
-  border: 9px solid var(--paint-border-e7f6a9, #e7f6a9);
+  height: 31px;
+  width: 62px;
+  border: 7px solid var(--paint-border-e7f6a9, #e7f6a9);
   border-bottom: 0;
   border-radius: 60px 60px 0 0;
   opacity: 0.8;
@@ -952,7 +974,8 @@ html[dir="rtl"] .period-picker select {
 }
 .mini-gauge > span {
   position: absolute;
-  top: 13px;
+  top: 11px;
+  inset-inline: 0;
   width: 100%;
   text-align: center;
   display: flex;
@@ -967,20 +990,6 @@ html[dir="rtl"] .period-picker select {
   font-size: 6px;
   color: var(--paint-fg-aaa, #aaa);
   margin-top: 2px;
-}
-.stat-card:nth-child(3) .stat-value {
-  font-size: 23px;
-  max-width: 70%;
-}
-.stat-card:nth-child(3) .mini-gauge {
-  top: 73px;
-  inset-inline-end: 10px;
-  width: 62px;
-}
-.stat-card:nth-child(3) .gauge-track {
-  width: 62px;
-  height: 31px;
-  border-width: 7px;
 }
 .dashboard-middle {
   display: grid;
@@ -2875,6 +2884,52 @@ html[dir="rtl"] .period-picker select {
 .settings-form {
   max-width: 660px;
   padding: 27px;
+}
+.settings-account {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.settings-account-user {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.settings-account-avatar {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--paint-bg-1a2744, #1a2744);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+}
+.settings-account-user strong {
+  display: block;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--paint-fg-2f3328, #2f3328);
+}
+.settings-account-user small {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--paint-fg-8a8f84, #8a8f84);
+}
+.settings-account-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding-top: 4px;
+}
+.settings-account-actions .button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 .settings-form > h3 {
   font-size: 15px;
@@ -6552,13 +6607,22 @@ html[dir="rtl"] .sale-customer-name select {
   gap: 2px;
   min-width: 0;
 }
-.daybook-tx-ref strong {
-  font-size: 13px;
+.daybook-tx-ref .daybook-tx-party,
+.daybook-tx-ref strong.daybook-tx-party {
+  font-size: 16px;
+  font-weight: 750;
   color: var(--paint-fg-2f3328, #2f3328);
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.daybook-tx-ref small {
-  font-size: 11px;
+.daybook-tx-ref .daybook-tx-invoice,
+.daybook-tx-ref small.daybook-tx-invoice {
+  font-size: 10px;
+  font-weight: 500;
   color: var(--paint-fg-8a8f84, #8a8f84);
+  line-height: 1.3;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -7885,16 +7949,32 @@ html[dir="rtl"] .mini-gauge b {
   letter-spacing: -0.02em;
 }
 html[dir="rtl"] .stat-label {
-  line-height: 1.45;
-  max-width: 72%;
+  line-height: 1.4;
 }
-html[dir="rtl"] .stat-card:nth-child(3) .stat-value,
-html[dir="rtl"] .stat-card:nth-child(4) .stat-value {
-  max-width: 68%;
+html[dir="rtl"] .stat-main .stat-value {
+  text-align: start;
 }
 html[dir="rtl"] .main-chart {
   margin-inline-start: -3px;
   margin-inline-end: -8px;
+}
+/* Ledger money columns: LTR digits must still line up under RTL headers */
+html[dir="rtl"] .data-table th.numeric,
+html[dir="rtl"] .data-table td.money {
+  text-align: end;
+}
+html[dir="rtl"] .contact-ledger .data-table {
+  table-layout: fixed;
+}
+html[dir="rtl"] .contact-ledger .data-table th:first-child,
+html[dir="rtl"] .contact-ledger .data-table td:first-child {
+  width: 42%;
+}
+html[dir="rtl"] .contact-ledger .data-table th.numeric,
+html[dir="rtl"] .contact-ledger .data-table td.money {
+  width: 19.3%;
+  text-align: end;
+  vertical-align: middle;
 }
 html[dir="rtl"] .panel-heading h3 > span {
   letter-spacing: 0;

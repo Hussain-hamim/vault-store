@@ -23,6 +23,14 @@ function isNumericField(el: HTMLInputElement) {
   );
 }
 
+/** Phone, barcode, SKU: always store Western 0-9 even on Pashto/Dari keyboards. */
+function isWesternDigitField(el: HTMLInputElement) {
+  if (el.type === "tel" || el.inputMode === "tel") return true;
+  if (el.dataset.digits === "western") return true;
+  const key = `${el.name || ""} ${el.id || ""} ${el.autocomplete || ""}`;
+  return /phone|tel|mobile|barcode|sku/i.test(key);
+}
+
 function numericKind(
   el: HTMLInputElement,
 ): "decimal" | "integer" | "signed-decimal" | "signed-integer" {
@@ -82,8 +90,8 @@ document.addEventListener(
       return;
     }
 
-    // Normalize identifiers only; passwords and free text must remain exactly as entered.
-    if (target.type !== "text" || !/barcode|sku/i.test(target.name)) return;
+    // Normalize phone / barcode / SKU only; passwords and free text stay as entered.
+    if (!isWesternDigitField(target)) return;
     event.preventDefault();
     const start = target.selectionStart ?? target.value.length;
     const end = target.selectionEnd ?? target.value.length;
@@ -92,7 +100,14 @@ document.addEventListener(
       target,
       target.value.slice(0, start) + inserted + target.value.slice(end),
     );
-    target.setSelectionRange(start + inserted.length, start + inserted.length);
+    try {
+      target.setSelectionRange(
+        start + inserted.length,
+        start + inserted.length,
+      );
+    } catch {
+      /* type=tel may not support selection in some browsers */
+    }
     notifyReact(target);
   },
   true,
@@ -104,8 +119,7 @@ document.addEventListener(
     const target = event.target;
     if (!(target instanceof HTMLInputElement)) return;
     const numeric = isNumericField(target);
-    const identifier =
-      target.type === "text" && /barcode|sku/i.test(target.name);
+    const identifier = isWesternDigitField(target);
     if (!numeric && !identifier) return;
     if (target.readOnly || target.disabled) return;
     const text = event.clipboardData?.getData("text");

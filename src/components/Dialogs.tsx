@@ -1748,14 +1748,17 @@ function ShoppingIllustration() {
 export function PartyForm({
   kind,
   party,
+  user,
   close,
   done,
 }: {
   kind: "customer" | "supplier";
   party?: Party | null;
+  user?: User;
 } & DialogProps) {
   const t = useT();
   const editing = !!party?.id;
+  const canOpening = user?.role === "Owner" && !party?.walk_in;
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
   const key = useRef(requestKey());
@@ -1772,6 +1775,15 @@ export function PartyForm({
           email: f.get("email"),
           address: f.get("address"),
         });
+        const opening = toMoney(f.get("opening_balance") || "0");
+        if (opening > 0 && canOpening) {
+          await api("openingBalance", {
+            party_id: party!.id,
+            amount: opening,
+            date: f.get("opening_date") || businessDate(),
+            request_key: `${key.current}-opening`,
+          });
+        }
         done(
           kind === "customer"
             ? t("partyForm.customerUpdated")
@@ -1831,6 +1843,10 @@ export function PartyForm({
               <input
                 name="phone"
                 type="tel"
+                inputMode="tel"
+                autoComplete="tel"
+                dir="ltr"
+                data-digits="western"
                 defaultValue={party?.phone || ""}
               />
             </Field>
@@ -1849,7 +1865,7 @@ export function PartyForm({
               defaultValue={party?.address || ""}
             />
           </Field>
-          {!editing && (
+          {(!editing || canOpening) && (
             <div className="form-grid">
               <Field
                 label={
@@ -1858,9 +1874,13 @@ export function PartyForm({
                     : t("partyForm.openingSupplier")
                 }
                 hint={
-                  kind === "customer"
-                    ? t("partyForm.openingHintCustomer")
-                    : t("partyForm.openingHintSupplier")
+                  editing
+                    ? kind === "customer"
+                      ? t("partyForm.openingEditHintCustomer")
+                      : t("partyForm.openingEditHintSupplier")
+                    : kind === "customer"
+                      ? t("partyForm.openingHintCustomer")
+                      : t("partyForm.openingHintSupplier")
                 }
               >
                 <NumericInput
@@ -3767,9 +3787,9 @@ export function PartyDetailDialog({
                   <thead>
                     <tr>
                       <th>{t("partyDetail.colDateRef")}</th>
-                      <th>{t("partyDetail.debit")}</th>
-                      <th>{t("partyDetail.credit")}</th>
-                      <th>{t("partyDetail.balance")}</th>
+                      <th className="numeric">{t("partyDetail.debit")}</th>
+                      <th className="numeric">{t("partyDetail.credit")}</th>
+                      <th className="numeric">{t("partyDetail.balance")}</th>
                     </tr>
                   </thead>
                   <tbody>

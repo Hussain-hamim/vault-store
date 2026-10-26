@@ -21,6 +21,7 @@ import {
   DatabaseIcon,
   HardDrivesIcon,
   TrashIcon,
+  SignOutIcon,
 } from "@phosphor-icons/react";
 import {
   api,
@@ -1092,6 +1093,69 @@ export function PeoplePage({
   }
   const balanceTone = (balance: number) =>
     balance > 0 ? "owed" : balance < 0 ? "credit" : "settled";
+  const statusLabel = (balance: number) => {
+    const tone = balanceTone(balance);
+    if (tone === "owed")
+      return kind === "customer" ? t("people.owesYou") : t("people.youOwe");
+    if (tone === "credit") return t("people.credit");
+    return t("people.settled");
+  };
+  function contactsDocument(): PrintDocument {
+    return {
+      kind: "report",
+      locale,
+      title:
+        kind === "customer"
+          ? t("people.customersTitle")
+          : t("people.suppliersTitle"),
+      subtitle: t("people.showingContacts", { n: rows.length }),
+      source: { type: "report", permission: "people" },
+      emptyLabel: t("reports.noRows"),
+      summary: [
+        {
+          label:
+            kind === "customer"
+              ? t("people.receivablesLoaded")
+              : t("people.payablesLoaded"),
+          value: af(total, 2),
+        },
+      ],
+      sections: [
+        {
+          note: t("printing.loadedOnly"),
+          columns: [
+            {
+              label:
+                kind === "customer" ? t("sales.customer") : t("sales.supplier"),
+            },
+            { label: t("common.phone") },
+            { label: t("common.status") },
+            { label: t("common.outstanding"), numeric: true },
+          ],
+          rows: rows.map((p) => [
+            p.name,
+            p.phone || t("people.noPhone"),
+            statusLabel(p.balance),
+            af(p.balance, 2),
+          ]),
+          tones: rows.map((p) => [
+            "neutral",
+            "neutral",
+            balanceTone(p.balance) === "owed"
+              ? "negative"
+              : balanceTone(p.balance) === "credit"
+                ? "positive"
+                : "neutral",
+            balanceTone(p.balance) === "owed"
+              ? "negative"
+              : balanceTone(p.balance) === "credit"
+                ? "positive"
+                : "neutral",
+          ]),
+        },
+      ],
+    };
+  }
   return (
     <div className={`page-content people-page people-${kind}`}>
       <PageIntro
@@ -1168,20 +1232,31 @@ export function PeoplePage({
                     : t("people.searchSuppliers")
                 }
               />
-              <ExportButton
-                onClick={() => {
-                  exportCSV(
-                    `radefy-techmart-${kind}s`,
-                    rows.map((p) => ({
-                      name: p.name,
-                      phone: p.phone,
-                      email: p.email,
-                      balance_AF: p.balance / 100,
-                    })),
-                  );
-                  toast(t("people.contactsExported"));
-                }}
-              />
+              <div className="toolbar-right">
+                <ReportPrintButton
+                  disabled={loading || !!error || !rows.length}
+                  getDocument={() => contactsDocument()}
+                />
+                <ReportPrintButton
+                  disabled={loading || !!error || !rows.length}
+                  intent="pdf"
+                  getDocument={() => contactsDocument()}
+                />
+                <ExportButton
+                  onClick={() => {
+                    exportCSV(
+                      `radefy-techmart-${kind}s`,
+                      rows.map((p) => ({
+                        name: p.name,
+                        phone: p.phone,
+                        email: p.email,
+                        balance_AF: p.balance / 100,
+                      })),
+                    );
+                    toast(t("people.contactsExported"));
+                  }}
+                />
+              </div>
             </div>
             <div className="people-list-cols" role="row">
               <span>
@@ -1467,9 +1542,9 @@ export function PeoplePage({
                   <thead>
                     <tr>
                       <th>{t("ledger.dateReference")}</th>
-                      <th>{t("ledger.debit")}</th>
-                      <th>{t("ledger.credit")}</th>
-                      <th>{t("ledger.balance")}</th>
+                      <th className="numeric">{t("ledger.debit")}</th>
+                      <th className="numeric">{t("ledger.credit")}</th>
+                      <th className="numeric">{t("ledger.balance")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -2093,8 +2168,10 @@ export function DayBookPage({ refresh, open, toast, user }: PageProps) {
                   onClick={() => open("invoice", d)}
                 >
                   <span className="daybook-tx-ref">
-                    <strong>{d.number}</strong>
-                    <small>{d.party_name || d.note || EM_DASH}</small>
+                    <strong className="daybook-tx-party">
+                      {d.party_name || d.note || EM_DASH}
+                    </strong>
+                    <small className="daybook-tx-invoice">{d.number}</small>
                   </span>
                   <Badge
                     tone={
@@ -2408,8 +2485,12 @@ export function SettingsPage({
   toast,
   user,
   initialTab,
+  onSignOut,
+  onLanguageChange,
 }: PageProps & {
-  initialTab?: "about" | "support" | "help" | "backups";
+  initialTab?: "about" | "support" | "help" | "backups" | "account";
+  onSignOut?: () => void;
+  onLanguageChange?: (locale: Locale) => void;
 }) {
   const canManage = user.permissions.includes("settings");
   const { t, locale, setLocale } = useI18n();
@@ -2428,9 +2509,7 @@ export function SettingsPage({
     initialTab === "backups" && !user.permissions.includes("backups")
       ? undefined
       : initialTab;
-  const [tab, setTab] = useState(
-      requestedTab || (canManage ? "store" : "about"),
-    ),
+  const [tab, setTab] = useState<string>(requestedTab || "account"),
     [localError, setLocalError] = useState(""),
     [busy, setBusy] = useState(false),
     [audit, setAudit] = useState<any[]>([]),
@@ -2496,6 +2575,7 @@ export function SettingsPage({
     }
   }
   const settingsTabs = [
+    { id: "account", label: t("settings.tabAccount") },
     ...(user.role === "Owner" && window.vault?.recovery
       ? [{ id: "recovery", label: t("recovery.title") }]
       : []),
@@ -2543,6 +2623,55 @@ export function SettingsPage({
           ))}
         </nav>
         <div className="settings-detail">
+          {tab === "account" && (
+            <div className="settings-form settings-account">
+              <div className="settings-account-user">
+                <span className="settings-account-avatar">
+                  {user.name
+                    .split(" ")
+                    .map((n) => n[0])
+                    .slice(0, 2)
+                    .join("")}
+                </span>
+                <div>
+                  <strong>{user.name}</strong>
+                  <small>
+                    {user.username} · {user.role}
+                  </small>
+                </div>
+              </div>
+              <Field label={t("language.label")} hint={t("language.hint")}>
+                <select
+                  value={locale}
+                  onChange={(e) => {
+                    const next = e.target.value as Locale;
+                    setLanguage(next);
+                    if (onLanguageChange) onLanguageChange(next);
+                    else setLocale(next);
+                  }}
+                  aria-label={t("language.label")}
+                >
+                  {LOCALES.map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.nativeLabel} — {t(`language.${l.id}`)}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              {onSignOut && (
+                <div className="settings-account-actions">
+                  <button
+                    type="button"
+                    className="button button-dark"
+                    onClick={onSignOut}
+                  >
+                    <SignOutIcon size={16} />
+                    {t("nav.signOut")}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
           {tab === "recovery" && user.role === "Owner" && (
             <OwnerRecovery settings />
           )}
