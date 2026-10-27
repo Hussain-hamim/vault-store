@@ -538,7 +538,9 @@ async function start() {
       return true;
     }
     if (process.platform === "darwin") {
-      const escaped = String(filePath).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+      const escaped = String(filePath)
+        .replace(/\\/g, "\\\\")
+        .replace(/"/g, '\\"');
       await run(
         "osascript",
         ["-e", `set the clipboard to (POSIX file "${escaped}")`],
@@ -548,16 +550,40 @@ async function start() {
     }
     return false;
   }
-  function pasteClipboardIntoChat() {
+  /** Paste PDF as WhatsApp attachment, put message as caption, then send both. */
+  function sendPdfWithCaption(caption) {
     const { execFile } = require("node:child_process");
+    const note = String(caption || "").slice(0, 1000);
     if (process.platform === "win32") {
+      const captionFile = path.join(
+        app.getPath("temp"),
+        `radefy-wa-caption-${Date.now()}.txt`,
+      );
+      fs.writeFileSync(captionFile, note, "utf8");
+      const captionEscaped = captionFile.replace(/'/g, "''");
       const script = [
         "Add-Type -AssemblyName System.Windows.Forms",
         "$w = New-Object -ComObject WScript.Shell",
-        "Start-Sleep -Milliseconds 2200",
-        "[void]$w.AppActivate('WhatsApp')",
-        "Start-Sleep -Milliseconds 400",
+        "function Focus-WhatsApp {",
+        "  foreach ($t in @('WhatsApp','WhatsApp Desktop','WhatsApp Web','Google Chrome','Microsoft Edge','Brave','Firefox')) {",
+        "    if ($w.AppActivate($t)) { return $true }",
+        "  }",
+        "  return $false",
+        "}",
+        "Start-Sleep -Milliseconds 2500",
+        "[void](Focus-WhatsApp)",
+        "Start-Sleep -Milliseconds 500",
+        // Attach the PDF that is already on the clipboard.
         "[System.Windows.Forms.SendKeys]::SendWait('^v')",
+        "Start-Sleep -Milliseconds 1400",
+        // Caption field: paste the customer message, then send PDF + caption together.
+        `Get-Content -LiteralPath '${captionEscaped}' -Raw -Encoding UTF8 | Set-Clipboard`,
+        "[void](Focus-WhatsApp)",
+        "Start-Sleep -Milliseconds 250",
+        "[System.Windows.Forms.SendKeys]::SendWait('^v')",
+        "Start-Sleep -Milliseconds 450",
+        "[System.Windows.Forms.SendKeys]::SendWait('{ENTER}')",
+        `Remove-Item -LiteralPath '${captionEscaped}' -Force -ErrorAction SilentlyContinue`,
       ].join("; ");
       execFile(
         "powershell.exe",
@@ -568,11 +594,27 @@ async function start() {
       return true;
     }
     if (process.platform === "darwin") {
+      const captionFile = path.join(
+        app.getPath("temp"),
+        `radefy-wa-caption-${Date.now()}.txt`,
+      );
+      fs.writeFileSync(captionFile, note, "utf8");
+      const escaped = captionFile.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
       const script = [
-        "delay 2.2",
-        'tell application "WhatsApp" to activate',
-        "delay 0.4",
+        "delay 2.5",
+        'try',
+        '  tell application "WhatsApp" to activate',
+        "end try",
+        "delay 0.5",
         'tell application "System Events" to keystroke "v" using command down',
+        "delay 1.4",
+        `set captionText to read POSIX file "${escaped}" as «class utf8»`,
+        "set the clipboard to captionText",
+        "delay 0.25",
+        'tell application "System Events" to keystroke "v" using command down',
+        "delay 0.45",
+        'tell application "System Events" to keystroke return',
+        `do shell script "rm -f \\"${escaped}\\""`,
       ].join("\n");
       execFile("osascript", ["-e", script], () => {});
       return true;
@@ -603,6 +645,7 @@ async function start() {
       let downloadPath = null;
       let pasted = false;
       let copied = false;
+      let sent = false;
       if (payload?.job) {
         if (printBusy)
           throw new Error(
@@ -646,9 +689,16 @@ async function start() {
           printBusy = false;
         }
       }
-      const query = text ? `?text=${encodeURIComponent(text)}` : "";
-      await shell.openExternal(`https://wa.me/${phone}${query}`);
-      if (copied) pasted = pasteClipboardIntoChat();
+      // When a PDF is ready, never prefill ?text= — that makes Enter send text only.
+      // Open the chat empty, attach the PDF, use the message as the attachment caption, then send both.
+      if (copied && pdfPath) {
+        await shell.openExternal(`https://wa.me/${phone}`);
+        pasted = sendPdfWithCaption(text);
+        sent = pasted;
+      } else {
+        const query = text ? `?text=${encodeURIComponent(text)}` : "";
+        await shell.openExternal(`https://wa.me/${phone}${query}`);
+      }
       return {
         ok: true,
         result: {
@@ -657,6 +707,7 @@ async function start() {
           downloadPath,
           copied,
           pasted,
+          sent,
         },
       };
     } catch (error) {

@@ -65,7 +65,8 @@ export async function shareViaWhatsApp({
       getToken(),
     );
     if (result?.pdfPath) {
-      if (result.pasted) return { message: t("whatsapp.openedWithPdf") };
+      if (result.sent || result.pasted)
+        return { message: t("whatsapp.openedWithPdf") };
       return { message: t("whatsapp.openedWithPdfManual") };
     }
     return { message: t("whatsapp.opened") };

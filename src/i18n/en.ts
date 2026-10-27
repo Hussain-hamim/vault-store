@@ -990,9 +990,9 @@ export const en: MessageTree = {
       "Add a valid phone number with country code for this customer first.",
     opened: "WhatsApp opened for this customer.",
     openedWithPdf:
-      "PDF saved to Downloads and pasted into WhatsApp. Press Enter to send.",
+      "PDF and message prepared in WhatsApp. If it did not send yet, press Enter once.",
     openedWithPdfManual:
-      "PDF saved to Downloads. Press Ctrl+V in WhatsApp to attach it, then Enter to send.",
+      "PDF saved to Downloads. In WhatsApp press Ctrl+V to attach the PDF, type or paste the message as the caption, then Enter to send both.",
     invoiceText:
       "Hello {name}, here is invoice {number}. Total: {total}. Please find the PDF attached.",
     ledgerText:

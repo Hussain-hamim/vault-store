@@ -128,6 +128,7 @@ declare global {
         downloadPath?: string | null;
         copied?: boolean;
         pasted?: boolean;
+        sent?: boolean;
       }>;
       pickFolder: () => Promise<string | null>;
       pickBackup: () => Promise<string | null>;

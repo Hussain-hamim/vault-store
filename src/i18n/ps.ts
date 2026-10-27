@@ -977,9 +977,9 @@ export const ps: MessageTree = {
     needPhone: "لومړی د دې پیرودونکي لپاره سم تلیفون له هیواد کوډ سره ولیکئ.",
     opened: "واتساپ د دې پیرودونکي لپاره پرانیستل شو.",
     openedWithPdf:
-      "PDF په Downloads کې وساتل شو او په واتساپ کې پیسټ شو. د لیږلو لپاره Enter فشار ورکړئ.",
+      "PDF او پیغام په واتساپ کې چمتو شول. که نه لیږل کیږي یو ځل Enter فشار ورکړئ.",
     openedWithPdfManual:
-      "PDF په Downloads کې وساتل شو. په واتساپ کې Ctrl+V بیا Enter فشار ورکړئ.",
+      "PDF په Downloads کې وساتل شو. په واتساپ کې Ctrl+V کړئ، پیغام د caption په توګه ولیکئ، بیا Enter د دواړو لیږلو لپاره.",
     invoiceText:
       "سلام {name}، دا ستاسو بل {number} دی. مجموعه: {total}. مهرباني وکړئ PDF ضمیمه وګورئ.",
     ledgerText:
