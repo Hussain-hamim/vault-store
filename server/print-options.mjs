@@ -75,7 +75,7 @@ export function printGeometry(input, kind = "invoice") {
     width: landscape ? page.height : page.width,
     height: landscape ? page.width : page.height,
     margin: isLabelPaper(options.paper)
-      ? 1.5
+      ? 1
       : options.paper.startsWith("receipt")
         ? 3
         : options.margins === "narrow"

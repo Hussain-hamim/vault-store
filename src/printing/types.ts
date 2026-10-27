@@ -60,6 +60,7 @@ export type PrintDocument = {
   emptyLabel?: string;
   labels?: {
     name: string;
+    model?: string;
     identity?: string;
     barcode: string;
     svg: string;

@@ -7,13 +7,14 @@ export function barcodeLabelDocument(products, { t, locale, copies = 1 }) {
   for (const product of products) {
     const code = String(product.barcode || "").trim();
     if (!code || !canEncodeQr(code)) continue;
-    const svg = qrSvg(code, { margin: 1 });
+    // Quiet margin 0 — the sticker CSS already leaves a thin edge around the QR.
+    const svg = qrSvg(code, { margin: 0 });
+    const model = String(product.model || "").trim();
     for (let i = 0; i < count; i++) {
       labels.push({
         name: product.name || "",
-        identity: [product.brand, product.model, product.sku]
-          .filter(Boolean)
-          .join(" · "),
+        model,
+        identity: model,
         barcode: code,
         svg,
       });

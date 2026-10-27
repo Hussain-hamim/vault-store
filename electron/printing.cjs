@@ -6,7 +6,7 @@ const { randomUUID } = require("node:crypto");
 function validatePrintJob(job) {
   if (
     !job ||
-    !["invoice", "report"].includes(job.kind) ||
+    !["invoice", "report", "label"].includes(job.kind) ||
     !["print", "pdf"].includes(job.mode)
   )
     throw new Error("Invalid print job.");
@@ -37,6 +37,7 @@ function validatePrintJob(job) {
     )
       throw new Error("Invalid invoice source.");
   } else if (
+    // Reports and QR/product labels both use a permission-gated report source.
     job.source?.type !== "report" ||
     ![
       "reports",

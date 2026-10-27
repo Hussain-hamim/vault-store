@@ -200,6 +200,35 @@ test("print jobs are bounded, authenticated by source and do not accept arbitrar
       }),
     /source/,
   );
+  const labelJob = {
+    kind: "label",
+    mode: "print",
+    title: "QR labels",
+    html: renderPrintDocument(
+      {
+        kind: "label",
+        locale: "en",
+        title: "QR labels",
+        source: { type: "report", permission: "inventory" },
+        labels: [
+          {
+            name: "MacBook",
+            identity: "Apple · M2",
+            barcode: "RTM1001",
+            svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 21 21"><rect width="1" height="1"/></svg>',
+          },
+        ],
+      },
+      { paper: "label29x18" },
+    ),
+    options: { paper: "label29x18" },
+    source: { type: "report", permission: "inventory" },
+  };
+  assert.equal(validatePrintJob(labelJob), labelJob);
+  assert.match(labelJob.html, /flex-direction:column/);
+  assert.match(labelJob.html, /barcode-top/);
+  assert.match(labelJob.html, /barcode-bottom/);
+  assert.match(labelJob.html, /align-items:center/);
 });
 test("all report tabs produce printable structured data with the same balances and explicit current-stock scope", () => {
   const data = {
