@@ -1484,8 +1484,9 @@ export const en: MessageTree = {
     installScheduleBtn: "Install daily desktop schedule",
     restoreSectionTitle: "Restore a recovery copy",
     restoreSectionHint:
-      "Restore checks the database, creates a safety copy, closes the current database, and restarts the app. The desktop app asks for final confirmation.",
+      "Restore checks the database, creates a safety copy, closes the current database, and restarts the app. Large copies need free space on the store drive about equal to the backup plus the current store. The desktop app asks for final confirmation.",
     chooseBackupRestore: "Choose backup to restore",
+    restoring: "Restoring… keep the app open",
     encryptionTip:
       "Backup files are currently unencrypted SQLite snapshots. Full-disk or destination encryption is recommended.",
     historyTitle: "Backup history",

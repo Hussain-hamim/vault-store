@@ -713,15 +713,32 @@ async function start() {
     const user = await db.request("me", {}, token);
     if (user.role !== "Owner" || !user.permissions.includes("backups"))
       throw new Error("Only a store owner can restore data.");
-    const { validateRestore, restoreDatabase } = await import(
-      pathToFileURL(path.join(serviceRoot, "restore.mjs")).href
-    );
+    const {
+      validateRestore,
+      restoreDatabase,
+      assertRestoreDiskSpace,
+      requiredRestoreBytes,
+      freeDiskBytes,
+    } = await import(pathToFileURL(path.join(serviceRoot, "restore.mjs")).href);
+    const target = path.join(app.getPath("userData"), "vault.sqlite");
+    // Fail before hashing/copying when the store drive cannot hold the restore.
+    assertRestoreDiskSpace(file, target);
     const info = validateRestore(file);
+    const sizeLabel =
+      info.size >= 1024 ** 3
+        ? `${(info.size / 1024 ** 3).toFixed(1)} GB`
+        : `${Math.max(1, Math.round(info.size / 1024 ** 2))} MB`;
+    const need = requiredRestoreBytes(file, target);
+    const free = freeDiskBytes(path.dirname(target));
+    const largeNote =
+      info.size >= 500 * 1024 * 1024
+        ? `\n\nThis is a large backup (${sizeLabel}). Checking and copying can take several minutes — keep the app open until it restarts.`
+        : "";
     const result = await dialog.showMessageBox(mainWindow, {
       type: "warning",
       title: "Restore this backup?",
       message: `Replace the current store with the selected backup?`,
-      detail: `${file}\n\n${info.products} products · ${info.documents} transactions\n\nA safety copy of the current store will be saved first. You will be signed out and the app will restart.`,
+      detail: `${file}\n\n${info.products.toLocaleString()} products · ${info.documents.toLocaleString()} transactions · ${sizeLabel}\nStore drive free: ${(free / 1024 ** 3).toFixed(1)} GB (needs about ${(need / 1024 ** 3).toFixed(1)} GB).${largeNote}\n\nA safety copy of the current store will be saved first. You will be signed out and the app will restart.`,
       buttons: ["Cancel", "Restore backup"],
       defaultId: 0,
       cancelId: 0,
@@ -732,10 +749,8 @@ async function start() {
     await db.close();
     db = null;
     try {
-      await restoreDatabase(
-        file,
-        path.join(app.getPath("userData"), "vault.sqlite"),
-      );
+      // Reuse the checksum/counts from validateRestore — do not scan the file twice.
+      await restoreDatabase(file, target, { validated: info });
       app.relaunch();
       app.exit(0);
     } catch (e) {

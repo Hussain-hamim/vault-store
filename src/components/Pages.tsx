@@ -2397,6 +2397,7 @@ export function BackupsPage({ refresh, toast }: PageProps) {
   }
   async function restore() {
     setLocalError("");
+    setBusy(true);
     try {
       if (!window.vault) throw new Error(t("backups.restoreDesktop"));
       const backup = await window.vault.pickBackup();
@@ -2405,6 +2406,8 @@ export function BackupsPage({ refresh, toast }: PageProps) {
       if (!result.cancelled) toast(t("toast.backupRestored"));
     } catch (e: any) {
       setLocalError(e.message);
+    } finally {
+      setBusy(false);
     }
   }
   const driveChips = availableTargets.filter((d) => !destinations.includes(d));
@@ -2417,9 +2420,9 @@ export function BackupsPage({ refresh, toast }: PageProps) {
             <ArrowClockwiseIcon size={15} className={busy ? "spin" : ""} />
             {busy ? t("common.loading") : t("backups.runNow")}
           </button>
-          <button className="button" onClick={restore}>
+          <button className="button" disabled={busy} onClick={restore}>
             <DatabaseIcon size={15} />
-            {t("backups.chooseBackupRestore")}
+            {busy ? t("backups.restoring") : t("backups.chooseBackupRestore")}
           </button>
         </div>
       </div>

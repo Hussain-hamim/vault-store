@@ -20,6 +20,7 @@
     "package:win": "npm run license:check && npm run build && electron-builder --win nsis && node scripts/check-packaged.mjs win32",
     "backup": "node server/backup-cli.mjs",
     "benchmark": "node scripts/benchmark.mjs",
+    "loadtest:backup": "node scripts/generate-load-test-backup.mjs",
     "package:mac:dmg": "npm run license:check && npm run build && electron-builder --mac dmg && node scripts/check-packaged.mjs darwin",
     "test:print": "node --test tests/printing.test.mjs",
     "test:print:desktop": "electron tests/print-electron-smoke.cjs",
