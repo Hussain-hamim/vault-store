@@ -58,7 +58,7 @@ export function renderPrintDocument(doc, input, fonts = {}) {
   const labels = (doc.labels || [])
     .map(
       (label) =>
-        `<article class="barcode-label"><strong>${e(label.name)}</strong>${label.identity ? `<small>${e(label.identity)}</small>` : ""}${typeof label.svg === "string" && label.svg.startsWith("<svg") ? `<div class="barcode-svg">${label.svg}</div>` : ""}<bdi dir="ltr">${e(label.barcode)}</bdi></article>`,
+        `<article class="barcode-label"><div class="barcode-svg">${typeof label.svg === "string" && label.svg.startsWith("<svg") ? label.svg : ""}</div><div class="barcode-meta"><strong>${e(label.name)}</strong>${label.identity ? `<small>${e(label.identity)}</small>` : ""}<bdi dir="ltr">${e(label.barcode)}</bdi></div></article>`,
     )
     .join("");
   const labelSheet = labels
@@ -67,20 +67,23 @@ export function renderPrintDocument(doc, input, fonts = {}) {
       ? `<p class="section-note">${e(doc.emptyLabel || "")}</p>`
       : "";
   if (doc.kind === "label") {
+    const innerH = Math.max(8, page.height - page.margin * 2);
+    const qrMax = Math.min(page.width * 0.48, innerH - 0.4);
     const labelCss = `
 ${fontFaces}
-*{box-sizing:border-box}html{background:white}body{margin:0;color:#111;font:10px ${rtl ? "Printarabic,Printlatin" : "Printlatin"},Arial,sans-serif;line-height:1.25;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-.barcode-label{width:100%;min-height:${page.height - page.margin * 2}mm;padding:1mm;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;page-break-after:always;break-after:page}
+*{box-sizing:border-box}html{background:white}body{margin:0;color:#111;font:7px ${rtl ? "Printarabic,Printlatin" : "Printlatin"},Arial,sans-serif;line-height:1.15;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.barcode-label{width:100%;height:${innerH}mm;min-height:${innerH}mm;padding:0.4mm;display:flex;flex-direction:row;align-items:center;justify-content:flex-start;gap:0.8mm;text-align:start;page-break-after:always;break-after:page;overflow:hidden}
 .barcode-label:last-child{page-break-after:auto;break-after:auto}
-.barcode-label strong{display:block;font-size:9px;line-height:1.2;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.barcode-label small{display:block;font-size:7px;color:#333;margin:1px 0 2px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.barcode-svg{display:flex;justify-content:center;width:100%;margin:1px 0}
-.barcode-svg svg{max-width:100%;height:auto;max-height:14mm}
-.barcode-label bdi{display:block;font-family:ui-monospace,Consolas,monospace;font-size:8px;letter-spacing:.03em;margin-top:1px}
+.barcode-svg{flex:0 0 auto;width:${qrMax}mm;height:${qrMax}mm;display:flex;align-items:center;justify-content:center}
+.barcode-svg svg{width:100%;height:100%;display:block}
+.barcode-meta{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:0.3mm;overflow:hidden}
+.barcode-label strong{display:block;font-size:6.5px;line-height:1.15;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.barcode-label small{display:block;font-size:5.5px;color:#333;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.barcode-label bdi{display:block;font-family:ui-monospace,Consolas,monospace;font-size:6px;letter-spacing:.02em;line-height:1.1;word-break:break-all}
 .empty-labels{padding:8px;text-align:center;color:#555}
 @page{size:${page.width}mm ${page.height}mm;margin:${page.margin}mm}
 @media screen{html{background:#e8ebef}body{background:white;width:${page.width}mm;min-height:${page.height}mm;padding:${page.margin}mm;margin:8px auto;box-shadow:0 0 0 1px #c5cad1}
-.barcode-label{min-height:${Math.max(18, page.height - page.margin * 2)}mm;border:1px dashed #b0b6bf;margin-bottom:8px;page-break-after:auto}}
+.barcode-label{border:1px dashed #b0b6bf;margin-bottom:8px;page-break-after:auto}}
 @media print{body{margin:0;padding:0}.barcode-label{border:0;margin:0}}
 `;
     const body = labels

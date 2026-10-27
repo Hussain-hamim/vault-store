@@ -51,7 +51,7 @@ import { invoicePrintModel } from "../printing/models.mjs";
 import { barcodeLabelDocument } from "../printing/barcode-label.mjs";
 import type { PrintDocument } from "../printing/types";
 import { generateProductBarcode } from "../barcode/generate.mjs";
-import { canEncodeCode128 } from "../barcode/code128.mjs";
+import { canEncodeQr } from "../barcode/qrcode.mjs";
 import { BarcodeCopiesDialog } from "./BarcodeLabelPrint";
 import {
   Modal,
@@ -3966,7 +3966,7 @@ export function ProductDetail({
             onClick={async () => {
               setError("");
               let code = String(product.barcode || "").trim();
-              if (!code || !canEncodeCode128(code)) {
+              if (!code || !canEncodeQr(code)) {
                 setBusy(true);
                 try {
                   code = generateProductBarcode();

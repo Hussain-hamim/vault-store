@@ -42,6 +42,8 @@ export async function shareViaWhatsApp({
   const url = whatsAppChatUrl(phone, text || "");
   if (!url) throw new Error(t("whatsapp.needPhone"));
 
+  // Desktop path: main process builds the PDF and opens WhatsApp Desktop only.
+  // Never fall back to wa.me+text here — that opens the browser and sends text alone.
   if (window.vault?.shareWhatsApp) {
     let job: Record<string, unknown> | undefined;
     if (document) {
@@ -64,6 +66,8 @@ export async function shareViaWhatsApp({
       { phone: parsePhone(phone).e164, text: text || "", job },
       getToken(),
     );
+    if (document && !result?.pdfPath)
+      throw new Error(t("whatsapp.pdfFailed"));
     if (result?.pdfPath) {
       if (result.sent || result.pasted)
         return { message: t("whatsapp.openedWithPdf") };
@@ -72,6 +76,8 @@ export async function shareViaWhatsApp({
     return { message: t("whatsapp.opened") };
   }
 
+  // Browser / non-desktop fallback: save PDF if possible, never auto-open wa.me with text
+  // when a document was requested (that only sends the greeting).
   if (document && window.vault?.renderPrint) {
     const options = normalizePrintOptions(
       { paper: "A4", layout: "modern", theme: "mono" },
@@ -89,11 +95,12 @@ export async function shareViaWhatsApp({
       },
       getToken(),
     );
+    return { message: t("whatsapp.openedWithPdfManual") };
   }
+
+  if (document) throw new Error(t("whatsapp.needDesktop"));
 
   if (window.vault?.openExternal) await window.vault.openExternal(url);
   else window.open(url, "_blank", "noopener,noreferrer");
-  return {
-    message: document ? t("whatsapp.openedWithPdfManual") : t("whatsapp.opened"),
-  };
+  return { message: t("whatsapp.opened") };
 }

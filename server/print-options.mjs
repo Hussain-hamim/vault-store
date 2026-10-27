@@ -6,20 +6,10 @@ export const PAPER_SIZES = Object.freeze({
   A3: { width: 297, height: 420 },
   receipt80: { width: 80, height: 200 },
   receipt58: { width: 58, height: 200 },
-  // Common sticky barcode-label rolls (width × height mm).
-  label40x30: { width: 40, height: 30 },
-  label50x30: { width: 50, height: 30 },
-  label60x40: { width: 60, height: 40 },
-  label80x50: { width: 80, height: 50 },
-  label100x50: { width: 100, height: 50 },
+  // Sticky QR-label roll for the shop scanners (width × height mm).
+  label29x18: { width: 29, height: 18 },
 });
-export const LABEL_PAPERS = Object.freeze([
-  "label40x30",
-  "label50x30",
-  "label60x40",
-  "label80x50",
-  "label100x50",
-]);
+export const LABEL_PAPERS = Object.freeze(["label29x18"]);
 export const PRINT_LAYOUTS = ["modern", "classic", "minimal", "compact"];
 export const PRINT_THEMES = Object.freeze({
   charcoal: { accent: "#30323a", soft: "#f0f1f3", ink: "#20232b" },
@@ -42,7 +32,7 @@ export function normalizePrintOptions(input = {}, kind = "invoice") {
   const labelJob = kind === "label";
   let paper = "A4";
   if (labelJob) {
-    paper = LABEL_PAPERS.includes(raw.paper) ? raw.paper : "label50x30";
+    paper = LABEL_PAPERS.includes(raw.paper) ? raw.paper : "label29x18";
   } else if (
     Object.hasOwn(PAPER_SIZES, raw.paper) &&
     (kind === "invoice" || !String(raw.paper).startsWith("receipt")) &&

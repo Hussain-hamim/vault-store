@@ -172,14 +172,14 @@ export const en: MessageTree = {
   barcode: {
     generate: "Generate barcode",
     generateShort: "Generate",
-    print: "Print barcode label",
+    print: "Print QR label",
     printShort: "Print",
-    printStation: "Print barcode labels",
+    printStation: "Print QR labels",
     printStationHint:
-      "Choose a product, set how many sticky labels you need, then print on your barcode label printer.",
-    printSetup: "Barcode label print",
+      "Choose a product, set how many sticky labels you need, then print on your 29×18 mm QR label printer.",
+    printSetup: "QR label print",
     printSetupHint:
-      "Pick your label size to match the roll in the barcode printer, then print.",
+      "Labels print at 29×18 mm for your QR scanner roll.",
     labelSize: "Label size",
     copies: "Number of labels",
     copiesHint:
@@ -188,17 +188,17 @@ export const en: MessageTree = {
     pickProduct: "Choose product",
     willGenerate: "Will generate on print",
     thermalHint:
-      "Made for sticky barcode-label printers. Choose the label size that matches your roll (for example 50×30 mm).",
+      "Made for sticky QR-label printers on 29×18 mm rolls. Set the same size in the printer driver.",
     driverHint:
-      "Install your printer’s Windows/macOS driver (or the maker’s “barcode label” driver), select that printer in the print dialog, and set the same label size there. No extra app driver is required beyond the normal printer driver.",
-    hint: "Generated codes can be printed and stuck on items without a factory barcode. Keep a manufacturer barcode if the product already has one.",
-    needValid: "Enter or generate a barcode that can be printed (letters and numbers).",
-    unsupported: "This barcode uses characters that cannot be printed as Code 128.",
-    labelsTitle: "Barcode labels",
+      "Install your printer’s Windows/macOS driver, select that printer in the print dialog, and set 29×18 mm label size there. No extra app driver is required beyond the normal printer driver.",
+    hint: "Generated codes can be printed as QR stickers and stuck on items without a factory barcode. Keep a manufacturer barcode if the product already has one.",
+    needValid: "Enter or generate a code that can be printed as a QR label (letters and numbers).",
+    unsupported: "This code uses characters that cannot be printed as a QR label.",
+    labelsTitle: "QR labels",
     labelsSubtitle: "{n} labels",
-    noLabels: "No printable barcodes in this selection.",
+    noLabels: "No printable QR codes in this selection.",
     labelsHint:
-      "Stick each label on the matching product. Scan the barcode on New Sale or New Purchase to add the item.",
+      "Stick each label on the matching product. Scan the QR code on New Sale or New Purchase to add the item.",
   },
   currencies: {
     refundReceived: "Supplier refund received",
@@ -505,11 +505,7 @@ export const en: MessageTree = {
       A3: "A3",
       receipt80: "80 mm receipt",
       receipt58: "58 mm receipt",
-      label40x30: "40×30 mm label",
-      label50x30: "50×30 mm label",
-      label60x40: "60×40 mm label",
-      label80x50: "80×50 mm label",
-      label100x50: "100×50 mm label",
+      label29x18: "29×18 mm QR label",
     },
   },
   app: {
@@ -990,9 +986,12 @@ export const en: MessageTree = {
       "Add a valid phone number with country code for this customer first.",
     opened: "WhatsApp opened for this customer.",
     openedWithPdf:
-      "PDF and message prepared in WhatsApp. If it did not send yet, press Enter once.",
+      "WhatsApp Desktop opened with the PDF and message. If it did not send yet, press Enter once.",
     openedWithPdfManual:
-      "PDF saved to Downloads. In WhatsApp press Ctrl+V to attach the PDF, type or paste the message as the caption, then Enter to send both.",
+      "PDF saved to Downloads. In WhatsApp Desktop open the chat, press Ctrl+V to attach the PDF, then Enter to send with the message.",
+    pdfFailed: "Could not prepare the PDF for WhatsApp. Try Save PDF, then send again.",
+    needDesktop:
+      "Sending invoice/ledger PDFs needs the Radefy TechMart desktop app with WhatsApp Desktop installed.",
     invoiceText:
       "Hello {name}, here is invoice {number}. Total: {total}. Please find the PDF attached.",
     ledgerText:

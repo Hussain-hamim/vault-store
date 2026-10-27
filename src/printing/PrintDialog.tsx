@@ -232,6 +232,15 @@ export function PrintDialog({
           </div>
           )}
           <div className="print-settings-group">
+            {labelJob && LABEL_PAPERS.length === 1 ? (
+              <Field label={t("barcode.labelSize")}>
+                <input
+                  readOnly
+                  value={`${t(`printing.papers.${LABEL_PAPERS[0]}`)} · ${PAPER_SIZES[LABEL_PAPERS[0]].width} × ${PAPER_SIZES[LABEL_PAPERS[0]].height} mm`}
+                />
+                <p className="muted">{t("barcode.thermalHint")}</p>
+              </Field>
+            ) : (
             <Field label={t(labelJob ? "barcode.labelSize" : "printing.paper")}>
               <select
                 value={options.paper}
@@ -252,6 +261,7 @@ export function PrintDialog({
                   ))}
               </select>
             </Field>
+            )}
             {!labelJob && (
             <div className="form-grid">
               <Field label={t("printing.orientation")}>

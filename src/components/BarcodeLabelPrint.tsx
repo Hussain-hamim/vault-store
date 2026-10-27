@@ -3,7 +3,7 @@ import { BarcodeIcon, PrinterIcon } from "@phosphor-icons/react";
 import { api, type Product } from "../api";
 import { useI18n } from "../i18n";
 import { Modal, Field, NumericInput, ErrorMessage, Search } from "./ui";
-import { canEncodeCode128 } from "../barcode/code128.mjs";
+import { canEncodeQr } from "../barcode/qrcode.mjs";
 import { generateProductBarcode } from "../barcode/generate.mjs";
 import { barcodeLabelDocument } from "../printing/barcode-label.mjs";
 import { PrintDialog } from "../printing/PrintDialog";
@@ -11,7 +11,7 @@ import type { PrintDocument } from "../printing/types";
 
 async function ensureBarcode(product: Product) {
   const code = String(product.barcode || "").trim();
-  if (code && canEncodeCode128(code)) return product;
+  if (code && canEncodeQr(code)) return product;
   const next = generateProductBarcode();
   const result = await api<{ product: Product }>("productUpdate", {
     id: product.id,

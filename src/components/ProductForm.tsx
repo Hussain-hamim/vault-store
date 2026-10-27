@@ -53,7 +53,7 @@ import {
 } from "./product-fields";
 import { trackedCategory } from "../../shared/product-categories.mjs";
 import { generateProductBarcode } from "../barcode/generate.mjs";
-import { canEncodeCode128 } from "../barcode/code128.mjs";
+import { canEncodeQr } from "../barcode/qrcode.mjs";
 import { barcodeLabelDocument } from "../printing/barcode-label.mjs";
 import { PrintDialog } from "../printing/PrintDialog";
 import { BarcodeCopiesDialog } from "./BarcodeLabelPrint";
@@ -434,7 +434,7 @@ export function ProductForm({
   }
   function printBarcodeLabel() {
     const code = d.barcode.trim();
-    if (!code || !canEncodeCode128(code)) {
+    if (!code || !canEncodeQr(code)) {
       setError(t("barcode.needValid"));
       return;
     }
