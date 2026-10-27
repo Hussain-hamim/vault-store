@@ -150,7 +150,7 @@ export const en: MessageTree = {
     missingHint:
       "Upload this product’s photo. A neutral icon is shown instead of another company’s product.",
     savedHint:
-      "Saved offline in your store database and included in backups. Reused automatically for the same company and model.",
+      "Saved offline in your store database. Reused automatically for the same company and model. Backups restore the studio product image.",
     choose: "Choose from files",
     camera: "Take photo",
     cameraHint:
@@ -366,7 +366,7 @@ export const en: MessageTree = {
       "The desktop app stores your SQLite database on this computer. The app rename keeps the existing data folder so your store and sessions remain available.",
     backupQuestion: "How do I protect my records?",
     backupAnswer:
-      "Open Backups to choose backup folders, review recent copies and configure automatic backups. Keep a copy on a separate drive.",
+      "Open Backups to review copies. Automatic backup is always on and copies to this computer and every connected drive.",
     zoomQuestion: "How do I change the display size?",
     zoomAnswer:
       "Use Ctrl + + / − on Windows, or Cmd + + / − on Mac. Ctrl/Cmd + 0 restores the default zoom.",
@@ -457,11 +457,12 @@ export const en: MessageTree = {
     returned: "Unsold stock returned to its owner.",
   },
   printing: {
-    template: "Template",
+    template: "Bill template",
     standardTemplate: "Shop letterhead",
-    goldenTemplate: "Golden bilingual bill",
-    templateHint: "Sale-only design · English + Pashto. Choices are remembered separately for each document type.",
-    showWatermark: "Logo watermark",
+    goldenTemplate: "Golden shop stationery",
+    templateHint:
+      "Sale invoices only. Golden matches the yellow bilingual pad. Choices are remembered on this computer.",
+    showWatermark: "Show watermark",
 
     title: "Print setup",
     subtitle: "Choose a layout, color theme and paper size before printing.",
@@ -658,6 +659,7 @@ export const en: MessageTree = {
     previousBalance: "Previous balance",
     thisInvoice: "This invoice",
     newBalance: "New balance",
+    totalBalance: "Total balance",
     unitPriceFx: "Unit price (AF) · {code}",
     balanceRemaining: "Balance remaining",
     amountPaid: "Amount paid now (AF)",
@@ -984,7 +986,8 @@ export const en: MessageTree = {
   phone: {
     country: "Country code",
     nationalPh: "{n} digits",
-    lengthHint: "Enter the national number for +{dial} ({n} digits).",
+    lengthHint:
+      "Enter the national number for +{dial} ({n} digits). A leading 0 is OK.",
     invalidLength: "Phone number for +{dial} must be {n} digits.",
   },
   customerHistory: { "share": "WhatsApp report", "shareText": "Hello {name}, here is your sales history from {start} to {end}.","title": "Sales history", "start": "Start date", "end": "End date", "allDates": "All dates", "date": "Date", "invoice": "Invoice", "products": "Products / quantity", "total": "Sales total", "returned": "Returns", "paid": "Paid / allocated", "remaining": "Remaining on invoices", "currentBalance": "Current customer balance", "scope": "Includes all sales in the selected dates. Payments, returns and remaining balances are current; the customer balance includes all account activity. Print/PDF includes every filtered invoice.", "empty": "No sales in this period.", "more": "Load more"},
@@ -1433,8 +1436,12 @@ export const en: MessageTree = {
     operatingExpenses: "Operating expenses",
   },
   backups: {
-    allDrives: "Automatically include all connected drives",
-    allDrivesHint: "Copies every 24 hours to this computer and mounted data drives. New drives are discovered automatically. Unwritable drives show an error. Keep the .sqlite file and its .json manifest together to restore.",
+    allDrives: "Automatic backup is always on",
+    allDrivesHint:
+      "Copies every 24 hours to this computer and every connected data drive. Keeps 30 copies per drive.",
+    keepCopies: "30 copies per drive",
+    connectedDrives: "Connected drives",
+    extraFolders: "Extra folders",
 
     eyebrow: "Protect your data",
     title: "Backups",
@@ -1465,7 +1472,7 @@ export const en: MessageTree = {
     verifyDetail: "Verified: {products} products and {documents} documents.",
     foldersCount: "{n} folders",
     destinationsIntro:
-      "Add folders on this computer or a connected external drive. Disconnected destinations are retried.",
+      "Optional extra folders. Connected drives are included automatically. Disconnected destinations are retried.",
     chooseFolder: "Choose a folder",
     folderPathAria: "Backup folder path",
     folderPathPh: "Absolute folder path on this computer",
@@ -1473,7 +1480,7 @@ export const en: MessageTree = {
       "Use a separate physical drive for protection against disk failure. Backups contain store data; protect access to the destination.",
     scheduleRestore: "Scheduling & restore",
     scheduleRestoreHint:
-      "The desktop scheduler runs backups even when the app window is closed. The computer and destination drives must be available.",
+      "Automatic backup stays on. The desktop schedule keeps copying when the app window is closed. The computer and destination drives must be available.",
     installScheduleBtn: "Install daily desktop schedule",
     restoreSectionTitle: "Restore a recovery copy",
     restoreSectionHint:
@@ -1488,7 +1495,8 @@ export const en: MessageTree = {
     colSize: "Size",
     verifyBtn: "Verify",
     emptyRecoveryTitle: "No recovery copies yet",
-    emptyRecoveryText: "Add a destination, then create your first backup.",
+    emptyRecoveryText:
+      "Automatic copies go to this computer and connected drives. Use Backup now for the first copy.",
     sizeMb: "{size} MB",
     statusVerified: "verified",
     statusFailed: "failed",
@@ -1510,6 +1518,11 @@ export const en: MessageTree = {
     logo: "Logo",
     logoLeft: "Left logo",
     logoRight: "Right logo",
+    watermark: "Invoice watermark",
+    watermarkHint:
+      "Faint image printed behind the sale bill lines. If empty, the left logo is used.",
+    noWatermark: "No watermark image — left logo will be used",
+    removeWatermark: "Remove watermark",
     noLogo: "No logo",
     chooseImage: "Choose image",
     removeLogo: "Remove logo",
@@ -1688,7 +1701,7 @@ export const en: MessageTree = {
       "Reports use the recorded cost of sold items. Customer debt collections affect cash, not sales profit.",
     dataTitle: "Protect your data",
     dataBody:
-      "Add backup folders on a connected drive. Install the daily schedule from the desktop app and test a recovery copy regularly.",
+      "Automatic daily copies go to this computer and every connected drive. Test a recovery copy regularly.",
     searchShortcut: "Search your store",
     closeShortcut: "Close a dialog",
   },

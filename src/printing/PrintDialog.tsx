@@ -226,17 +226,34 @@ export function PrintDialog({
           )}
           {baseDoc.billStyle === "saleShop" && (
             <div className="print-settings-group">
-              <Field label={t("printing.template")}>
-                <select
-                  value={options.template}
-                  onChange={(e) => update("template", e.target.value)}
-                >
-                  <option value="standard">
-                    {t("printing.standardTemplate")}
-                  </option>
-                  <option value="golden">{t("printing.goldenTemplate")}</option>
-                </select>
-              </Field>
+              <h3>{t("printing.template")}</h3>
+              <div
+                className="print-templates"
+                role="group"
+                aria-label={t("printing.template")}
+              >
+                {(
+                  [
+                    ["golden", "goldenTemplate"],
+                    ["standard", "standardTemplate"],
+                  ] as const
+                ).map(([id, label]) => (
+                  <button
+                    type="button"
+                    key={id}
+                    aria-pressed={options.template === id}
+                    className={options.template === id ? "selected" : ""}
+                    onClick={() => update("template", id)}
+                  >
+                    <span
+                      className={`template-thumb thumb-${id}`}
+                      aria-hidden="true"
+                    />
+                    <span>{t(`printing.${label}`)}</span>
+                    {options.template === id && <CheckIcon size={14} />}
+                  </button>
+                ))}
+              </div>
               <p className="muted">{t("printing.templateHint")}</p>
             </div>
           )}

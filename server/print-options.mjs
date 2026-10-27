@@ -11,6 +11,7 @@ export const PAPER_SIZES = Object.freeze({
 });
 export const LABEL_PAPERS = Object.freeze(["label29x18"]);
 export const PRINT_LAYOUTS = ["modern", "classic", "minimal", "compact"];
+export const SALE_TEMPLATES = Object.freeze(["golden", "standard"]);
 export const PRINT_THEMES = Object.freeze({
   charcoal: { accent: "#30323a", soft: "#f0f1f3", ink: "#20232b" },
   lime: { accent: "#526518", soft: "#f0f6d9", ink: "#273015" },

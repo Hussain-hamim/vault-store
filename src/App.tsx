@@ -406,6 +406,7 @@ export function App() {
           logo: status.store.logo_left || status.store.logo || "",
           logo_left: status.store.logo_left || status.store.logo || "",
           logo_right: status.store.logo_right || "",
+          watermark: status.store.watermark || "",
           bill_footer: status.store.bill_footer || "",
           language: next,
         });

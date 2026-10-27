@@ -21,6 +21,17 @@ export function digitsOnly(value) {
   return String(value || "").replace(/\D+/g, "");
 }
 
+/** Drop a local trunk 0 so 0764273409 is the same 9-digit Afghan number. */
+export function stripTrunkPrefix(country, national) {
+  const local = digitsOnly(national);
+  if (!local) return "";
+  const stripped = local.replace(/^0+/, "");
+  if (!stripped) return "";
+  if (stripped.length >= country.min && stripped.length <= country.max)
+    return stripped;
+  return local;
+}
+
 export function phoneCountryByCode(code) {
   const country =
     PHONE_COUNTRIES.find((c) => c.code === code) ||
@@ -48,20 +59,8 @@ export function parsePhone(value) {
   let country = phoneCountryByDial(raw);
   let national = raw;
   if (country) national = raw.slice(country.dial.length);
-  else {
-    country = phoneCountryByCode(DEFAULT_PHONE_COUNTRY);
-    // Local AF numbers often omit the country code.
-    if (
-      country.code === "AF" &&
-      raw.length >= country.min &&
-      raw.length <= country.max
-    )
-      national = raw;
-    else {
-      country = phoneCountryByCode(DEFAULT_PHONE_COUNTRY);
-      national = raw;
-    }
-  }
+  else country = phoneCountryByCode(DEFAULT_PHONE_COUNTRY);
+  national = stripTrunkPrefix(country, national);
   return {
     country,
     national,
@@ -77,14 +76,14 @@ export function formatPhoneDisplay(value) {
 
 export function buildE164(countryCode, national) {
   const country = phoneCountryByCode(countryCode);
-  const local = digitsOnly(national).replace(/^0+/, "");
+  const local = stripTrunkPrefix(country, national);
   if (!local) return "";
   return `${country.dial}${local}`;
 }
 
 export function validateNational(countryCode, national) {
   const country = phoneCountryByCode(countryCode);
-  const local = digitsOnly(national).replace(/^0+/, "");
+  const local = stripTrunkPrefix(country, national);
   if (!local) return { ok: true, empty: true, e164: "" };
   if (local.length < country.min || local.length > country.max)
     return {

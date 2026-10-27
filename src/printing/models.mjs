@@ -1,4 +1,23 @@
 import brand from "../../shared/brand.json" with { type: "json" };
+
+export function invoiceWhen(doc) {
+  const stamp = doc?.created_at;
+  if (!stamp) return doc?.date || "";
+  const d = new Date(stamp);
+  if (Number.isNaN(d.getTime())) return doc?.date || "";
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Kabul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(d);
+  const grab = (type) => parts.find((part) => part.type === type)?.value || "";
+  return `${grab("year")}-${grab("month")}-${grab("day")} ${grab("hour")}:${grab("minute")}`;
+}
+
 export function invoicePrintModel(
   doc,
   store,
@@ -34,7 +53,7 @@ export function invoicePrintModel(
     source: { type: "invoice", id: doc.id },
     title: t(kindKeys[doc.kind] || "invoice.title"),
     reference: doc.number,
-    subtitle: doc.date,
+    subtitle: invoiceWhen(doc),
     purchase,
     signatureLabel: doc.kind === "sale" ? t("invoice.customerSignature") : "",
     emptyLabel: t("reports.noRows"),
@@ -84,20 +103,6 @@ export function invoicePrintModel(
             {
               label: t("currencies.exchangeRate"),
               value: rate(doc.fx_rate),
-              numeric: true,
-            },
-          ]
-        : []),
-      ...(doc.kind === "sale" && doc.previous_balance != null
-        ? [
-            {
-              label: t("sales.previousBalance"),
-              value: money(doc.previous_balance, 2),
-              numeric: true,
-            },
-            {
-              label: t("sales.newBalance"),
-              value: money(doc.new_balance ?? doc.party_balance ?? 0, 2),
               numeric: true,
             },
           ]
@@ -161,12 +166,14 @@ export function invoicePrintModel(
       ? []
       : ["sale_return", "purchase_return"].includes(doc.kind)
         ? [
-            { label: t("invoice.total"), value: money(doc.total, 2) },
+            { key: "total", label: t("invoice.total"), value: money(doc.total, 2) },
             {
+              key: "returnCredit",
               label: t("currencies.returnCredit"),
               value: money(doc.total - doc.paid, 2),
             },
             {
+              key: doc.kind === "purchase_return" ? "refundReceived" : "refundPaid",
               label: t(
                 doc.kind === "purchase_return"
                   ? "currencies.refundReceived"
@@ -176,19 +183,39 @@ export function invoicePrintModel(
             },
           ]
         : [
-            { label: t("invoice.total"), value: money(doc.total, 2) },
+            { key: "total", label: t("invoice.total"), value: money(doc.total, 2) },
             {
+              key: "returned",
               label: t("invoice.returned"),
               value: money(doc.returned || 0, 2),
             },
-            { label: t("invoice.paid"), value: money(doc.paid, 2) },
+            { key: "paid", label: t("invoice.paid"), value: money(doc.paid, 2) },
             {
+              key: "outstanding",
               label: t("invoice.outstanding"),
               value: money(
                 Math.max(0, doc.total - (doc.returned || 0) - doc.paid),
                 2,
               ),
             },
+            ...(doc.kind === "sale" && doc.previous_balance
+              ? [
+                  {
+                    key: "previous",
+                    label: t("sales.previousBalance"),
+                    value: money(doc.previous_balance, 2),
+                  },
+                ]
+              : []),
+            ...(doc.kind === "sale" && doc.new_balance != null
+              ? [
+                  {
+                    key: "newBalance",
+                    label: t("sales.totalBalance"),
+                    value: money(doc.new_balance, 2),
+                  },
+                ]
+              : []),
           ],
     note: [
       doc.note,

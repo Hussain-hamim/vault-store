@@ -6,7 +6,7 @@ Automatic photos are illustrations for the category or accessory type, not phone
 
 Use Choose photo in Add/Edit product or new resale intake for the exact item. JPG, PNG and WebP are resized locally to a maximum 640-pixel edge and adaptively compressed as JPEG to at most 150,000 bytes. Existing saved photos are not recompressed. The source file limit is 12 MiB. After saving, another product with the same category, company and model can reuse that uploaded photo. Use automatic photo resets the current selection.
 
-Uploaded media is content-addressed and deduplicated in the separate SQLite product_photos table. Product rows keep only a short photo reference; images load near the viewport through a bounded cache. Creation/editing and photo writes commit together. Historical invoice references keep their original photos, and standard SQLite backups/restores include the media without depending on the original upload file.
+Uploaded media is content-addressed and deduplicated in the separate SQLite product_photos table. Product rows keep only a short photo reference; images load near the viewport through a bounded cache. Creation/editing and photo writes commit together. Historical invoice references keep their original photos in the live shop. Backup copies omit camera and file-system photo BLOBs and restore the bundled studio illustrations instead.
 
 Automated checks: npm test; npm run build; npm run test:photos:desktop. The desktop check uses a temporary database, tests brand/model changes and upload/reuse/reset, and then verifies the compiled desktop catalog with every HTTP/WebSocket request blocked. It does not take screenshots or modify the live store.
 

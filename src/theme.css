@@ -894,9 +894,14 @@ kbd {
 .settings-help .shortcut-list {
   padding: 3px 18px 18px;
 }
-.settings-section-capital,
-.settings-section-backups {
+.settings-section-capital {
   max-width: 1280px;
+}
+.settings-section-backups {
+  max-width: 960px;
+}
+.settings-section-backups .backups-page.page-content {
+  padding: 12px 16px 16px;
 }
 .settings-detail > .page-content {
   width: 100%;

@@ -39,13 +39,14 @@ export function validateRestore(file) {
     return {
       products: db.prepare("SELECT COUNT(*) n FROM products").get().n,
       documents: db.prepare("SELECT COUNT(*) n FROM documents").get().n,
+      checksum: hash,
     };
   } finally {
     db.close();
   }
 }
 export async function restoreDatabase(file, target) {
-  validateRestore(file);
+  const valid = validateRestore(file);
   const release = acquireMaintenanceLock(target);
   try {
     mkdirSync(path.dirname(target), { recursive: true });
@@ -77,13 +78,21 @@ export async function restoreDatabase(file, target) {
     }
     const temporary = target + ".restore-" + randomUUID();
     copyFileSync(file, temporary);
-    if (fileChecksum(temporary) !== fileChecksum(file)) {
+    if (
+      statSync(temporary).size !== statSync(file).size ||
+      fileChecksum(temporary) !== valid.checksum
+    ) {
       unlinkSync(temporary);
       throw new Error("Restore copy checksum mismatch.");
     }
     const fd = openSync(temporary, "r");
-    fsyncSync(fd);
-    closeSync(fd);
+    try {
+      fsyncSync(fd);
+    } catch (error) {
+      if (error.code !== "EPERM" && error.code !== "EACCES") throw error;
+    } finally {
+      closeSync(fd);
+    }
     for (const suffix of ["-wal", "-shm"])
       if (existsSync(target + suffix)) unlinkSync(target + suffix);
     renameSync(temporary, target);

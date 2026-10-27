@@ -12,6 +12,7 @@ import {
 } from "./inventory-units.mjs";
 import { productDraftCommand } from "./product-drafts.mjs";
 import { saveProductPhoto, readProductPhoto } from "./product-photos.mjs";
+import { stripCustomPhotosFromBackup } from "./backup-photos.mjs";
 import {
   DEFAULT_CURRENCIES,
   SUPPORTED_FLAG_COUNTRIES,
@@ -60,6 +61,7 @@ import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { fileChecksum } from "./files.mjs";
 import { acquireMaintenanceLock } from "./lock.mjs";
+export const MAX_BACKUP_COPIES = 30;
 export const PERMISSIONS = [
   "sales",
   "purchases",
@@ -365,6 +367,7 @@ export class Store {
       "backups",
       JSON.stringify({
         destinations: [],
+        allDrives: true,
         lastSuccess: null,
         retentionDays: 30,
       }),
@@ -407,6 +410,9 @@ export class Store {
         this.db.exec("UPDATE document_product_snapshots SET serialized=0");
         this.saveSetting("quantityOnlyStock", true);
       });
+    const backups = this.setting("backups");
+    if (backups.allDrives !== true)
+      this.saveSetting("backups", { ...backups, allDrives: true });
     if (demo && !this.one("SELECT id FROM users LIMIT 1")) this.seed();
     migrateUnits(this);
   }
@@ -2997,6 +3003,7 @@ export class Store {
       mkdirSync(staging, { recursive: true });
       snapshot = path.join(staging, `${id()}.sqlite`);
       await backup(this.db, snapshot);
+      stripCustomPhotosFromBackup(snapshot);
       const check = new DatabaseSync(snapshot, { readOnly: true });
       try {
         const integrity = check.prepare("PRAGMA integrity_check").get();
@@ -3007,6 +3014,10 @@ export class Store {
           throw new Error("Backup integrity verification failed.");
       } finally {
         check.close();
+      }
+      for (const suffix of ["-wal", "-shm"]) {
+        const extra = snapshot + suffix;
+        if (existsSync(extra)) unlinkSync(extra);
       }
       const size = statSync(snapshot).size,
         checksum = fileChecksum(snapshot);
@@ -3030,8 +3041,13 @@ export class Store {
           copyFileSync(snapshot, tmp);
           chmodSync(tmp, 0o600);
           const fd = openSync(tmp, "r");
-          fsyncSync(fd);
-          closeSync(fd);
+          try {
+            fsyncSync(fd);
+          } catch (error) {
+            if (error.code !== "EPERM" && error.code !== "EACCES") throw error;
+          } finally {
+            closeSync(fd);
+          }
           if (fileChecksum(tmp) !== checksum)
             throw new Error("Copied backup checksum does not match.");
           renameSync(tmp, target);
@@ -3108,44 +3124,46 @@ export class Store {
     }
   }
   rotateBackups(folder) {
-    const files = readdirSync(folder).filter((n) =>
-      /^vault-\d{4}-\d{2}-\d{2}-.+\.sqlite$/.test(n),
-    );
+    const names = () =>
+      readdirSync(folder).filter((n) =>
+        /^vault-\d{4}-\d{2}-\d{2}-.+\.sqlite$/.test(n),
+      );
+    const remove = (name) => {
+      const full = path.join(folder, name);
+      try {
+        unlinkSync(full);
+      } catch {}
+      try {
+        unlinkSync(full + ".json");
+      } catch {}
+    };
     const cutoff = new Date(Date.parse(today()) - 29 * 86400_000)
       .toISOString()
       .slice(0, 10);
-    for (const f of files) {
-      const full = path.join(folder, f),
-        manifest = full + ".json";
+    for (const f of names()) {
+      const manifest = path.join(folder, f + ".json");
       if (!existsSync(manifest)) continue;
       try {
         const m = JSON.parse(readFileSync(manifest, "utf8"));
         if (m.application !== "Vault Store" || m.schema !== 1) continue;
-        if (m.businessDate < cutoff) {
-          unlinkSync(full);
-          unlinkSync(manifest);
-        }
+        if (m.businessDate < cutoff) remove(f);
       } catch {}
     }
-    const byDay = new Map();
-    for (const f of files.sort().reverse()) {
-      const full = path.join(folder, f);
-      if (!existsSync(full) || !existsSync(full + ".json")) continue;
-      try {
-        const m = JSON.parse(readFileSync(full + ".json", "utf8"));
-        if (m.application !== "Vault Store" || m.schema !== 1) continue;
-        if (byDay.has(m.businessDate)) {
-          unlinkSync(full);
-          unlinkSync(full + ".json");
-        } else byDay.set(m.businessDate, f);
-      } catch {}
+    const kept = names().sort();
+    while (kept.length > MAX_BACKUP_COPIES) remove(kept.shift());
+  }
+  discoveredBackupTargets() {
+    try {
+      return discoverBackupTargets(this.file);
+    } catch {
+      return [path.dirname(path.resolve(this.file))];
     }
   }
   backupTargets(config = this.setting("backups")) {
     return [
       ...new Set([
         ...(config.destinations || []),
-        ...(config.allDrives ? discoverBackupTargets(this.file) : []),
+        ...this.discoveredBackupTargets(),
       ]),
     ];
   }
@@ -4016,7 +4034,7 @@ export class Store {
         this.saveSetting("backups", {
           ...this.setting("backups"),
           destinations,
-          ...(d.allDrives !== undefined ? { allDrives: d.allDrives } : {}),
+          allDrives: true,
           retryAfter: null,
         });
         this.audit(user, "Update backup destinations", "backups", {
@@ -4124,6 +4142,7 @@ export class Store {
             logo: logoField,
             logo_left: logoField,
             logo_right: logoField,
+            watermark: logoField,
             services: text.default(""),
             owner1_name: text.default(""),
             owner1_phone: text.default(""),
@@ -4155,6 +4174,7 @@ export class Store {
           language: d.language,
           logo_left: d.logo_left || d.logo ? "[logo updated]" : "",
           logo_right: d.logo_right ? "[logo updated]" : "",
+          watermark: d.watermark ? "[watermark updated]" : "",
         });
         return { ok: true };
       }

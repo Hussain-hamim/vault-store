@@ -45,7 +45,13 @@ function fixture(t, path = ":memory:") {
 }
 test("incomplete drafts are persistent private data, not inventory or accounting", async (t) => {
   const root = mkdtempSync(join(tmpdir(), "product-drafts-"));
-  t.after(() => rmSync(root, { recursive: true, force: true }));
+  t.after(() => {
+    try {
+      rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+    } catch (error) {
+      if (error.code !== "EBUSY") throw error;
+    }
+  });
   const path = join(root, "shop.sqlite");
   const f = fixture(t, path);
   const d = await f.call("productDraftSave", { intent: "catalog", data });
@@ -146,9 +152,15 @@ test("validation failure retains draft; purchase publication has no opening stoc
   assert.equal(r.product.stock, 0);
   assert.equal(f.s.one("SELECT COUNT(*) n FROM journal").n, 0);
 });
-test("draft photo deduplication, backup and restore include incomplete form and image", async (t) => {
+test("draft photo deduplication; backup restores form data with studio image", async (t) => {
   const root = mkdtempSync(join(tmpdir(), "draft-backup-"));
-  t.after(() => rmSync(root, { recursive: true, force: true }));
+  t.after(() => {
+    try {
+      rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+    } catch (error) {
+      if (error.code !== "EBUSY") throw error;
+    }
+  });
   const f = fixture(t, join(root, "shop.sqlite"));
   const photo_data =
     "data:image/jpeg;base64," +
@@ -169,6 +181,7 @@ test("draft photo deduplication, backup and restore include incomplete form and 
   const backup = await f.s.createBackup(f.s.auth(f.token), {
     destination: dest,
   });
+  assert.equal(f.s.one("SELECT COUNT(*) n FROM product_photos").n, 1);
   await restoreDatabase(backup.results[0].path, join(root, "restore.sqlite"));
   const restored = new Store(join(root, "restore.sqlite"));
   try {
@@ -178,10 +191,8 @@ test("draft photo deduplication, backup and restore include incomplete form and 
       f.token,
     );
     assert.deepEqual(r.data, data);
-    assert.equal(
-      (await restored.dispatch("productPhoto", { ref: r.image }, f.token)).src,
-      photo_data,
-    );
+    assert.equal(r.image, "/assets/laptop.png");
+    assert.equal(restored.one("SELECT COUNT(*) n FROM product_photos").n, 0);
   } finally {
     restored.close();
   }

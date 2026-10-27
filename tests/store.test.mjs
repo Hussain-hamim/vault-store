@@ -12,7 +12,7 @@ import {
 import os from "node:os";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { Store, today } from "../server/store.mjs";
+import { Store, today, MAX_BACKUP_COPIES } from "../server/store.mjs";
 import { validateRestore, restoreDatabase } from "../server/restore.mjs";
 import { scheduleDefinition } from "../server/schedule.mjs";
 const key = () => randomUUID();
@@ -272,7 +272,13 @@ test("period lock prevents backdated postings without partial records", async (t
 });
 test("backup verifies live WAL data, tolerates failed destinations, and restores on another file", async (t) => {
   const root = mkdtempSync(path.join(os.tmpdir(), "vault-test-"));
-  t.after(() => rmSync(root, { recursive: true, force: true }));
+  t.after(() => {
+    try {
+      rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+    } catch (error) {
+      if (error.code !== "EBUSY") throw error;
+    }
+  });
   const f = fixture(t, path.join(root, "live.sqlite"));
   purchase(f);
   sale(f);
@@ -306,7 +312,13 @@ test("backup verifies live WAL data, tolerates failed destinations, and restores
 });
 test("retention never deletes unrelated files and keeps manual snapshots for the window", async (t) => {
   const root = mkdtempSync(path.join(os.tmpdir(), "vault-retention-"));
-  t.after(() => rmSync(root, { recursive: true, force: true }));
+  t.after(() => {
+    try {
+      rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+    } catch (error) {
+      if (error.code !== "EBUSY") throw error;
+    }
+  });
   const f = fixture(t, path.join(root, "live.sqlite"));
   const folder = path.join(root, "Vault Store Backups");
   mkdirSync(folder);
@@ -328,6 +340,28 @@ test("retention never deletes unrelated files and keeps manual snapshots for the
     readFileSync(path.join(folder, "personal.sqlite"), "utf8"),
     "keep",
   );
+  const day = today();
+  for (let i = 0; i < MAX_BACKUP_COPIES + 2; i++) {
+    const name = `vault-${day}-${String(i).padStart(2, "0")}.sqlite`;
+    writeFileSync(path.join(folder, name), "copy");
+    writeFileSync(
+      path.join(folder, name + ".json"),
+      JSON.stringify({
+        application: "Vault Store",
+        schema: 1,
+        businessDate: day,
+        automatic: true,
+      }),
+    );
+  }
+  f.s.rotateBackups(folder);
+  const kept = readdirSync(folder).filter((n) =>
+    /^vault-\d{4}-\d{2}-\d{2}-.+\.sqlite$/.test(n),
+  );
+  assert.equal(kept.length, MAX_BACKUP_COPIES);
+  assert.equal(existsSync(path.join(folder, `vault-${day}-00.sqlite`)), false);
+  assert.equal(existsSync(path.join(folder, `vault-${day}-01.sqlite`)), false);
+  assert.equal(existsSync(path.join(folder, `vault-${day}-02.sqlite`)), true);
 });
 test("scheduler definitions quote paths safely for Windows and macOS", () => {
   const options = {
@@ -1985,7 +2019,13 @@ test("owner liabilities and owner recoveries stay separate in balance sheets, ca
 
 test("historical owner reports use their as-of date and customer resale survives backup/restore", async (t) => {
   const root = mkdtempSync(path.join(os.tmpdir(), "vault-resale-backup-"));
-  t.after(() => rmSync(root, { recursive: true, force: true }));
+  t.after(() => {
+    try {
+      rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+    } catch (error) {
+      if (error.code !== "EBUSY") throw error;
+    }
+  });
   const f = fixture(t, path.join(root, "store.sqlite"));
   const yesterday = new Date(Date.parse(today() + "T12:00:00Z") - 86400000)
     .toISOString()

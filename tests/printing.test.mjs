@@ -139,7 +139,9 @@ test("sale bills use the shop chrome; purchase bills keep the standard header", 
   assert.match(saleHtml, /sale-shop-bill/);
   assert.match(saleHtml, /Radefy TechMart/);
   assert.match(saleHtml, /رادیفي ټیکمارټ/);
-  assert.match(saleHtml, /Laptops · Mobiles · CCTV/);
+  assert.match(saleHtml, /Laptops/);
+  assert.match(saleHtml, /Mobiles/);
+  assert.match(saleHtml, /CCTV/);
   assert.match(saleHtml, /Ahmad/);
   assert.match(saleHtml, /Omar/);
   assert.match(saleHtml, /\+93 70 000 0001/);
@@ -189,6 +191,7 @@ test("logo/spec/footer switches, Arabic locales and offline assets survive previ
     showSpecs: false,
     showFooter: false,
     showLogo: false,
+    showWatermark: false,
   });
   assert.doesNotMatch(short, /Core i7|Thank you|<img/);
   assert.match(short, /SKU-001/);
@@ -708,6 +711,9 @@ test("invoice device identities remain printed when optional specifications are 
 test("golden stationery is bilingual, sale-only, escaped and preserves device/discount details", () => {
   const doc = model();
   doc.store.name_ps = "د کمپیوټر پلورنځی";
+  doc.store.watermark = "data:image/png;base64,d2F0ZXI=";
+  doc.store.owner1_name = "Ghouth";
+  doc.store.owner1_whatsapp = "0775662322";
   doc.lines[0].identity += " · DEVICE-001";
   const html = renderPrintDocument(doc, { template: "golden", theme: "mono" });
   assert.match(html, /golden-bill/);
@@ -716,8 +722,25 @@ test("golden stationery is bilingual, sale-only, escaped and preserves device/di
   assert.match(html, /DEVICE-001/);
   assert.match(html, /&lt;script&gt;/);
   assert.match(html, /discount/);
+  assert.match(html, /class="gold-watermark"/);
+  assert.match(html, /data:image\/png;base64,d2F0ZXI=/);
+  assert.match(html, /مسؤل/);
+  assert.match(html, /Ghouth/);
+  assert.match(html, /gold-icon-whatsapp/);
+  assert.doesNotMatch(html, /class="gold-details"/);
+  assert.doesNotMatch(html, /Recorded by/);
+  assert.doesNotMatch(html, /invoice\.recordedBy/);
+  assert.match(html, /<span>Total<\/span>/);
+  assert.match(html, /<span>Paid<\/span>/);
+  assert.match(html, /<span>Balance<\/span>/);
+  assert.doesNotMatch(html, /ټول/);
+  assert.doesNotMatch(html, /ورکړل شوي/);
   assert.equal((html.match(/class="row-number"/g) || []).length, 16);
   assert.match(html, /theme-golden/);
+  assert.doesNotMatch(
+    renderPrintDocument(doc, { template: "golden", showWatermark: false }),
+    /class="gold-watermark"/,
+  );
   assert.doesNotMatch(
     renderPrintDocument(
       { ...doc, billStyle: "standard" },
@@ -728,6 +751,94 @@ test("golden stationery is bilingual, sale-only, escaped and preserves device/di
   assert.equal(
     normalizePrintOptions({ template: "golden", paper: "receipt58" }).paper,
     "A4",
+  );
+});
+
+test("golden bills print Western LTR phones and isolate bilingual text in Pashto locale", async () => {
+  const { westernDigits } = await import("../src/printing/bidi.mjs");
+  assert.equal(westernDigits("۰۷۷۵۶۶۲۳۲۲"), "0775662322");
+  assert.equal(westernDigits("٠٧٠٠٠٠٠٠٠١"), "0700000001");
+  const doc = model();
+  doc.locale = "ps";
+  doc.store.name_ps = "د کمپیوټر پلورنځی";
+  doc.store.address_ps = "کابل، افغانستان";
+  doc.store.address = "Kabul, Afghanistan";
+  doc.store.services = "لپټاپ · Laptops · Mobiles";
+  doc.store.owner1_name = "Ghouth";
+  doc.store.owner1_whatsapp = "۰۷۷۵۶۶۲۳۲۲";
+  doc.store.owner1_phone = "٠٧٠٠٠٠٠٠٠١";
+  const html = renderPrintDocument(doc, { template: "golden" });
+  assert.match(html, /lang="ps" dir="ltr"/);
+  assert.match(html, /class="ltr-phone" dir="ltr">0775662322/);
+  assert.match(html, /class="ltr-phone" dir="ltr">0700000001/);
+  assert.doesNotMatch(html, /۰۷۷۵۶۶۲۳۲۲/);
+  assert.doesNotMatch(html, /٠٧٠٠٠٠٠٠٠١/);
+  assert.match(html, /gold-icon-whatsapp/);
+  assert.match(html, /gold-icon-phone/);
+  assert.match(html, /class="gold-bi"/);
+  assert.match(html, /lang="ps" dir="rtl">نوم<\/span>/);
+  assert.match(html, /lang="ps" dir="rtl">کابل، افغانستان<\/p>/);
+  assert.match(html, /dir="ltr">Kabul, Afghanistan<\/p>/);
+  assert.match(html, /dir="rtl">لپټاپ<\/span> · <span dir="ltr">Laptops<\/span>/);
+});
+
+test("golden bills omit metadata, print English totals, time, RTL owners and contact icons", () => {
+  const doc = invoicePrintModel(
+    {
+      ...invoice,
+      created_at: "2026-10-27T12:35:03.855Z",
+      previous_balance: 100000,
+      new_balance: 180000,
+    },
+    {
+      name: "Test Store",
+      owner1_name: "Ahmad",
+      owner1_phone: "+93 70 000 0001",
+      owner1_whatsapp: "0775662322",
+      owner2_name: "Omar",
+      owner2_whatsapp: "0780000000",
+    },
+    context,
+  );
+  const html = renderPrintDocument(doc, { template: "golden" });
+  assert.match(html, /2026-10-27 17:05/);
+  assert.match(html, /مسؤلين:/);
+  assert.doesNotMatch(html, /مسؤل:/);
+  assert.match(html, /gold-icon-whatsapp/);
+  assert.match(html, /gold-icon-phone/);
+  assert.match(html, /<span>Previous balance<\/span>/);
+  assert.match(html, /<span>Total balance<\/span>/);
+  assert.doesNotMatch(html, /class="gold-details"/);
+  assert.doesNotMatch(html, /invoice\.recordedBy/);
+  assert.doesNotMatch(html, /sales\.previousBalance/);
+});
+
+test("sale invoices watermark the line grid with a dedicated image or the left logo", () => {
+  const doc = model();
+  doc.store.logo_left = "data:image/png;base64,YWJj";
+  const fromLogo = renderPrintDocument(doc, { template: "golden" });
+  assert.match(
+    fromLogo,
+    /class="gold-watermark" src="data:image\/png;base64,YWJj"/,
+  );
+  doc.store.watermark = "data:image/png;base64,d2F0ZXI=";
+  const custom = renderPrintDocument(doc, { template: "golden" });
+  assert.match(
+    custom,
+    /class="gold-watermark" src="data:image\/png;base64,d2F0ZXI="/,
+  );
+  assert.doesNotMatch(
+    custom,
+    /class="gold-watermark" src="data:image\/png;base64,YWJj"/,
+  );
+  const letterhead = renderPrintDocument(doc, { template: "standard" });
+  assert.match(
+    letterhead,
+    /class="standard-watermark" src="data:image\/png;base64,d2F0ZXI="/,
+  );
+  assert.doesNotMatch(
+    renderPrintDocument(doc, { template: "standard", showWatermark: false }),
+    /class="standard-watermark"/,
   );
 });
 
@@ -745,6 +856,9 @@ test("print preferences isolate sales, purchase invoices and customer/supplier l
     preferenceGroup: "purchase",
   };
   assert.equal(readPrintPreferences(sale, storage).layout, "classic");
+  assert.equal(readPrintPreferences(sale, storage).template, "golden");
+  records.set(printPreferenceKey(sale), JSON.stringify({ template: "standard" }));
+  assert.equal(readPrintPreferences(sale, storage).template, "standard");
   records.set(printPreferenceKey(sale), JSON.stringify({ template: "golden" }));
   assert.equal(readPrintPreferences(sale, storage).template, "golden");
   assert.equal(readPrintPreferences(purchase, storage).template, "standard");

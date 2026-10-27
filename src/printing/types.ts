@@ -47,6 +47,7 @@ export type PrintDocument = {
     logo?: string;
     logo_left?: string;
     logo_right?: string;
+    watermark?: string;
     services?: string;
     owner1_name?: string;
     owner1_phone?: string;
@@ -58,7 +59,12 @@ export type PrintDocument = {
   };
   metadata?: { label: string; value: string | number; numeric?: boolean }[];
   sections?: PrintSection[];
-  summary?: { label: string; value: string | number; tone?: string }[];
+  summary?: {
+    key?: string;
+    label: string;
+    value: string | number;
+    tone?: string;
+  }[];
   lines?: {
     name: string;
     identity: string;

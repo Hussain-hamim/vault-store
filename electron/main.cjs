@@ -904,8 +904,18 @@ async function start() {
     60_000,
   );
   timer.unref();
-  if (licensing.state.active)
+  if (licensing.state.active) {
     db.request("_automaticBackup").catch((e) => console.error(e.message));
+    import(pathToFileURL(path.join(serviceRoot, "schedule.mjs")).href)
+      .then(({ installSchedule }) =>
+        installSchedule({
+          executable: process.execPath,
+          appPath: app.isPackaged ? null : app.getAppPath(),
+          userData: app.getPath("userData"),
+        }),
+      )
+      .catch((e) => console.error("Backup schedule:", e.message));
+  }
 }
 app
   .whenReady()

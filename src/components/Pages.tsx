@@ -8,9 +8,7 @@ import {
   ArrowUpRightIcon,
   DownloadSimpleIcon,
   FolderIcon,
-  ShieldCheckIcon,
   CheckCircleIcon,
-  ClockIcon,
   WarningCircleIcon,
   ArrowClockwiseIcon,
   UsersIcon,
@@ -2309,7 +2307,6 @@ export { ReportsPage } from "./ReportsPage";
 export function BackupsPage({ refresh, toast }: PageProps) {
   const t = useT();
   const { data, error } = useLoad<any>("backups", {}, refresh);
-  const [allDrives, setAllDrives] = useState(false);
   const [availableTargets, setAvailableTargets] = useState<string[]>([]);
   const [lastSuccess, setLastSuccess] = useState<string | null>(null);
   const [destinations, setDestinations] = useState<string[]>([]),
@@ -2321,7 +2318,6 @@ export function BackupsPage({ refresh, toast }: PageProps) {
   useEffect(() => {
     if (data) {
       setDestinations(data.config.destinations);
-      setAllDrives(!!data.config.allDrives);
       setAvailableTargets(data.availableTargets || []);
       setLastSuccess(data.config.lastSuccess);
       setRuns(data.runs);
@@ -2337,14 +2333,10 @@ export function BackupsPage({ refresh, toast }: PageProps) {
         })
         .catch((e) => setLocalError(e.message));
   }, [version]);
-  async function save(list: string[], includeDrives = allDrives) {
+  async function save(list: string[]) {
     setLocalError("");
     try {
-      await api("backupSettings", {
-        destinations: list,
-        allDrives: includeDrives,
-      });
-      setAllDrives(includeDrives);
+      await api("backupSettings", { destinations: list });
       setVersion((v) => v + 1);
       setDestinations(list);
       toast(t("backups.destinationsSaved"));
@@ -2415,80 +2407,55 @@ export function BackupsPage({ refresh, toast }: PageProps) {
       setLocalError(e.message);
     }
   }
+  const driveChips = availableTargets.filter((d) => !destinations.includes(d));
   return (
-    <div className="page-content">
-      <PageIntro
-        eyebrow={t("backups.eyebrow")}
-        title={t("backups.title")}
-        description={t("backups.description")}
-        action={
-          <button
-            className="button button-dark"
-            disabled={busy || (!destinations.length && !allDrives)}
-            onClick={run}
-          >
-            <ArrowClockwiseIcon size={16} className={busy ? "spin" : ""} />
+    <div className="page-content backups-page">
+      <div className="backups-toolbar">
+        <p className="backup-always-on">{t("backups.allDrives")}</p>
+        <div className="backups-toolbar-actions">
+          <button className="button button-dark" disabled={busy} onClick={run}>
+            <ArrowClockwiseIcon size={15} className={busy ? "spin" : ""} />
             {busy ? t("common.loading") : t("backups.runNow")}
           </button>
-        }
-      />
-      <ErrorMessage error={error || localError} />
-      <div className="metrics-row">
-        <Metric
-          label={t("backups.schedule")}
-          value={t("backups.every24")}
-          detail={t("backups.scheduleDetail")}
-        />
-        <Metric
-          label={t("backups.dailyHistory")}
-          value={t("backups.retentionDays")}
-          detail={t("backups.oneSnapshot")}
-        />
-        <Metric
-          label={t("backups.lastFullCopy")}
-          value={
-            lastSuccess
-              ? new Date(lastSuccess).toLocaleDateString()
-              : t("backups.never")
-          }
-          detail={t("backups.destinationsVerifyHint")}
-        />
+          <button className="button" onClick={restore}>
+            <DatabaseIcon size={15} />
+            {t("backups.chooseBackupRestore")}
+          </button>
+        </div>
       </div>
-      <div className="settings-grid">
-        <section className="panel settings-card">
-          <div className="panel-heading">
-            <h3>
-              <HardDrivesIcon size={18} />
-              {t("backups.destinations")}
-            </h3>
-            <Badge tone="gray">
-              {t("backups.foldersCount", { n: allDrives ? availableTargets.length : destinations.length })}
-            </Badge>
+      <ErrorMessage error={error || localError} />
+      <section className="panel backups-setup">
+        <div className="backups-meta">
+          <span>
+            {t("backups.every24")} · {t("backups.keepCopies")}
+          </span>
+          <span>
+            {t("backups.lastFullCopy")}:{" "}
+            {lastSuccess
+              ? new Date(lastSuccess).toLocaleDateString()
+              : t("backups.never")}
+          </span>
+          {window.vault ? (
+            <button className="text-button" disabled={busy} onClick={schedule}>
+              {t("backups.installScheduleBtn")}
+            </button>
+          ) : null}
+        </div>
+        {driveChips.length ? (
+          <div className="backup-chips" aria-label={t("backups.connectedDrives")}>
+            {driveChips.map((d) => (
+              <span className="backup-chip" key={d} title={d}>
+                <HardDrivesIcon size={12} />
+                {d}
+              </span>
+            ))}
           </div>
-          <label className="checkbox-field">
-            <input
-              type="checkbox"
-              checked={allDrives}
-              disabled={busy}
-              onChange={(e) => save(destinations, e.target.checked)}
-            />
-            {t("backups.allDrives")}
-          </label>
-          <p className="muted">{t("backups.allDrivesHint")}</p>
-          {allDrives && (
-            <ul>
-              {availableTargets
-                .filter((d) => !destinations.includes(d))
-                .map((d) => (
-                  <li key={d}>{d}</li>
-                ))}
-            </ul>
-          )}
-          <p className="muted">{t("backups.destinationsIntro")}</p>
+        ) : null}
+        {destinations.length ? (
           <div className="destination-list">
             {destinations.map((d, i) => (
               <div key={d}>
-                <FolderIcon size={21} />
+                <FolderIcon size={16} />
                 <span>{d}</span>
                 <button
                   className="text-button"
@@ -2499,110 +2466,91 @@ export function BackupsPage({ refresh, toast }: PageProps) {
               </div>
             ))}
           </div>
-          {window.vault ? (
-            <button className="button" onClick={pick}>
-              <PlusIcon size={15} />
-              {t("backups.chooseFolder")}
+        ) : null}
+        {window.vault ? (
+          <button className="button" onClick={pick}>
+            <PlusIcon size={14} />
+            {t("backups.chooseFolder")}
+          </button>
+        ) : (
+          <form
+            className="inline-actions"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (path.trim()) {
+                save([...destinations, path.trim()]);
+                setPath("");
+              }
+            }}
+          >
+            <input
+              aria-label={t("backups.folderPathAria")}
+              placeholder={t("backups.folderPathPh")}
+              value={path}
+              onChange={(e) => setPath(e.target.value)}
+              required
+            />
+            <button className="button" type="submit">
+              <PlusIcon size={14} />
+              {t("backups.addFolder")}
             </button>
-          ) : (
-            <form
-              className="inline-actions"
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (path.trim()) {
-                  save([...destinations, path.trim()]);
-                  setPath("");
-                }
-              }}
-            >
-              <input
-                aria-label={t("backups.folderPathAria")}
-                placeholder={t("backups.folderPathPh")}
-                value={path}
-                onChange={(e) => setPath(e.target.value)}
-                required
-              />
-              <button className="button" type="submit">
-                <PlusIcon size={15} />
-                {t("backups.addFolder")}
-              </button>
-            </form>
-          )}
-          <div className="info-box">
-            <ShieldCheckIcon size={18} />
-            <p>{t("backups.securityTip")}</p>
-          </div>
-        </section>
-        <section className="panel settings-card">
-          <div className="panel-heading">
-            <h3>
-              <ClockIcon size={18} />
-              {t("backups.scheduleRestore")}
-            </h3>
-          </div>
-          <p className="muted">{t("backups.scheduleRestoreHint")}</p>
-          <button className="button full" disabled={busy} onClick={schedule}>
-            {t("backups.installScheduleBtn")} <ArrowRightIcon size={15} />
-          </button>
-          <div className="divider" />
-          <h3>{t("backups.restoreSectionTitle")}</h3>
-          <p className="muted">{t("backups.restoreSectionHint")}</p>
-          <button className="button full" onClick={restore}>
-            <DatabaseIcon size={16} />
-            {t("backups.chooseBackupRestore")}
-          </button>
-          <small className="subtle">{t("backups.encryptionTip")}</small>
-        </section>
-      </div>
-      <section className="panel">
+          </form>
+        )}
+      </section>
+      <section className="panel backups-history">
         <div className="panel-heading padded">
           <h3>{t("backups.historyTitle")}</h3>
-          <span className="subtle">{t("backups.historyLatest")}</span>
         </div>
-        <div className="table-wrap">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>{t("backups.colCreated")}</th>
-                <th>{t("backups.colDestination")}</th>
-                <th>{t("backups.colSize")}</th>
-                <th>{t("common.status")}</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {runs.map((r) => (
-                <tr key={r.id}>
-                  <td>{new Date(r.created_at).toLocaleString()}</td>
-                  <td className="path-cell" title={r.path}>
-                    {r.path}
-                    <small className="block muted">{r.message}</small>
-                  </td>
-                  <td>
-                    {r.size
-                      ? t("backups.sizeMb", {
-                          size: (r.size / 1024 / 1024).toFixed(2),
-                        })
-                      : EM_DASH}
-                  </td>
-                  <td>
-                    <Badge tone={r.status === "verified" ? "green" : "red"}>
-                      {backupStatusLabel(r.status, t)}
-                    </Badge>
-                  </td>
-                  <td>
-                    {r.status === "verified" && (
-                      <button className="text-button" onClick={() => verify(r)}>
-                        {t("backups.verifyBtn")}
-                      </button>
-                    )}
-                  </td>
+        {runs.length ? (
+          <div className="table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>{t("backups.colCreated")}</th>
+                  <th>{t("backups.colDestination")}</th>
+                  <th>{t("backups.colSize")}</th>
+                  <th>{t("common.status")}</th>
+                  <th />
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {!runs.length && (
+              </thead>
+              <tbody>
+                {runs.map((r) => (
+                  <tr key={r.id}>
+                    <td>{new Date(r.created_at).toLocaleString()}</td>
+                    <td className="path-cell" title={r.path}>
+                      {r.path}
+                      {r.message ? (
+                        <small className="block muted">{r.message}</small>
+                      ) : null}
+                    </td>
+                    <td>
+                      {r.size
+                        ? t("backups.sizeMb", {
+                            size: (r.size / 1024 / 1024).toFixed(2),
+                          })
+                        : EM_DASH}
+                    </td>
+                    <td>
+                      <Badge tone={r.status === "verified" ? "green" : "red"}>
+                        {backupStatusLabel(r.status, t)}
+                      </Badge>
+                    </td>
+                    <td>
+                      {r.status === "verified" && (
+                        <button
+                          className="text-button"
+                          onClick={() => verify(r)}
+                        >
+                          {t("backups.verifyBtn")}
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
           <Empty
             title={t("backups.emptyRecoveryTitle")}
             text={t("backups.emptyRecoveryText")}
@@ -2648,16 +2596,19 @@ export function SettingsPage({
     [audit, setAudit] = useState<any[]>([]),
     [logoLeft, setLogoLeft] = useState(""),
     [logoRight, setLogoRight] = useState(""),
+    [watermark, setWatermark] = useState(""),
     [language, setLanguage] = useState<Locale>(locale);
   useEffect(() => {
     setLogoLeft(data?.store?.logo_left || data?.store?.logo || "");
     setLogoRight(data?.store?.logo_right || "");
+    setWatermark(data?.store?.watermark || "");
     const lang = data?.store?.language;
     if (lang === "en" || lang === "ps" || lang === "prs") setLanguage(lang);
   }, [
     data?.store?.logo,
     data?.store?.logo_left,
     data?.store?.logo_right,
+    data?.store?.watermark,
     data?.store?.language,
     refresh,
   ]);
@@ -2685,6 +2636,7 @@ export function SettingsPage({
         logo: logoLeft,
         logo_left: logoLeft,
         logo_right: logoRight,
+        watermark,
         language,
       });
       setLocale(language);
@@ -2934,6 +2886,41 @@ export function SettingsPage({
                 ))}
               </div>
               <Field
+                label={t("settings.watermark")}
+                hint={t("settings.watermarkHint")}
+              >
+                <div className="bill-logo-preview">
+                  {watermark ? (
+                    <img src={watermark} alt="" />
+                  ) : (
+                    <span className="muted">{t("settings.noWatermark")}</span>
+                  )}
+                </div>
+                <div className="bill-logo-actions">
+                  <label className="button">
+                    {t("settings.chooseImage")}
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/gif"
+                      hidden
+                      onChange={(e) => {
+                        onLogoFile(e.target.files?.[0] || null, setWatermark);
+                        e.target.value = "";
+                      }}
+                    />
+                  </label>
+                  {watermark ? (
+                    <button
+                      type="button"
+                      className="button"
+                      onClick={() => setWatermark("")}
+                    >
+                      {t("settings.removeWatermark")}
+                    </button>
+                  ) : null}
+                </div>
+              </Field>
+              <Field
                 label={t("settings.services")}
                 hint={t("settings.servicesHint")}
               >
@@ -2963,6 +2950,7 @@ export function SettingsPage({
                     <input
                       name={`${prefix}_phone`}
                       dir="ltr"
+                      data-digits="western"
                       defaultValue={data.store[`${prefix}_phone`] || ""}
                     />
                   </Field>
@@ -2970,6 +2958,7 @@ export function SettingsPage({
                     <input
                       name={`${prefix}_whatsapp`}
                       dir="ltr"
+                      data-digits="western"
                       defaultValue={data.store[`${prefix}_whatsapp`] || ""}
                     />
                   </Field>
@@ -2977,7 +2966,12 @@ export function SettingsPage({
               ))}
               <div className="form-grid">
                 <Field label={t("common.phone")}>
-                  <input name="phone" defaultValue={data.store.phone || ""} />
+                  <input
+                    name="phone"
+                    dir="ltr"
+                    data-digits="western"
+                    defaultValue={data.store.phone || ""}
+                  />
                 </Field>
                 <Field label={t("common.email")}>
                   <input

@@ -11,12 +11,6 @@ import {
 } from "../../shared/phone.mjs";
 import { Field } from "./ui";
 
-function flagEmoji(code: string) {
-  return code
-    .toUpperCase()
-    .replace(/./g, (c) => String.fromCodePoint(127397 + c.charCodeAt(0)));
-}
-
 export function PhoneField({
   name = "phone",
   label,
@@ -24,6 +18,7 @@ export function PhoneField({
   required = false,
   value,
   onChange,
+  showCountry = true,
 }: {
   name?: string;
   label: string;
@@ -31,6 +26,7 @@ export function PhoneField({
   required?: boolean;
   value?: string;
   onChange?: (e164: string) => void;
+  showCountry?: boolean;
 }) {
   const { t, locale } = useI18n();
   const initial = useMemo(() => parsePhone(defaultValue || value || ""), []);
@@ -54,25 +50,32 @@ export function PhoneField({
   }
   return (
     <Field label={label}>
-      <div className="phone-field">
-        <select
-          aria-label={t("phone.country")}
-          value={countryCode}
-          onChange={(e) => {
-            setCountryCode(e.target.value);
-            emit(e.target.value, national);
-          }}
-        >
-          {PHONE_COUNTRIES.map((c) => (
-            <option key={c.code} value={c.code}>
-              {flagEmoji(c.code)} +{c.dial} ·{" "}
-              {names.of(c.code) || c.name}
-            </option>
-          ))}
-        </select>
-        <span className="phone-dial" dir="ltr">
-          +{country.dial}
-        </span>
+      <div
+        className={
+          showCountry ? "phone-field" : "phone-field phone-field-simple"
+        }
+      >
+        {showCountry ? (
+          <select
+            aria-label={t("phone.country")}
+            dir="ltr"
+            value={countryCode}
+            onChange={(e) => {
+              setCountryCode(e.target.value);
+              emit(e.target.value, national);
+            }}
+          >
+            {PHONE_COUNTRIES.map((c) => (
+              <option
+                key={c.code}
+                value={c.code}
+                title={names.of(c.code) || c.name}
+              >
+                +{c.dial}
+              </option>
+            ))}
+          </select>
+        ) : null}
         <input
           name={`${name}_national`}
           type="tel"
@@ -82,10 +85,23 @@ export function PhoneField({
           data-digits="western"
           required={required}
           value={national}
-          maxLength={country.max + 2}
+          maxLength={country.max + country.dial.length + 2}
           placeholder={t("phone.nationalPh", { n: country.max })}
           onChange={(e) => {
-            const next = digitsOnly(e.target.value).slice(0, country.max);
+            const raw = digitsOnly(e.target.value);
+            const pasted = parsePhone(raw.startsWith("0") ? raw : `+${raw}`);
+            if (
+              raw.length > country.max &&
+              pasted.national &&
+              pasted.national !== raw
+            ) {
+              setCountryCode(pasted.country.code);
+              setNational(pasted.national);
+              emit(pasted.country.code, pasted.national);
+              return;
+            }
+            const trunk = raw.startsWith("0") ? 1 : 0;
+            const next = raw.slice(0, country.max + trunk);
             setNational(next);
             emit(countryCode, next);
           }}

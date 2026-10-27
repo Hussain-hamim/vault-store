@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
 import { Store } from "../server/store.mjs";
+import { DatabaseSync } from "../server/sqlite.mjs";
 import { validateRestore, restoreDatabase } from "../server/restore.mjs";
 import {
   automaticProductPhoto,
@@ -319,9 +320,15 @@ test("resale intake saves a new product photo in the same custody transaction", 
   );
   assert.equal(f.s.totals().net, 0);
 });
-test("photos survive a verified SQLite backup and restore on another computer profile", async (t) => {
+test("backup copies omit camera photos and restore studio images with shop data intact", async (t) => {
   const root = mkdtempSync(join(tmpdir(), "radefy-photo-backup-"));
-  t.after(() => rmSync(root, { recursive: true, force: true }));
+  t.after(() => {
+    try {
+      rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+    } catch (error) {
+      if (error.code !== "EBUSY") throw error;
+    }
+  });
   const f = fixture(t, join(root, "store.sqlite"));
   const p = await f.s.dispatch(
     "productCreate",
@@ -333,18 +340,35 @@ test("photos survive a verified SQLite backup and restore on another computer pr
   const backup = await f.s.createBackup(f.user, { destination: folder });
   const file = backup.results[0].path;
   assert.equal(backup.results[0].status, "verified");
+  assert.equal(f.s.one("SELECT COUNT(*) n FROM product_photos").n, 1);
+  assert.match(
+    f.s.one("SELECT image FROM products WHERE id=?", p.id).image,
+    /^photo:/,
+  );
+  const copy = new DatabaseSync(file, { readOnly: true });
+  try {
+    assert.equal(copy.prepare("SELECT COUNT(*) n FROM product_photos").get().n, 0);
+    assert.equal(
+      copy.prepare("SELECT image FROM products WHERE id=?").get(p.id).image,
+      "/assets/laptop.png",
+    );
+  } finally {
+    copy.close();
+  }
   assert.equal(validateRestore(file).products, 1);
   const target = join(root, "restored.sqlite");
   await restoreDatabase(file, target);
   const restored = new Store(target);
   try {
-    const ref = restored.one(
-      "SELECT image FROM products WHERE id=?",
-      p.id,
-    ).image;
     assert.equal(
-      (await restored.dispatch("productPhoto", { ref }, f.token)).src,
-      data(png, "png"),
+      restored.one("SELECT image FROM products WHERE id=?", p.id).image,
+      "/assets/laptop.png",
+    );
+    assert.equal(restored.one("SELECT COUNT(*) n FROM product_photos").n, 0);
+    assert.equal(restored.one("SELECT COUNT(*) n FROM products").n, 1);
+    assert.deepEqual(
+      restored.one("SELECT name,sku,stock FROM products WHERE id=?", p.id),
+      f.s.one("SELECT name,sku,stock FROM products WHERE id=?", p.id),
     );
   } finally {
     restored.close();

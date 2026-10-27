@@ -22,23 +22,27 @@ export function discoverBackupTargets(
       }
     }
   } else if (platform === "win32") {
-    const output = run(
-      "powershell.exe",
-      [
-        "-NoProfile",
-        "-NonInteractive",
-        "-Command",
-        "Get-CimInstance Win32_LogicalDisk | Where-Object { $_.DriveType -in 2,3,4 -and $_.Size -gt 0 } | Select-Object -ExpandProperty DeviceID",
-      ],
-      { encoding: "utf8", windowsHide: true, timeout: 15000 },
-    );
-    const systemRoot = path.win32.parse(file).root.toLowerCase();
-    for (const drive of output.trim().split(/\r?\n/)) {
-      if (
-        /^[A-Z]:$/i.test(drive.trim()) &&
-        `${drive.trim()}\\`.toLowerCase() !== systemRoot
-      )
-        targets.push(`${drive.trim()}\\`);
+    try {
+      const output = run(
+        "powershell.exe",
+        [
+          "-NoProfile",
+          "-NonInteractive",
+          "-Command",
+          "Get-CimInstance Win32_LogicalDisk | Where-Object { $_.DriveType -in 2,3,4 -and $_.Size -gt 0 } | Select-Object -ExpandProperty DeviceID",
+        ],
+        { encoding: "utf8", windowsHide: true, timeout: 15000 },
+      );
+      const systemRoot = path.win32.parse(file).root.toLowerCase();
+      for (const drive of output.trim().split(/\r?\n/)) {
+        if (
+          /^[A-Z]:$/i.test(drive.trim()) &&
+          `${drive.trim()}\\`.toLowerCase() !== systemRoot
+        )
+          targets.push(`${drive.trim()}\\`);
+      }
+    } catch {
+      /* local system-disk copy still returned */
     }
   }
   return [...new Set(targets)];

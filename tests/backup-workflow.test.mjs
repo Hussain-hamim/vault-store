@@ -9,9 +9,11 @@ import { discoverBackupTargets, backupDue } from "../server/backup-targets.mjs";
 import { scheduleDefinition } from "../server/schedule.mjs";
 test("24-hour destination timing, retries, new drives and restorable safety copies", async (t) => {
   const root = mkdtempSync(path.join(os.tmpdir(), "radefy-backup-flow-"));
-  t.after(() => rmSync(root, { recursive: true, force: true }));
   const store = new Store(path.join(root, "live.sqlite"));
-  t.after(() => store.close());
+  t.after(() => {
+    store.close();
+    rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+  });
   const session = store.setup({
     name: "Owner",
     username: "owner",
@@ -30,6 +32,7 @@ test("24-hour destination timing, retries, new drives and restorable safety copi
   const a = path.join(root, "drive-a"),
     b = path.join(root, "drive-b");
   mkdirSync(a);
+  store.discoveredBackupTargets = () => [];
   store.saveSetting("backups", { destinations: [a, b] });
   const first = await store.automaticBackup();
   assert.deepEqual(
@@ -64,6 +67,34 @@ test("24-hour destination timing, retries, new drives and restorable safety copi
   assert.equal(backupDue(new Date().toISOString()), false);
   assert.equal(backupDue("invalid"), true);
 });
+test("automatic backups always copy to discovered drives without an opt-in", async (t) => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "radefy-backup-always-"));
+  const store = new Store(path.join(root, "live.sqlite"));
+  t.after(() => {
+    store.close();
+    rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+  });
+  const session = store.setup({
+    name: "Owner",
+    username: "owner",
+    password: "test-password-long",
+    storeName: "Always backup",
+  });
+  const usb = path.join(root, "usb");
+  mkdirSync(usb);
+  store.discoveredBackupTargets = () => [usb];
+  store.saveSetting("backups", { destinations: [], allDrives: false });
+  const result = await store.automaticBackup();
+  assert.equal(result.results.length, 1);
+  assert.equal(result.results[0].status, "verified");
+  assert.ok(result.results[0].path.startsWith(usb));
+  await store.dispatch(
+    "backupSettings",
+    { destinations: [], allDrives: false },
+    session.token,
+  );
+  assert.equal(store.setting("backups").allDrives, true);
+});
 test("drive discovery includes local disk and mounted volumes; Windows excludes optical disks and pins scheduled profile", (t) => {
   const root = mkdtempSync(path.join(os.tmpdir(), "radefy-drives-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
@@ -73,7 +104,10 @@ test("drive discovery includes local disk and mounted volumes; Windows excludes 
       platform: "darwin",
       volumes: root,
     }),
-    ["/shop", path.join(root, "USB")],
+    [
+      path.dirname(path.resolve("/shop/live.sqlite")),
+      path.join(root, "USB"),
+    ],
   );
   let script = "";
   const targets = discoverBackupTargets("C:\\Shop\\vault.sqlite", {

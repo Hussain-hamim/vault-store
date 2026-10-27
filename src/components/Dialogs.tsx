@@ -24,6 +24,7 @@ import {
   DownloadSimpleIcon,
   BarcodeIcon,
   WhatsappLogoIcon,
+  PhoneIcon,
   FloppyDiskIcon,
 } from "@phosphor-icons/react";
 import {
@@ -39,6 +40,7 @@ import {
   fxRateInput,
   moneyInput,
   sanitizeNumericInput,
+  normalizeDigits,
   requestKey,
   businessDate,
   Product,
@@ -48,7 +50,7 @@ import {
 } from "../api";
 import { useT, useI18n } from "../i18n";
 import { PrintDialog, ReportPrintButton } from "../printing/PrintDialog";
-import { invoicePrintModel } from "../printing/models.mjs";
+import { invoicePrintModel, invoiceWhen } from "../printing/models.mjs";
 import { barcodeLabelDocument } from "../printing/barcode-label.mjs";
 import type { PrintDocument } from "../printing/types";
 import { generateProductBarcode } from "../barcode/generate.mjs";
@@ -810,6 +812,7 @@ export function TradeForm({
                                   label={t("party.phone")}
                                   defaultValue={customerPhone}
                                   onChange={setCustomerPhone}
+                                  showCountry={false}
                                 />
                               </div>
                             </>
@@ -2832,7 +2835,9 @@ export function InvoiceDialog({
   return (
     <Modal
       title={doc?.number || t("invoice.title")}
-      subtitle={doc ? `${kindTitle} · ${doc.date}` : t("invoice.loading")}
+      subtitle={
+        doc ? `${kindTitle} · ${invoiceWhen(doc)}` : t("invoice.loading")
+      }
       onClose={close}
       wide
       className={returning ? "invoice-return-dialog" : ""}
@@ -2858,7 +2863,7 @@ export function InvoiceDialog({
                     />
                   )}
                   <div className="sale-shop-preview-titles">
-                    <h2>{store?.name}</h2>
+                    <h2 dir="ltr">{store?.name}</h2>
                     {store?.name_ps ? (
                       <h3 className="sale-shop-preview-ps" dir="rtl" lang="ps">
                         {store.name_ps}
@@ -2876,7 +2881,9 @@ export function InvoiceDialog({
                   )}
                 </div>
                 {store?.services ? (
-                  <p className="sale-shop-preview-services">{store.services}</p>
+                  <p className="sale-shop-preview-services" dir="auto">
+                    {store.services}
+                  </p>
                 ) : null}
                 <div className="sale-shop-preview-owners">
                   {(
@@ -2895,15 +2902,25 @@ export function InvoiceDialog({
                   )
                     .filter(([name]) => !!name)
                     .map(([name, phone, whatsapp], i) => {
-                      const contacts = [phone, whatsapp]
-                        .filter(Boolean)
-                        .join(" · ");
+                      const wa = normalizeDigits(String(whatsapp || "")).trim();
+                      const tel = normalizeDigits(String(phone || "")).trim();
                       return (
                         <div key={i}>
-                          <strong>{name}</strong>
-                          {contacts ? (
-                            <small>
-                              <bdi dir="ltr">{contacts}</bdi>
+                          <strong dir="auto">{name}</strong>
+                          {wa || tel ? (
+                            <small className="sale-shop-preview-contacts">
+                              {wa ? (
+                                <span dir="ltr">
+                                  <WhatsappLogoIcon size={12} weight="fill" />
+                                  <bdi dir="ltr">{wa}</bdi>
+                                </span>
+                              ) : null}
+                              {tel ? (
+                                <span dir="ltr">
+                                  <PhoneIcon size={12} weight="fill" />
+                                  <bdi dir="ltr">{tel}</bdi>
+                                </span>
+                              ) : null}
                             </small>
                           ) : null}
                         </div>
@@ -2913,7 +2930,9 @@ export function InvoiceDialog({
                 <div className="sale-shop-preview-doc">
                   <Badge tone="gray">{kindTitle.toUpperCase()}</Badge>
                   <h3>{doc.number}</h3>
-                  <p>{doc.date}</p>
+                  <p>
+                    <bdi dir="ltr">{invoiceWhen(doc)}</bdi>
+                  </p>
                 </div>
               </div>
             ) : (
@@ -2922,16 +2941,24 @@ export function InvoiceDialog({
                   {store?.logo ? (
                     <img className="invoice-logo" src={store.logo} alt="" />
                   ) : null}
-                  <h2>{store?.name}</h2>
-                  {store?.address ? <p>{store.address}</p> : null}
+                  <h2 dir="ltr">{store?.name}</h2>
+                  {store?.address ? <p dir="auto">{store.address}</p> : null}
                   <p>
-                    {[store?.phone, store?.email].filter(Boolean).join(" · ")}
+                    {store?.phone ? (
+                      <bdi dir="ltr">
+                        {normalizeDigits(String(store.phone))}
+                      </bdi>
+                    ) : null}
+                    {store?.phone && store?.email ? " · " : null}
+                    {store?.email || null}
                   </p>
                 </div>
                 <div>
                   <Badge tone="gray">{kindTitle.toUpperCase()}</Badge>
                   <h3>{doc.number}</h3>
-                  <p>{doc.date}</p>
+                  <p>
+                    <bdi dir="ltr">{invoiceWhen(doc)}</bdi>
+                  </p>
                 </div>
               </div>
             )}
@@ -2945,7 +2972,9 @@ export function InvoiceDialog({
                 <strong>{doc.party_name || "—"}</strong>
                 {doc.party_phone ? (
                   <small className="block muted">
-                    <bdi dir="ltr">{doc.party_phone}</bdi>
+                    <bdi dir="ltr">
+                      {normalizeDigits(String(doc.party_phone))}
+                    </bdi>
                   </small>
                 ) : null}
               </div>
@@ -3164,14 +3193,16 @@ export function InvoiceDialog({
               )}
               {doc.kind === "sale" && doc.previous_balance != null && (
                 <>
+                  {doc.previous_balance ? (
+                    <div>
+                      <span>{t("sales.previousBalance")}</span>
+                      <strong className="money">
+                        {af(doc.previous_balance, 2)}
+                      </strong>
+                    </div>
+                  ) : null}
                   <div>
-                    <span>{t("sales.previousBalance")}</span>
-                    <strong className="money">
-                      {af(doc.previous_balance, 2)}
-                    </strong>
-                  </div>
-                  <div>
-                    <span>{t("sales.newBalance")}</span>
+                    <span>{t("sales.totalBalance")}</span>
                     <strong className="money text-red">
                       {af(doc.new_balance ?? doc.party_balance ?? 0, 2)}
                     </strong>

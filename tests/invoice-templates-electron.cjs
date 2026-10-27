@@ -47,10 +47,12 @@ app
         whatsapp: "+93 771 707 272",
       },
       summary: [
-        { label: "Total", value: "AF 111,000.00" },
-        { label: "Returned", value: "AF 0.00" },
-        { label: "Paid", value: "AF 50,000.00" },
-        { label: "Balance", value: "AF 61,000.00" },
+        { key: "total", label: "Total", value: "AF 111,000.00" },
+        { key: "returned", label: "Returned", value: "AF 0.00" },
+        { key: "paid", label: "Paid", value: "AF 50,000.00" },
+        { key: "outstanding", label: "Balance", value: "AF 61,000.00" },
+        { key: "previous", label: "Previous balance", value: "AF 10,000.00" },
+        { key: "newBalance", label: "Total balance", value: "AF 71,000.00" },
       ],
       lines: [
         {

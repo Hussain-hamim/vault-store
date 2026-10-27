@@ -47,11 +47,7 @@ textarea {
   min-height: 0;
   overflow: visible;
 }
-.sale-customer-row {
-  grid-template-columns: minmax(0, 1fr) minmax(120px, 0.65fr);
-}
 .sale-customer-modes {
-  grid-column: 1 / -1;
   justify-self: start;
 }
 .sale-board .sale-product-list.product-browser-list {
@@ -100,14 +96,6 @@ textarea {
   }
   .sale-bill-panel {
     min-height: 140px;
-  }
-}
-@container workspace (min-width: 1040px) {
-  .sale-customer-row {
-    grid-template-columns: auto minmax(0, 1fr) minmax(120px, 0.5fr);
-  }
-  .sale-customer-modes {
-    grid-column: auto;
   }
 }
 @container workspace (max-width: 900px) {
