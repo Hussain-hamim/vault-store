@@ -7,6 +7,7 @@ const {
   session,
   shell,
   safeStorage,
+  systemPreferences,
 } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
@@ -63,7 +64,12 @@ app.setPath(
   "userData",
   userDataPath(
     app.getPath("appData"),
-    selectedProfile?.directory ||
+    (backupMode
+      ? process.argv
+          .find((a) => a.startsWith("--backup-user-data="))
+          ?.slice("--backup-user-data=".length)
+      : undefined) ||
+      selectedProfile?.directory ||
       process.env.RADEFY_USER_DATA ||
       process.env.REDIFY_USER_DATA,
   ),
@@ -297,8 +303,13 @@ async function start() {
   if (backupMode) {
     try {
       licensing.assertActive();
-      await db.request("_automaticBackup");
-      app.exit(0);
+      const backupResult = await db.request("_automaticBackup");
+      const failed =
+        backupResult.results?.filter((result) => result.status === "failed") ||
+        [];
+      for (const result of failed)
+        console.error(`Backup failed: ${result.path}: ${result.message}`);
+      app.exit(failed.length ? 1 : 0);
     } catch (e) {
       console.error(e.message);
       app.exit(1);
@@ -530,152 +541,30 @@ async function start() {
     const stamp = new Date().toISOString().slice(0, 10);
     return `${cleaned || "document"}-${stamp}.pdf`;
   }
-  function findWhatsAppDesktopExe() {
-    const local = process.env.LOCALAPPDATA || "";
-    const candidates = [
-      path.join(local, "WhatsApp", "WhatsApp.exe"),
-      path.join(local, "Programs", "WhatsApp", "WhatsApp.exe"),
-      path.join(local, "WhatsApp", "app", "WhatsApp.exe"),
-      path.join(local, "Microsoft", "WindowsApps", "WhatsApp.exe"),
-    ];
-    return candidates.find((exe) => {
-      try {
-        return fs.existsSync(exe);
-      } catch {
-        return false;
+  const {
+    createWhatsAppSender,
+    saveSharePdf,
+  } = require("./whatsapp-share.cjs");
+  const sendWhatsAppPdf = createWhatsAppSender({
+    app,
+    shell,
+    checkPermissions: async () => {
+      if (
+        process.platform === "darwin" &&
+        !systemPreferences.isTrustedAccessibilityClient(false)
+      ) {
+        const error = new Error("WHATSAPP_AUTOMATION_DENIED");
+        error.code = "WHATSAPP_AUTOMATION_DENIED";
+        throw error;
       }
-    });
-  }
-  /**
-   * Open WhatsApp Desktop for a phone without going through https://wa.me
-   * (wa.me always opens a browser first on Windows and breaks PDF attach).
-   */
-  async function openWhatsAppDesktopChat(phone) {
-    const { execFile, spawn } = require("node:child_process");
-    const exe = findWhatsAppDesktopExe();
-    if (exe) {
-      try {
-        spawn(exe, [], { detached: true, stdio: "ignore" }).unref();
-      } catch {}
-    }
-    const target = `whatsapp://send?phone=${phone}`;
-    if (process.platform === "win32") {
-      const comspec =
-        process.env.ComSpec ||
-        path.join(process.env.SystemRoot || "C:\\Windows", "System32", "cmd.exe");
-      try {
-        await new Promise((resolve, reject) => {
-          // Empty title arg is required so `start` treats the URL as the command.
-          execFile(
-            comspec,
-            ["/c", "start", "", target],
-            { windowsHide: true },
-            (error) => (error ? reject(error) : resolve()),
-          );
-        });
-        return;
-      } catch {
-        // Fall through to Electron protocol open.
-      }
-    }
-    await shell.openExternal(target);
-  }
-  function powershellExe() {
-    return (
-      process.env.SystemRoot
-        ? path.join(
-            process.env.SystemRoot,
-            "System32",
-            "WindowsPowerShell",
-            "v1.0",
-            "powershell.exe",
-          )
-        : "powershell.exe"
-    );
-  }
-  /**
-   * Attach a PDF in WhatsApp Desktop via Document file picker (preferred) or
-   * clipboard paste, set the greeting as caption, then send.
-   */
-  function sendPdfWithCaption(pdfFile, caption) {
-    const { execFile } = require("node:child_process");
-    const note = String(caption || "").slice(0, 1000);
-    const pdf = path.resolve(pdfFile);
-    if (!fs.existsSync(pdf)) return false;
-
-    if (process.platform === "win32") {
-      const stamp = Date.now();
-      const captionFile = path.join(
-        app.getPath("temp"),
-        `radefy-wa-caption-${stamp}.txt`,
-      );
-      const scriptFile = path.join(
-        app.getPath("temp"),
-        `radefy-wa-attach-${stamp}.ps1`,
-      );
-      fs.writeFileSync(captionFile, note, "utf8");
-      // Copy out of asar so PowerShell -File can run it; -STA required for clipboard.
-      fs.copyFileSync(
-        path.join(__dirname, "whatsapp-attach.ps1"),
-        scriptFile,
-      );
-      execFile(
-        powershellExe(),
-        [
-          "-STA",
-          "-NoProfile",
-          "-ExecutionPolicy",
-          "Bypass",
-          "-File",
-          scriptFile,
-          "-PdfPath",
-          pdf,
-          "-CaptionPath",
-          captionFile,
-        ],
-        { windowsHide: true },
-        () => {
-          try {
-            fs.unlinkSync(scriptFile);
-          } catch {}
-        },
-      );
-      return true;
-    }
-
-    if (process.platform === "darwin") {
-      const captionFile = path.join(
-        app.getPath("temp"),
-        `radefy-wa-caption-${Date.now()}.txt`,
-      );
-      fs.writeFileSync(captionFile, note, "utf8");
-      const pdfEsc = pdf.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-      const capEsc = captionFile.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-      const script = [
-        "delay 3.5",
-        'try',
-        '  tell application "WhatsApp" to activate',
-        "end try",
-        "delay 0.6",
-        `set the clipboard to (POSIX file "${pdfEsc}")`,
-        "delay 0.2",
-        'tell application "System Events" to keystroke "v" using command down',
-        "delay 1.8",
-        `set captionText to read POSIX file "${capEsc}" as «class utf8»`,
-        "set the clipboard to captionText",
-        "delay 0.2",
-        'tell application "System Events" to keystroke "v" using command down',
-        "delay 0.5",
-        'tell application "System Events" to keystroke return',
-        `do shell script "rm -f \\"${capEsc}\\""`,
-      ].join("\n");
-      execFile("osascript", ["-e", script], () => {});
-      return true;
-    }
-    return false;
-  }
+    },
+  });
+  let whatsAppBusy = false;
   ipcMain.handle("vault:whatsapp-share", async (event, payload, token) => {
     trusted(event);
+    if (whatsAppBusy)
+      return { ok: false, error: "WHATSAPP_BUSY", code: "WHATSAPP_BUSY" };
+    whatsAppBusy = true;
     try {
       licensing.assertActive();
       const phone = String(payload?.phone || "").replace(/\D+/g, "");
@@ -683,10 +572,10 @@ async function start() {
         throw new Error("Enter a valid WhatsApp phone number.");
       const text =
         typeof payload?.text === "string" ? payload.text.slice(0, 1000) : "";
+      let format = "pdf";
       let pdfPath = null;
       let downloadPath = null;
-      let pasted = false;
-      let sent = false;
+      let shareResult = {};
       if (payload?.job) {
         if (printBusy)
           throw new Error(
@@ -694,8 +583,35 @@ async function start() {
           );
         printBusy = true;
         try {
-          const { validatePrintJob, withPrintWindow } = require("./printing.cjs");
+          const {
+            validatePrintJob,
+            withPrintWindow,
+          } = require("./printing.cjs");
           const job = validatePrintJob(payload.job);
+          const labels = payload.formatLabels;
+          if (labels) {
+            const label = (key, fallback) =>
+              typeof labels[key] === "string"
+                ? labels[key].slice(0, 200)
+                : fallback;
+            const choice = await dialog.showMessageBox(mainWindow, {
+              type: "question",
+              title: "WhatsApp",
+              message: label("title", "Send invoice as"),
+              buttons: [
+                "PDF",
+                label("image", "Image (PNG)"),
+                label("cancel", "Cancel"),
+              ],
+              defaultId: 0,
+              cancelId: 2,
+              noLink: true,
+            });
+            if (choice.response === 2)
+              return { ok: true, result: { canceled: true } };
+            format = choice.response === 1 ? "image" : "pdf";
+          }
+
           const user = await db.request("me", {}, token);
           if (job.kind === "invoice")
             await db.request("document", { id: job.source.id }, token);
@@ -706,18 +622,27 @@ async function start() {
           );
           const fileName = safeDownloadName(
             job.fileBase || job.title || "radefy-document",
-          );
-          downloadPath = path.join(app.getPath("downloads"), fileName);
-          pdfPath = downloadPath;
+          ).replace(/\.pdf$/, format === "image" ? ".png" : ".pdf");
           await withPrintWindow(
             BrowserWindow,
             job.html,
             mainWindow,
             async (contents) => {
-              const bytes = await contents.printToPDF(
-                electronPrintOptions(job.options, job.kind, true),
+              const bytes =
+                format === "image"
+                  ? await require("./whatsapp-image.cjs").renderShareImage(
+                      contents,
+                      BrowserWindow,
+                    )
+                  : await contents.printToPDF(
+                      electronPrintOptions(job.options, job.kind, true),
+                    );
+              downloadPath = await saveSharePdf(
+                app.getPath("downloads"),
+                fileName,
+                bytes,
               );
-              await fs.promises.writeFile(downloadPath, bytes);
+              pdfPath = downloadPath;
               return { saved: true };
             },
           );
@@ -728,9 +653,7 @@ async function start() {
 
       if (pdfPath) {
         // Desktop protocol only — wa.me opens a browser first and breaks PDF paste.
-        await openWhatsAppDesktopChat(phone);
-        pasted = sendPdfWithCaption(pdfPath, text);
-        sent = pasted;
+        shareResult = await sendWhatsAppPdf({ phone, pdfPath, text, format });
       } else {
         const query = text ? `?text=${encodeURIComponent(text)}` : "";
         await shell.openExternal(`https://wa.me/${phone}${query}`);
@@ -741,13 +664,13 @@ async function start() {
           opened: true,
           pdfPath,
           downloadPath,
-          copied: !!pdfPath,
-          pasted,
-          sent,
+          ...shareResult,
         },
       };
     } catch (error) {
-      return { ok: false, error: error.message };
+      return { ok: false, error: error.message, code: error.code };
+    } finally {
+      whatsAppBusy = false;
     }
   });
   ipcMain.handle("vault:folder", async (event) => {

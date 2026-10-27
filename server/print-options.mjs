@@ -23,9 +23,7 @@ function isLabelPaper(paper) {
   return String(paper || "").startsWith("label");
 }
 function isThermalPaper(paper) {
-  return (
-    String(paper || "").startsWith("receipt") || isLabelPaper(paper)
-  );
+  return String(paper || "").startsWith("receipt") || isLabelPaper(paper);
 }
 export function normalizePrintOptions(input = {}, kind = "invoice") {
   const raw = input && typeof input === "object" ? input : {};
@@ -40,11 +38,15 @@ export function normalizePrintOptions(input = {}, kind = "invoice") {
   ) {
     paper = raw.paper;
   }
+  if (raw.template === "golden" && paper.startsWith("receipt")) paper = "A4";
   const thermal =
     (["receipt80", "receipt58"].includes(paper) && kind === "invoice") ||
     labelJob;
   return {
     paper,
+    template:
+      kind === "invoice" && raw.template === "golden" ? "golden" : "standard",
+    showWatermark: raw.showWatermark !== false,
     layout: labelJob
       ? "compact"
       : PRINT_LAYOUTS.includes(raw.layout)

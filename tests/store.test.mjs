@@ -3286,3 +3286,62 @@ test("party update and delete require zero balance", async (t) => {
   );
   assert.equal(f.s.one("SELECT active FROM parties WHERE id=?", owed).active, 1);
 });
+
+test("Previous customer opening edits replace one existing posting atomically", (t) => {
+  const { s, u } = fixture(t);
+  for (const kind of ["customer", "supplier"]) {
+    const request_key = key();
+    const party = s.createParty(u, { kind, name: "Previous contact", opening_balance: 10000, opening_date: today(), request_key });
+    const original = s.one("SELECT id FROM documents WHERE request_key=?", request_key).id;
+    const edit = (amount) => s.updateParty(u, { id: party.id, name: "Edited contact", opening: { request_key, amount, date: today() } });
+    edit(15000);
+    edit(15000);
+    assert.equal(s.partyBalance(party.id).balance, 15000);
+    assert.equal(s.one("SELECT COUNT(*) n FROM documents WHERE party_id=?", party.id).n, 1);
+    assert.equal(s.one("SELECT id FROM documents WHERE request_key=?", request_key).id, original);
+    edit(4000);
+    assert.equal(s.partyBalance(party.id).balance, 4000);
+    edit(0);
+    assert.equal(s.partyBalance(party.id).balance, 0);
+    assert.throws(() => s.updateParty({ ...u, role: "Manager" }, { id: party.id, name: "Bad update", opening: { request_key, amount: 200, date: today() } }), /owner/);
+    assert.equal(s.partyBalance(party.id).name, "Edited contact");
+    s.saveSetting("closedThrough", today());
+    assert.throws(() => edit(500), /closed/);
+    assert.equal(s.partyBalance(party.id).balance, 0);
+    s.saveSetting("closedThrough", "");
+  }
+});
+
+test("Previous can set an initially zero opening balance without duplicate postings", (t) => {
+  const { s, u } = fixture(t);
+  const request_key = key();
+  const party = s.createParty(u, { kind: "customer", name: "Zero opening", request_key });
+  const args = { id: party.id, name: party.name, opening: { request_key, amount: 3000, date: today() } };
+  s.updateParty(u, args);
+  s.updateParty(u, args);
+  assert.equal(s.partyBalance(party.id).balance, 3000);
+  const doc = s.one("SELECT * FROM documents WHERE request_key=?", request_key);
+  s.run("UPDATE documents SET paid=1000 WHERE id=?", doc.id);
+  assert.throws(() => s.updateParty(u, { ...args, name: "Should roll back", opening: { ...args.opening, amount: 4000 } }), /linked payments/);
+  assert.equal(s.partyBalance(party.id).name, party.name);
+  assert.equal(s.partyBalance(party.id).balance, 3000);
+});
+
+test("Customer sales history includes all filtered invoices and current balances", async (t) => {
+  const f = fixture(t);
+  purchase(f, 30);
+  const docs = [];
+  for (let i = 0; i < 12; i++) docs.push(sale(f, 1, 60000));
+  await f.s.dispatch("openingBalance", { party_id: f.customer, amount: 10000, date: today(), request_key: key() }, f.token);
+  f.s.returnTrade(f.u, { original_id: docs[0].id, note: "Customer return", lines: [{ line_id: docs[0].lines[0].id, quantity: 1 }], request_key: key() });
+  const report = await f.s.dispatch("customerSalesHistory", { id: f.customer, start: today(), end: today() }, f.token);
+  assert.equal(report.rows.length, 12);
+  assert.equal(report.totals.remaining, 11 * 40000);
+  assert.equal(report.party.balance, 11 * 40000 + 10000);
+  assert.equal(report.totals.returned, 100000);
+  assert.equal(report.rows[0].lines[0].name, "Test SSD");
+  assert.equal(report.rows[0].lines[0].quantity, 1);
+  assert.equal((await f.s.dispatch("customerSalesHistory", { id: f.customer, end: "2000-01-01" }, f.token)).rows.length, 0);
+  await assert.rejects(f.s.dispatch("customerSalesHistory", { id: f.customer, start: "2026-02-02", end: "2026-01-01" }, f.token), /Start date/);
+  await assert.rejects(f.s.dispatch("customerSalesHistory", { id: f.supplier }, f.token), /Customer required/);
+});

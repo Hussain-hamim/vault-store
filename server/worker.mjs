@@ -96,17 +96,6 @@ parentPort.on("message", (m) => {
         }
         const automatic = m.command === "_automaticBackup",
           user = automatic ? null : store.auth(m.token, "backups");
-        const config = store.setting("backups");
-        if (
-          automatic &&
-          (!config.destinations.length ||
-            (config.lastAutomatic &&
-              Date.now() - Date.parse(config.lastAutomatic) < 86400000) ||
-            (config.retryAfter && Date.now() < Date.parse(config.retryAfter)))
-        ) {
-          send(m.id, { skipped: true });
-          return;
-        }
         backupRunning = true;
         const job = new Worker(new URL("./backup-job.mjs", import.meta.url), {
           workerData: { file: workerData.file, automatic, user, args: m.args },

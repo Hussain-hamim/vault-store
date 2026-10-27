@@ -48,6 +48,7 @@ app
       { kind: "customer", name: "Balance customer", opening_balance: 250000 },
       auth.token,
     );
+    ipcMain.handle("vault:accounts", (_e, action) => action === "resume" ? undefined : { users: [], profiles: [] });
     ipcMain.handle("vault:activation-status", () => ({
       active: true,
       required: false,
@@ -126,7 +127,7 @@ app
     for (const [width, height, zoom] of sizes) {
       win.setContentSize(width, height);
       win.webContents.setZoomFactor(zoom);
-      for (const screen of [
+      for (const screen of (process.argv.includes("--customers") ? ["Customers", "Suppliers"] : [
         "Sales",
         "Purchases",
         "Settings",
@@ -137,7 +138,7 @@ app
         "Suppliers",
         "Expenses",
         "Daily book",
-      ]) {
+      ])) {
         await js(
           `Array.from(document.querySelectorAll('.sidebar button')).find(b=>b.textContent.trim()===${JSON.stringify(screen)}).click()`,
         );
@@ -276,6 +277,23 @@ app
             (await win.capturePage()).toPNG(),
           );
       }
+    }
+
+    for (const width of [1024, 1280]) {
+      win.setContentSize(width, 720);
+      win.webContents.setZoomFactor(1);
+      await js("Array.from(document.querySelectorAll('.sidebar button')).find(b=>b.textContent.trim()==='Customers').click()");
+      await wait("!!document.querySelector('.people-row')");
+      await js("document.querySelector('.people-row').click()");
+      await wait("!!document.querySelector('.people-detail')");
+      const panels = await js(`(() => {
+        const list=document.querySelector('.people-list').getBoundingClientRect();
+        const detail=document.querySelector('.people-detail').getBoundingClientRect();
+        const heading=document.querySelector('.people-detail .panel-heading').getBoundingClientRect();
+        return { listHeight:list.height, separate:detail.left >= list.right && Math.abs(detail.top-list.top)<2, headingInside:heading.top >= detail.top };
+      })()`);
+      assert.ok(panels.listHeight >= 300, 'contact list must not collapse');
+      assert.ok(panels.separate && panels.headingInside, 'ledger toolbar must not overlap list');
     }
     console.log("Responsive desktop smoke passed.");
   })

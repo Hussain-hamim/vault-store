@@ -1,3 +1,4 @@
+import { CustomerSalesHistory } from "./CustomerSalesHistory";
 import {
   DeviceSelection,
   ReceiveDevices,
@@ -1909,6 +1910,7 @@ function ShoppingIllustration() {
   return <PackageIcon size={28} weight="light" />;
 }
 type PartyDraft = {
+  opening_request_key?: string;
   id?: string;
   name: string;
   phone: string;
@@ -1989,9 +1991,14 @@ export function PartyForm({
           phone,
           email: draft.email,
           address: draft.address,
+          ...(draft.opening_request_key && canOpening ? { opening: {
+            request_key: draft.opening_request_key,
+            amount: toMoney(draft.opening_balance || "0"),
+            date: draft.opening_date || businessDate(),
+          }} : {}),
         });
         const opening = toMoney(draft.opening_balance || "0");
-        if (opening > 0 && canOpening) {
+        if (opening > 0 && canOpening && !draft.opening_request_key) {
           await api("openingBalance", {
             party_id: draft.id,
             amount: opening,
@@ -2002,7 +2009,7 @@ export function PartyForm({
         saved = {
           ...draft,
           phone,
-          opening_balance: "0",
+          opening_balance: draft.opening_request_key ? draft.opening_balance : "0",
         };
         if (cursor >= 0)
           setHistory((rows) =>
@@ -2029,7 +2036,8 @@ export function PartyForm({
           ...draft,
           id: created.id,
           phone,
-          opening_balance: "0",
+          opening_balance: draft.opening_balance,
+          opening_request_key: key.current,
         };
         setHistory((rows) => [...rows, saved]);
         await done(
@@ -2132,7 +2140,7 @@ export function PartyForm({
                     : t("partyForm.openingSupplier")
                 }
                 hint={
-                  editing
+                  editing && !draft.opening_request_key
                     ? kind === "customer"
                       ? t("partyForm.openingEditHintCustomer")
                       : t("partyForm.openingEditHintSupplier")
@@ -4181,6 +4189,7 @@ export function PartyDetailDialog({
   done?: DialogProps["done"];
 } & Pick<DialogProps, "close">) {
   const { t, locale } = useI18n();
+  const [detailTab, setDetailTab] = useState("ledger");
   const [ledgerAfter, setLedgerAfter] = useState("");
   const [ledgerHistory, setLedgerHistory] = useState<string[]>([]);
   const [detail, setDetail] = useState<any>(null);
@@ -4378,36 +4387,12 @@ export function PartyDetailDialog({
               )}
             </div>
           )}
-          {canResale && (
-            <div className="owner-ledger-tabs">
-              <button
-                className={
-                  "button " + (ledgerView === "trade" ? "selected" : "")
-                }
-                onClick={() => {
-                  setDetail(null);
-                  setLedgerView("trade");
-                  setLedgerAfter("");
-                  setLedgerHistory([]);
-                }}
-              >
-                {t("partyDetail.ledgerTitle")}
-              </button>
-              <button
-                className={
-                  "button " + (ledgerView === "resale" ? "selected" : "")
-                }
-                onClick={() => {
-                  setDetail(null);
-                  setLedgerView("resale");
-                  setLedgerAfter("");
-                  setLedgerHistory([]);
-                }}
-              >
-                {t("resale.ownerLedger")}
-              </button>
-            </div>
-          )}
+          {kind === "customer" && <div className="owner-ledger-tabs customer-detail-tabs" role="tablist">
+            <button className="button" role="tab" aria-selected={detailTab === "ledger" && ledgerView === "trade"} onClick={() => { setDetailTab("ledger"); setLedgerView("trade"); setLedgerAfter(""); setLedgerHistory([]); }}>{t("partyDetail.ledgerTitle")}</button>
+            <button className="button" role="tab" aria-selected={detailTab === "sales"} onClick={() => setDetailTab("sales")}>{t("customerHistory.title")}</button>
+            {canResale && <button className="button" role="tab" aria-selected={detailTab === "ledger" && ledgerView === "resale"} onClick={() => { setDetailTab("ledger"); setLedgerView("resale"); setLedgerAfter(""); setLedgerHistory([]); }}>{t("resale.ownerLedger")}</button>}
+          </div>}
+          {detailTab === "sales" ? <CustomerSalesHistory id={current.id} refresh={refresh} onOpenInvoice={(id) => open("invoice", { id })} /> : <>
           <div className="panel-heading party-ledger-heading">
             <h3>
               {t(
@@ -4585,6 +4570,7 @@ export function PartyDetailDialog({
               </div>
             </>
           )}
+          </>}
         </div>
       </div>
       <div className="modal-actions">

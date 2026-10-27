@@ -9,6 +9,8 @@ import {
   openSync,
   fsyncSync,
   closeSync,
+  writeFileSync,
+  statSync,
 } from "node:fs";
 import { createHash, randomUUID } from "node:crypto";
 import path from "node:path";
@@ -52,16 +54,33 @@ export async function restoreDatabase(file, target) {
       try {
         const safe = path.join(path.dirname(target), "restore-safety");
         mkdirSync(safe, { recursive: true });
-        await backup(
-          db,
-          path.join(safe, `before-restore-${Date.now()}.sqlite`),
+        const safetyFile = path.join(
+          safe,
+          `before-restore-${Date.now()}.sqlite`,
         );
+        await backup(db, safetyFile);
+        writeFileSync(
+          safetyFile + ".json",
+          JSON.stringify({
+            application: "Vault Store",
+            schema: 1,
+            createdAt: new Date().toISOString(),
+            checksum: fileChecksum(safetyFile),
+            size: statSync(safetyFile).size,
+          }),
+          { mode: 0o600 },
+        );
+        validateRestore(safetyFile);
       } finally {
         db.close();
       }
     }
     const temporary = target + ".restore-" + randomUUID();
     copyFileSync(file, temporary);
+    if (fileChecksum(temporary) !== fileChecksum(file)) {
+      unlinkSync(temporary);
+      throw new Error("Restore copy checksum mismatch.");
+    }
     const fd = openSync(temporary, "r");
     fsyncSync(fd);
     closeSync(fd);

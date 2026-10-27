@@ -457,6 +457,12 @@ export const en: MessageTree = {
     returned: "Unsold stock returned to its owner.",
   },
   printing: {
+    template: "Template",
+    standardTemplate: "Shop letterhead",
+    goldenTemplate: "Golden bilingual bill",
+    templateHint: "Sale-only design · English + Pashto. Choices are remembered separately for each document type.",
+    showWatermark: "Logo watermark",
+
     title: "Print setup",
     subtitle: "Choose a layout, color theme and paper size before printing.",
     layout: "Document layout",
@@ -981,23 +987,44 @@ export const en: MessageTree = {
     lengthHint: "Enter the national number for +{dial} ({n} digits).",
     invalidLength: "Phone number for +{dial} must be {n} digits.",
   },
+  customerHistory: { "share": "WhatsApp report", "shareText": "Hello {name}, here is your sales history from {start} to {end}.","title": "Sales history", "start": "Start date", "end": "End date", "allDates": "All dates", "date": "Date", "invoice": "Invoice", "products": "Products / quantity", "total": "Sales total", "returned": "Returns", "paid": "Paid / allocated", "remaining": "Remaining on invoices", "currentBalance": "Current customer balance", "scope": "Includes all sales in the selected dates. Payments, returns and remaining balances are current; the customer balance includes all account activity. Print/PDF includes every filtered invoice.", "empty": "No sales in this period.", "more": "Load more"},
   whatsapp: {
+
+    chooseFormat: "Send document as",
+    image: "Image (PNG)",
+    cancelShare: "Cancel",
+    canceled: "Sharing canceled.",
+    fileSubmitted: "File submitted in WhatsApp.",
+    imageTooLarge: "This document is too long for one image. Choose PDF to include every row.",
+
     sendInvoice: "WhatsApp invoice",
     sendLedger: "WhatsApp ledger",
     needPhone:
       "Add a valid phone number with country code for this customer first.",
     opened: "WhatsApp opened for this customer.",
     openedWithPdf:
-      "WhatsApp Desktop opened with the PDF and message. If it did not send yet, press Enter once.",
+      "PDF submitted to WhatsApp. Check its delivery status in the customer’s chat.",
     openedWithPdfManual:
-      "PDF saved to Downloads. In WhatsApp Desktop open the chat, press Ctrl+V to attach the PDF, then Enter to send with the message.",
-    pdfFailed: "Could not prepare the PDF for WhatsApp. Try Save PDF, then send again.",
+      "PDF saved to Downloads. Attach that file using WhatsApp’s File or Document option.",
+    notInstalled:
+      "Could not open WhatsApp Desktop. Install it and sign in, then try again. Your PDF is in Downloads.",
+    automationDenied:
+      "Allow this app in macOS Privacy & Security → Accessibility and Automation → System Events, then retry. Your PDF is in Downloads.",
+    chatNotReady:
+      "Could not confirm the customer’s chat. Sign in to WhatsApp Desktop, close any open dialogs and try again. No PDF was sent.",
+    attachFailed:
+      "WhatsApp did not show the expected PDF attachment. No message was sent. Your PDF is in Downloads; you can attach it manually.",
+    sendUnconfirmed:
+      "Could not confirm the send result. Check the customer’s WhatsApp chat before retrying to avoid sending twice. Your PDF is in Downloads.",
+    busy: "A WhatsApp share is already running. Wait for it to finish.",
+    pdfFailed:
+      "Could not prepare the PDF for WhatsApp. Try Save PDF, then send again.",
     needDesktop:
       "Sending invoice/ledger PDFs needs the Radefy TechMart desktop app with WhatsApp Desktop installed.",
     invoiceText:
-      "Hello {name}, here is invoice {number}. Total: {total}. Please find the PDF attached.",
+      "Hello {name}, here is invoice {number}. Total: {total}. Please find the file attached.",
     ledgerText:
-      "Hello {name}, here is your account ledger. Outstanding balance: {balance}. Please find the PDF attached.",
+      "Hello {name}, here is your account ledger. Outstanding balance: {balance}. Please find the file attached.",
   },
   pagination: {
     loadMore: "Load more",
@@ -1406,6 +1433,9 @@ export const en: MessageTree = {
     operatingExpenses: "Operating expenses",
   },
   backups: {
+    allDrives: "Automatically include all connected drives",
+    allDrivesHint: "Copies every 24 hours to this computer and mounted data drives. New drives are discovered automatically. Unwritable drives show an error. Keep the .sqlite file and its .json manifest together to restore.",
+
     eyebrow: "Protect your data",
     title: "Backups",
     description: "Copy your store to a safe folder every day.",

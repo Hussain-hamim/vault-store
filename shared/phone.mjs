@@ -22,10 +22,11 @@ export function digitsOnly(value) {
 }
 
 export function phoneCountryByCode(code) {
-  return (
+  const country =
     PHONE_COUNTRIES.find((c) => c.code === code) ||
-    PHONE_COUNTRIES.find((c) => c.code === DEFAULT_PHONE_COUNTRY)
-  );
+    PHONE_COUNTRIES.find((c) => c.code === DEFAULT_PHONE_COUNTRY);
+  if (!country) throw new Error("Default phone country is unavailable.");
+  return country;
 }
 
 export function phoneCountryByDial(dial) {
@@ -90,7 +91,10 @@ export function validateNational(countryCode, national) {
       ok: false,
       empty: false,
       e164: "",
-      expected: country.min === country.max ? country.min : `${country.min}–${country.max}`,
+      expected:
+        country.min === country.max
+          ? country.min
+          : `${country.min}–${country.max}`,
     };
   return { ok: true, empty: false, e164: `${country.dial}${local}` };
 }

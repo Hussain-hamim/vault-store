@@ -18,18 +18,8 @@ import {
 } from "../../server/print-options.mjs";
 import { renderPrintDocument } from "./document.mjs";
 import "./print-setup.css";
+import { printPreferenceKey, readPrintPreferences } from "./preferences.mjs";
 import type { PrintDocument, PrintOptions } from "./types";
-
-function readOptions(kind: string): PrintOptions {
-  try {
-    return normalizePrintOptions(
-      JSON.parse(localStorage.getItem(`vault-print-${kind}-v1`) || "{}"),
-      kind,
-    );
-  } catch {
-    return normalizePrintOptions({}, kind);
-  }
-}
 
 function expandLabelCopies(
   doc: PrintDocument,
@@ -63,7 +53,7 @@ export function PrintDialog({
   const { t } = useI18n();
   const labelJob = baseDoc.kind === "label";
   const [options, setOptions] = useState<PrintOptions>(() =>
-    readOptions(baseDoc.kind),
+    readPrintPreferences(baseDoc),
   );
   const [copies, setCopies] = useState(() =>
     String(
@@ -71,9 +61,7 @@ export function PrintDialog({
         1,
         Math.min(
           500,
-          Math.floor(
-            Number(defaultCopies ?? baseDoc.labelCopies ?? 1) || 1,
-          ),
+          Math.floor(Number(defaultCopies ?? baseDoc.labelCopies ?? 1) || 1),
         ),
       ),
     ),
@@ -166,7 +154,7 @@ export function PrintDialog({
   }
   function persist() {
     try {
-      const key = `vault-print-${doc.kind}-v1`;
+      const key = printPreferenceKey(doc);
       if (remember) localStorage.setItem(key, JSON.stringify(options));
       else localStorage.removeItem(key);
     } catch {
@@ -211,10 +199,11 @@ export function PrintDialog({
   return createPortal(
     <Modal
       title={t(labelJob ? "barcode.printSetup" : "printing.title")}
-      subtitle={t(
-        labelJob ? "barcode.printSetupHint" : "printing.subtitle",
-      )}
-      onClose={onClose}
+      subtitle={t(labelJob ? "barcode.printSetupHint" : "printing.subtitle")}
+      onClose={() => {
+        persist();
+        onClose();
+      }}
       wide
       className="print-setup-modal"
     >
@@ -235,65 +224,81 @@ export function PrintDialog({
               <p className="muted">{t("barcode.copiesHint")}</p>
             </div>
           )}
-          {!labelJob && (
-          <div className="print-settings-group">
-            <h3>{t("printing.layout")}</h3>
-            <div
-              className="print-layouts"
-              role="group"
-              aria-label={t("printing.layout")}
-            >
-              {PRINT_LAYOUTS.map((layout) => (
-                <button
-                  type="button"
-                  key={layout}
-                  aria-pressed={options.layout === layout}
-                  className={options.layout === layout ? "selected" : ""}
-                  onClick={() => update("layout", layout)}
+          {baseDoc.billStyle === "saleShop" && (
+            <div className="print-settings-group">
+              <Field label={t("printing.template")}>
+                <select
+                  value={options.template}
+                  onChange={(e) => update("template", e.target.value)}
                 >
-                  <span
-                    className={`layout-thumbnail thumbnail-${layout}`}
-                    aria-hidden="true"
-                  >
-                    <i />
-                    <b />
-                    <em />
-                    <em />
-                    <em />
-                  </span>
-                  <span>{t(`printing.layouts.${layout}`)}</span>
-                  {options.layout === layout && <CheckIcon size={14} />}
-                </button>
-              ))}
+                  <option value="standard">
+                    {t("printing.standardTemplate")}
+                  </option>
+                  <option value="golden">{t("printing.goldenTemplate")}</option>
+                </select>
+              </Field>
+              <p className="muted">{t("printing.templateHint")}</p>
             </div>
-          </div>
           )}
-          {!labelJob && (
-          <div className="print-settings-group">
-            <h3>{t("printing.theme")}</h3>
-            <div
-              className="print-themes"
-              role="group"
-              aria-label={t("printing.theme")}
-            >
-              {Object.entries(PRINT_THEMES).map(([id, theme]) => (
-                <button
-                  type="button"
-                  key={id}
-                  title={t(`printing.themes.${id}`)}
-                  aria-label={t(`printing.themes.${id}`)}
-                  aria-pressed={options.theme === id}
-                  onClick={() => update("theme", id)}
-                  className={options.theme === id ? "selected" : ""}
-                >
-                  <span style={{ background: theme.accent }}>
-                    {options.theme === id && <CheckIcon size={15} />}
-                  </span>
-                  <small>{t(`printing.themes.${id}`)}</small>
-                </button>
-              ))}
+          {!labelJob && options.template !== "golden" && (
+            <div className="print-settings-group">
+              <h3>{t("printing.layout")}</h3>
+              <div
+                className="print-layouts"
+                role="group"
+                aria-label={t("printing.layout")}
+              >
+                {PRINT_LAYOUTS.map((layout) => (
+                  <button
+                    type="button"
+                    key={layout}
+                    aria-pressed={options.layout === layout}
+                    className={options.layout === layout ? "selected" : ""}
+                    onClick={() => update("layout", layout)}
+                  >
+                    <span
+                      className={`layout-thumbnail thumbnail-${layout}`}
+                      aria-hidden="true"
+                    >
+                      <i />
+                      <b />
+                      <em />
+                      <em />
+                      <em />
+                    </span>
+                    <span>{t(`printing.layouts.${layout}`)}</span>
+                    {options.layout === layout && <CheckIcon size={14} />}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
+          {!labelJob && options.template !== "golden" && (
+            <div className="print-settings-group">
+              <h3>{t("printing.theme")}</h3>
+              <div
+                className="print-themes"
+                role="group"
+                aria-label={t("printing.theme")}
+              >
+                {Object.entries(PRINT_THEMES).map(([id, theme]) => (
+                  <button
+                    type="button"
+                    key={id}
+                    title={t(`printing.themes.${id}`)}
+                    aria-label={t(`printing.themes.${id}`)}
+                    aria-pressed={options.theme === id}
+                    onClick={() => update("theme", id)}
+                    className={options.theme === id ? "selected" : ""}
+                  >
+                    <span style={{ background: theme.accent }}>
+                      {options.theme === id && <CheckIcon size={15} />}
+                    </span>
+                    <small>{t(`printing.themes.${id}`)}</small>
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
           <div className="print-settings-group">
             {labelJob && LABEL_PAPERS.length === 1 ? (
@@ -305,56 +310,59 @@ export function PrintDialog({
                 <p className="muted">{t("barcode.thermalHint")}</p>
               </Field>
             ) : (
-            <Field label={t(labelJob ? "barcode.labelSize" : "printing.paper")}>
-              <select
-                value={options.paper}
-                onChange={(e) => update("paper", e.target.value)}
+              <Field
+                label={t(labelJob ? "barcode.labelSize" : "printing.paper")}
               >
-                {(labelJob
-                  ? (LABEL_PAPERS as readonly (keyof typeof PAPER_SIZES)[]).map(
-                      (id) => [id, PAPER_SIZES[id]] as const,
-                    )
-                  : Object.entries(PAPER_SIZES).filter(
-                      ([id]) =>
-                        (doc.kind === "invoice" || !id.startsWith("receipt")) &&
-                        !id.startsWith("label"),
-                    )
-                ).map(([id, paper]) => (
+                <select
+                  value={options.paper}
+                  onChange={(e) => update("paper", e.target.value)}
+                >
+                  {(labelJob
+                    ? (
+                        LABEL_PAPERS as readonly (keyof typeof PAPER_SIZES)[]
+                      ).map((id) => [id, PAPER_SIZES[id]] as const)
+                    : Object.entries(PAPER_SIZES).filter(
+                        ([id]) =>
+                          (doc.kind === "invoice" ||
+                            !id.startsWith("receipt")) &&
+                          (options.template !== "golden" ||
+                            !id.startsWith("receipt")) &&
+                          !id.startsWith("label"),
+                      )
+                  ).map(([id, paper]) => (
                     <option key={id} value={id}>
                       {t(`printing.papers.${id}`)} · {paper.width} ×{" "}
                       {paper.height} mm
                     </option>
                   ))}
-              </select>
-            </Field>
+                </select>
+              </Field>
             )}
             {!labelJob && (
-            <div className="form-grid">
-              <Field label={t("printing.orientation")}>
-                <select
-                  value={options.orientation}
-                  disabled={options.paper.startsWith("receipt")}
-                  onChange={(e) => update("orientation", e.target.value)}
-                >
-                  <option value="portrait">{t("printing.portrait")}</option>
-                  <option value="landscape">{t("printing.landscape")}</option>
-                </select>
-              </Field>
-              <Field label={t("printing.margins")}>
-                <select
-                  value={options.margins}
-                  disabled={options.paper.startsWith("receipt")}
-                  onChange={(e) => update("margins", e.target.value)}
-                >
-                  <option value="standard">{t("printing.standard")}</option>
-                  <option value="narrow">{t("printing.narrow")}</option>
-                </select>
-              </Field>
-            </div>
+              <div className="form-grid">
+                <Field label={t("printing.orientation")}>
+                  <select
+                    value={options.orientation}
+                    disabled={options.paper.startsWith("receipt")}
+                    onChange={(e) => update("orientation", e.target.value)}
+                  >
+                    <option value="portrait">{t("printing.portrait")}</option>
+                    <option value="landscape">{t("printing.landscape")}</option>
+                  </select>
+                </Field>
+                <Field label={t("printing.margins")}>
+                  <select
+                    value={options.margins}
+                    disabled={options.paper.startsWith("receipt")}
+                    onChange={(e) => update("margins", e.target.value)}
+                  >
+                    <option value="standard">{t("printing.standard")}</option>
+                    <option value="narrow">{t("printing.narrow")}</option>
+                  </select>
+                </Field>
+              </div>
             )}
-            {labelJob && (
-              <p className="muted">{t("barcode.driverHint")}</p>
-            )}
+            {labelJob && <p className="muted">{t("barcode.driverHint")}</p>}
           </div>
           <div className="print-settings-group print-toggles">
             {!labelJob &&
@@ -363,17 +371,18 @@ export function PrintDialog({
                   "showLogo",
                   ...(doc.kind === "invoice" ? ["showSpecs"] : []),
                   "showFooter",
+                  ...(doc.billStyle === "saleShop" ? ["showWatermark"] : []),
                 ] as (keyof PrintOptions)[]
               ).map((key) => (
-              <label key={key}>
-                <input
-                  type="checkbox"
-                  checked={!!options[key]}
-                  onChange={(e) => update(key, e.target.checked)}
-                />
-                <span>{t(`printing.${key}`)}</span>
-              </label>
-            ))}
+                <label key={key}>
+                  <input
+                    type="checkbox"
+                    checked={!!options[key]}
+                    onChange={(e) => update(key, e.target.checked)}
+                  />
+                  <span>{t(`printing.${key}`)}</span>
+                </label>
+              ))}
             <label>
               <input
                 type="checkbox"
@@ -427,7 +436,14 @@ export function PrintDialog({
       </div>
       <ErrorMessage error={error} />
       <div className="modal-actions">
-        <button className="button" onClick={onClose} disabled={busy}>
+        <button
+          className="button"
+          onClick={() => {
+            persist();
+            onClose();
+          }}
+          disabled={busy}
+        >
           {t("common.close")}
         </button>
         <button

@@ -1,3 +1,4 @@
+import { discoverBackupTargets, backupDue } from "./backup-targets.mjs";
 import {
   trackedCategory,
   unitFields,
@@ -1597,6 +1598,7 @@ export class Store {
     const d = z
       .object({
         id: z.string(),
+        opening: z.object({ request_key: z.string().min(8), amount: money, date }).optional(),
         name: text.min(2),
         phone: text.default(""),
         email: text.default(""),
@@ -1606,8 +1608,37 @@ export class Store {
     return this.transaction(() => {
       const p = this.one("SELECT * FROM parties WHERE id=?", d.id);
       if (!p || !p.active) throw new Error("Contact not found.");
-      if (p.walk_in)
-        throw new Error("The walk-in customer cannot be edited.");
+      if (p.walk_in) throw new Error("The walk-in customer cannot be edited.");
+      if (d.opening) {
+        if (user.role !== "Owner") throw new Error("Only the owner can edit opening balances.");
+        const o = d.opening;
+        const old = this.one("SELECT * FROM documents WHERE request_key=?", o.request_key);
+        if (old && (old.party_id !== p.id || old.category !== "Opening balance"))
+          throw new Error("Opening balance does not belong to this contact.");
+        if (!old && this.one("SELECT id FROM documents WHERE party_id=? AND category='Opening balance'", p.id))
+          throw new Error("Reload the contact before editing its opening balance.");
+        const closed = this.setting("closedThrough");
+        if (o.date > today()) throw new Error("Future transactions are not allowed.");
+        if (closed && (o.date <= closed || (old && old.date <= closed)))
+          throw new Error("This accounting period is closed.");
+        if (old && (old.paid > 0 || this.one("SELECT id FROM payment_allocations WHERE invoice_id=? LIMIT 1", old.id) || this.one("SELECT id FROM documents WHERE original_id=? LIMIT 1", old.id)))
+          throw new Error("This opening balance has linked payments or returns and cannot be edited.");
+        let doc = old;
+        if (old) {
+          this.run("DELETE FROM journal WHERE document_id=?", old.id);
+          this.run("UPDATE documents SET total=?,date=? WHERE id=?", o.amount, o.date, old.id);
+          doc = { ...old, total: o.amount, date: o.date };
+        } else if (o.amount > 0) {
+          doc = this.document(p.kind === "customer" ? "sale" : "purchase", user, {
+            party_id: p.id, total: o.amount, date: o.date, request_key: o.request_key,
+            note: "Opening balance brought forward", category: "Opening balance",
+          });
+        }
+        if (doc && o.amount > 0) this.ledger(doc, p.kind === "customer"
+          ? [["receivables", o.amount, 0, p.id], ["equity", 0, o.amount]]
+          : [["equity", o.amount, 0], ["payables", 0, o.amount, p.id]]);
+        this.audit(user, "Edit opening balance", p.id, { previous: old?.total || 0, amount: o.amount });
+      }
       this.run(
         "UPDATE parties SET name=?,phone=?,email=?,address=? WHERE id=?",
         d.name,
@@ -1624,8 +1655,7 @@ export class Store {
     const d = z.object({ id: z.string() }).parse(data);
     return this.transaction(() => {
       const p = this.partyBalance(d.id);
-      if (p.walk_in)
-        throw new Error("The walk-in customer cannot be deleted.");
+      if (p.walk_in) throw new Error("The walk-in customer cannot be deleted.");
       if (!p.active) return { id: p.id };
       if (p.balance !== 0)
         throw new Error(
@@ -1905,8 +1935,7 @@ export class Store {
       .parse(input);
     return this.transaction(() => {
       const old = this.one("SELECT * FROM documents WHERE id=?", d.id);
-      if (!old || old.kind !== "expense")
-        throw new Error("Expense not found.");
+      if (!old || old.kind !== "expense") throw new Error("Expense not found.");
       const closed = this.setting("closedThrough");
       if (closed && (old.date <= closed || (d.date && d.date <= closed)))
         throw new Error("This accounting period is closed.");
@@ -2930,9 +2959,7 @@ export class Store {
       })
       .parse(input);
     const account = d.kind === "customer" ? "receivables" : "payables";
-    const like = d.q
-      ? "%" + d.q.replace(/[\\%_]/g, "\\$&") + "%"
-      : "%";
+    const like = d.q ? "%" + d.q.replace(/[\\%_]/g, "\\$&") + "%" : "%";
     const rows = this.all(
       `SELECT p.*,COALESCE((SELECT SUM(${d.kind === "customer" ? "debit-credit" : "credit-debit"}) FROM party_totals j WHERE j.party_id=p.id AND j.account=?),0) balance FROM parties p WHERE p.kind=? AND COALESCE(p.active,1)=1 AND (p.name LIKE ? ESCAPE '\\' OR p.phone LIKE ? ESCAPE '\\') AND p.id>? ORDER BY p.id LIMIT ?`,
       account,
@@ -2946,13 +2973,21 @@ export class Store {
     rows.length = Math.min(rows.length, d.limit);
     return { rows, next: more ? rows.at(-1).id : null };
   }
-  async createBackup(user, { destination, automatic = false } = {}) {
+  async createBackup(
+    user,
+    { destination, automatic = false, targets: selectedTargets } = {},
+  ) {
     if (this.backupBusy) throw new Error("A backup is already running.");
     this.backupBusy = true;
     const config = this.setting("backups");
-    const targets = destination
-      ? [path.resolve(destination)]
-      : config.destinations;
+    if (!config.backupId) {
+      config.backupId = id();
+      this.saveSetting("backups", config);
+    }
+    const targets =
+      selectedTargets ||
+      (destination ? [path.resolve(destination)] : this.backupTargets(config));
+    const automaticTargets = { ...config.automaticTargets };
     const results = [];
     let snapshot, releaseLock;
     try {
@@ -2982,7 +3017,11 @@ export class Store {
             throw new Error("Destination is disconnected or does not exist.");
           if (!statSync(dest).isDirectory())
             throw new Error("Destination must be a folder.");
-          const folder = path.join(dest, "Vault Store Backups");
+          const folder = path.join(
+            dest,
+            "Vault Store Backups",
+            config.backupId,
+          );
           mkdirSync(folder, { recursive: true });
           const stamp = now().replace(/[:.]/g, "-"),
             filename = `vault-${today()}-${stamp}-${rid.slice(0, 8)}.sqlite`,
@@ -3013,6 +3052,7 @@ export class Store {
               null,
               2,
             ),
+            { mode: 0o600 },
           );
           this.run(
             "INSERT INTO backup_runs VALUES (?,?,?,?,?,?,?)",
@@ -3025,6 +3065,7 @@ export class Store {
             "Integrity and checksum verified",
           );
           this.rotateBackups(folder);
+          if (automatic) automaticTargets[dest] = now();
           results.push({
             path: target,
             status: "verified",
@@ -3047,6 +3088,7 @@ export class Store {
       if (results.every((r) => r.status === "verified"))
         this.saveSetting("backups", {
           ...config,
+          automaticTargets,
           lastSuccess: now(),
           ...(automatic ? { lastAutomatic: now() } : {}),
           retryAfter: null,
@@ -3054,6 +3096,7 @@ export class Store {
       else if (automatic)
         this.saveSetting("backups", {
           ...config,
+          automaticTargets,
           retryAfter: new Date(Date.now() + 3600_000).toISOString(),
         });
       this.audit(user, "Create backup", "backups", { results });
@@ -3098,16 +3141,31 @@ export class Store {
       } catch {}
     }
   }
+  backupTargets(config = this.setting("backups")) {
+    return [
+      ...new Set([
+        ...(config.destinations || []),
+        ...(config.allDrives ? discoverBackupTargets(this.file) : []),
+      ]),
+    ];
+  }
   async automaticBackup() {
     const c = this.setting("backups");
     if (
-      c.destinations.length &&
-      (!c.lastAutomatic ||
-        Date.now() - Date.parse(c.lastAutomatic) >= 86400_000) &&
-      (!c.retryAfter || Date.now() >= Date.parse(c.retryAfter))
-    ) {
-      return this.createBackup(null, { automatic: true });
-    }
+      !this.one("SELECT id FROM users LIMIT 1") ||
+      (c.retryAfter && Date.now() < Date.parse(c.retryAfter))
+    )
+      return { skipped: true };
+    const targets = this.backupTargets(c).filter((dest) =>
+      backupDue(
+        c.automaticTargets?.[dest] ??
+          (!c.automaticTargets && c.destinations?.includes(dest)
+            ? c.lastAutomatic
+            : null),
+      ),
+    );
+    if (targets.length)
+      return this.createBackup(null, { automatic: true, targets });
     return { skipped: true };
   }
   async dispatch(command, args = {}, token) {
@@ -3147,6 +3205,7 @@ export class Store {
       partyUpdate: "people",
       partyDelete: "people",
       partyDetail: "people",
+      customerSalesHistory: "people",
       payment: "finance",
       paymentDelete: "finance",
       expense: "finance",
@@ -3648,6 +3707,38 @@ export class Store {
         return this.updateParty(user, args);
       case "partyDelete":
         return this.deleteParty(user, args);
+      case "customerSalesHistory": {
+        const d = z.object({ id: z.string(), start: date.optional(), end: date.optional() }).parse(args);
+        if (d.start && d.end && d.start > d.end) throw new Error("Start date must be before end date.");
+        const party = this.partyBalance(d.id);
+        if (party.kind !== "customer") throw new Error("Customer required.");
+        const conditions = ["d.party_id=?", "d.kind='sale'", "d.category!='Opening balance'"];
+        const params = [d.id];
+        if (d.start) { conditions.push("d.date>=?"); params.push(d.start); }
+        if (d.end) { conditions.push("d.date<=?"); params.push(d.end); }
+        const rows = this.all(`SELECT d.id,d.number,d.date,d.total,d.paid,
+          COALESCE((SELECT SUM(r.total) FROM documents r WHERE r.original_id=d.id AND r.kind='sale_return'),0) returned
+          FROM documents d WHERE ${conditions.join(" AND ")} ORDER BY d.date DESC,d.created_at DESC,d.id DESC`, ...params);
+        const lines = this.all(`SELECT l.document_id,l.quantity,COALESCE(s.name,p.name) name,
+          COALESCE(s.brand,p.brand) brand,COALESCE(s.model,p.model) model,COALESCE(s.sku,p.sku) sku
+          FROM document_lines l JOIN documents d ON d.id=l.document_id
+          JOIN products p ON p.id=l.product_id LEFT JOIN document_product_snapshots s ON s.line_id=l.id
+          WHERE ${conditions.join(" AND ")} ORDER BY l.rowid`, ...params);
+        const byDocument = new Map();
+        for (const line of lines) {
+          if (!byDocument.has(line.document_id)) byDocument.set(line.document_id, []);
+          byDocument.get(line.document_id).push(line);
+        }
+        for (const row of rows) {
+          row.remaining = Math.max(0, row.total - row.returned - row.paid);
+          row.lines = byDocument.get(row.id) || [];
+        }
+        const totals = rows.reduce((sum, row) => {
+          for (const field of ["total", "paid", "returned", "remaining"]) sum[field] += row[field];
+          return sum;
+        }, { total: 0, paid: 0, returned: 0, remaining: 0 });
+        return { party, rows, totals };
+      }
       case "partyDetail": {
         const d = z
           .object({
@@ -3907,6 +3998,7 @@ export class Store {
       case "backups":
         return {
           config: this.setting("backups"),
+          availableTargets: this.backupTargets(),
           runs: this.all(
             "SELECT * FROM backup_runs ORDER BY created_at DESC LIMIT 60",
           ),
@@ -3915,6 +4007,7 @@ export class Store {
         const d = z
           .object({
             destinations: z.array(z.string().min(1).max(1000)).max(10),
+            allDrives: z.boolean().optional(),
           })
           .parse(args);
         const destinations = [
@@ -3923,6 +4016,8 @@ export class Store {
         this.saveSetting("backups", {
           ...this.setting("backups"),
           destinations,
+          ...(d.allDrives !== undefined ? { allDrives: d.allDrives } : {}),
+          retryAfter: null,
         });
         this.audit(user, "Update backup destinations", "backups", {
           destinations,

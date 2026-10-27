@@ -677,10 +677,79 @@ test("purchase return print/PDF separates refund currency from original purchase
 });
 
 test("invoice device identities remain printed when optional specifications are hidden", () => {
-  const doc=invoicePrintModel({...invoice,lines:[{...invoice.lines[0],units:[{id:'unit-1',code:'TM-00000001',serial:'SERIAL-DEVICE',condition:'Used',notes:'Small scratch'}]}]}, {name:'Device store'}, context);
-  for(const paper of ['A4','receipt80']) {
-    const html=renderPrintDocument(doc,{paper,showSpecs:false});
-    assert.match(html,/SERIAL-DEVICE/);
-    assert.doesNotMatch(html,/Small scratch/);
+  const doc = invoicePrintModel(
+    {
+      ...invoice,
+      lines: [
+        {
+          ...invoice.lines[0],
+          units: [
+            {
+              id: "unit-1",
+              code: "TM-00000001",
+              serial: "SERIAL-DEVICE",
+              condition: "Used",
+              notes: "Small scratch",
+            },
+          ],
+        },
+      ],
+    },
+    { name: "Device store" },
+    context,
+  );
+  for (const paper of ["A4", "receipt80"]) {
+    const html = renderPrintDocument(doc, { paper, showSpecs: false });
+    assert.match(html, /SERIAL-DEVICE/);
+    assert.doesNotMatch(html, /Small scratch/);
   }
+});
+
+test("golden stationery is bilingual, sale-only, escaped and preserves device/discount details", () => {
+  const doc = model();
+  doc.store.name_ps = "د کمپیوټر پلورنځی";
+  doc.lines[0].identity += " · DEVICE-001";
+  const html = renderPrintDocument(doc, { template: "golden", theme: "mono" });
+  assert.match(html, /golden-bill/);
+  assert.match(html, /Description/);
+  assert.match(html, /تفصیل/);
+  assert.match(html, /DEVICE-001/);
+  assert.match(html, /&lt;script&gt;/);
+  assert.match(html, /discount/);
+  assert.equal((html.match(/class="row-number"/g) || []).length, 16);
+  assert.match(html, /theme-golden/);
+  assert.doesNotMatch(
+    renderPrintDocument(
+      { ...doc, billStyle: "standard" },
+      { template: "golden" },
+    ),
+    /class="gold-header"/,
+  );
+  assert.equal(
+    normalizePrintOptions({ template: "golden", paper: "receipt58" }).paper,
+    "A4",
+  );
+});
+
+test("print preferences isolate sales, purchase invoices and customer/supplier ledgers with legacy fallback", async () => {
+  const { readPrintPreferences, printPreferenceKey } =
+    await import("../src/printing/preferences.mjs");
+  const records = new Map([
+    ["vault-print-invoice-v1", JSON.stringify({ layout: "classic" })],
+  ]);
+  const storage = { getItem: (key) => records.get(key) };
+  const sale = { ...model(), preferenceGroup: "sale" };
+  const purchase = {
+    ...model(),
+    billStyle: "standard",
+    preferenceGroup: "purchase",
+  };
+  assert.equal(readPrintPreferences(sale, storage).layout, "classic");
+  records.set(printPreferenceKey(sale), JSON.stringify({ template: "golden" }));
+  assert.equal(readPrintPreferences(sale, storage).template, "golden");
+  assert.equal(readPrintPreferences(purchase, storage).template, "standard");
+  assert.notEqual(
+    printPreferenceKey({ kind: "report", preferenceGroup: "customer-ledger" }),
+    printPreferenceKey({ kind: "report", preferenceGroup: "supplier-ledger" }),
+  );
 });

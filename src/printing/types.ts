@@ -1,4 +1,6 @@
 export type PrintOptions = {
+  template: string;
+  showWatermark: boolean;
   paper: string;
   layout: string;
   theme: string;
@@ -26,6 +28,7 @@ export type PrintSection = {
 export type PrintDocument = {
   kind: "invoice" | "report" | "label";
   /** Sale invoices use the shop bill chrome; others keep the standard header. */
+  preferenceGroup?: string;
   billStyle?: "saleShop" | "standard";
   companyCredit?: { label: string; whatsapp: string };
   title: string;

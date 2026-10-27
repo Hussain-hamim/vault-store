@@ -120,15 +120,18 @@ declare global {
           phone: string;
           text?: string;
           job?: unknown;
+          formatLabels?: { title: string; image: string; cancel: string };
         },
         token: string,
       ) => Promise<{
+        canceled?: boolean;
         opened?: boolean;
         pdfPath?: string | null;
         downloadPath?: string | null;
         copied?: boolean;
         pasted?: boolean;
         sent?: boolean;
+        submitted?: boolean;
       }>;
       pickFolder: () => Promise<string | null>;
       pickBackup: () => Promise<string | null>;

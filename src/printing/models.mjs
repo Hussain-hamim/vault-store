@@ -23,6 +23,7 @@ export function invoicePrintModel(
   };
   return {
     kind: "invoice",
+    preferenceGroup: doc.kind,
     billStyle: doc.kind === "sale" ? "saleShop" : "standard",
     companyCredit: {
       label: t("company.builtBy"),
@@ -44,7 +45,8 @@ export function invoicePrintModel(
             ? "invoice.supplier"
             : "invoice.customer",
         ),
-        value: [doc.party_name, doc.party_phone].filter(Boolean).join(" · ") || "—",
+        value:
+          [doc.party_name, doc.party_phone].filter(Boolean).join(" · ") || "—",
       },
       { label: t("invoice.recordedBy"), value: doc.user_name || "—" },
       ...([
@@ -366,9 +368,7 @@ export function reportPrintModel(
         r.number,
         r.date,
         r.party_name || "—",
-        r.kind === "sale_return"
-          ? t("documents.returned")
-          : t("nav.sales"),
+        r.kind === "sale_return" ? t("documents.returned") : t("nav.sales"),
         r.revenue,
         r.cost,
         r.revenue - r.cost,
@@ -445,11 +445,7 @@ export function reportPrintModel(
     );
     metric("reports.colRevenue", revenue);
     metric("reports.ownerShare", owner, "amber");
-    metric(
-      "reports.shopProfit",
-      revenue - owner,
-      profitTone(revenue - owner),
-    );
+    metric("reports.shopProfit", revenue - owner, profitTone(revenue - owner));
   } else if (tab === "cashMoney") {
     const m = data.money || {};
     const kindLabel = (kind) => {
@@ -489,18 +485,13 @@ export function reportPrintModel(
       t("reports.cashMoneyNote"),
       [
         "neutral",
-        (_, r) =>
-          r < position.length ? profitTone(position[r][1]) : "blue",
+        (_, r) => (r < position.length ? profitTone(position[r][1]) : "blue"),
       ],
     );
     metric("accounts.cash", m.cash || 0, profitTone(m.cash || 0));
     metric("reports.cashIn", m.cash_in || 0, "positive");
     metric("reports.cashOut", m.cash_out || 0, "amber");
-    metric(
-      "reports.cashNet",
-      m.cash_net || 0,
-      profitTone(m.cash_net || 0),
-    );
+    metric("reports.cashNet", m.cash_net || 0, profitTone(m.cash_net || 0));
     metric("capital.netWorth", m.net_worth || 0, profitTone(m.net_worth || 0));
   } else if (tab === "expenseBreak") {
     table(

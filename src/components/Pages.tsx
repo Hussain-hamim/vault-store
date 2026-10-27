@@ -231,7 +231,10 @@ export function ProductsPage({
       ].join(" · "),
       emptyLabel: t("reports.noRows"),
       summary: [
-        { label: t("inventory.showingProducts", { n: rows.length }), value: rows.length },
+        {
+          label: t("inventory.showingProducts", { n: rows.length }),
+          value: rows.length,
+        },
         { label: t("inventory.qty"), value: totalUnits },
         ...(showCost
           ? [
@@ -755,10 +758,7 @@ export function DocumentsPage({
                           ? []
                           : [
                               af(d.paid, 2),
-                              af(
-                                Math.max(0, d.total - d.paid - d.returned),
-                                2,
-                              ),
+                              af(Math.max(0, d.total - d.paid - d.returned), 2),
                             ]),
                       ]),
                     },
@@ -900,7 +900,9 @@ export function DocumentsPage({
                       <div className="docs-row-meta docs-row-money">
                         <strong
                           className={
-                            (d.party_balance || 0) > 0 ? "text-red" : "text-green"
+                            (d.party_balance || 0) > 0
+                              ? "text-red"
+                              : "text-green"
                           }
                         >
                           {af(d.party_balance || 0)}
@@ -1442,9 +1444,7 @@ export function PeoplePage({
                                     setConfirmDelete(false);
                                     toast(
                                       kind === "customer"
-                                        ? t(
-                                            "partyDetail.deleteBalanceCustomer",
-                                          )
+                                        ? t("partyDetail.deleteBalanceCustomer")
                                         : t(
                                             "partyDetail.deleteBalanceSupplier",
                                           ),
@@ -1675,16 +1675,12 @@ export function PeoplePage({
                           <td
                             className={`money ledger-col-debit ${e.debit ? (kind === "customer" ? "text-red" : "text-green") : "muted"}`}
                           >
-                            <strong>
-                              {e.debit ? af(e.debit) : EM_DASH}
-                            </strong>
+                            <strong>{e.debit ? af(e.debit) : EM_DASH}</strong>
                           </td>
                           <td
                             className={`money ledger-col-credit ${e.credit ? (kind === "customer" ? "text-green" : "text-red") : "muted"}`}
                           >
-                            <strong>
-                              {e.credit ? af(e.credit) : EM_DASH}
-                            </strong>
+                            <strong>{e.credit ? af(e.credit) : EM_DASH}</strong>
                           </td>
                           <td
                             className={`money ledger-col-balance ${e.running > 0 ? "text-red" : "text-green"}`}
@@ -2313,6 +2309,9 @@ export { ReportsPage } from "./ReportsPage";
 export function BackupsPage({ refresh, toast }: PageProps) {
   const t = useT();
   const { data, error } = useLoad<any>("backups", {}, refresh);
+  const [allDrives, setAllDrives] = useState(false);
+  const [availableTargets, setAvailableTargets] = useState<string[]>([]);
+  const [lastSuccess, setLastSuccess] = useState<string | null>(null);
   const [destinations, setDestinations] = useState<string[]>([]),
     [path, setPath] = useState(""),
     [localError, setLocalError] = useState(""),
@@ -2322,16 +2321,31 @@ export function BackupsPage({ refresh, toast }: PageProps) {
   useEffect(() => {
     if (data) {
       setDestinations(data.config.destinations);
+      setAllDrives(!!data.config.allDrives);
+      setAvailableTargets(data.availableTargets || []);
+      setLastSuccess(data.config.lastSuccess);
       setRuns(data.runs);
     }
   }, [data]);
   useEffect(() => {
-    if (version) api("backups").then((d) => setRuns(d.runs));
+    if (version)
+      api("backups")
+        .then((d) => {
+          setRuns(d.runs);
+          setAvailableTargets(d.availableTargets || []);
+          setLastSuccess(d.config.lastSuccess);
+        })
+        .catch((e) => setLocalError(e.message));
   }, [version]);
-  async function save(list: string[]) {
+  async function save(list: string[], includeDrives = allDrives) {
     setLocalError("");
     try {
-      await api("backupSettings", { destinations: list });
+      await api("backupSettings", {
+        destinations: list,
+        allDrives: includeDrives,
+      });
+      setAllDrives(includeDrives);
+      setVersion((v) => v + 1);
       setDestinations(list);
       toast(t("backups.destinationsSaved"));
     } catch (e: any) {
@@ -2410,7 +2424,7 @@ export function BackupsPage({ refresh, toast }: PageProps) {
         action={
           <button
             className="button button-dark"
-            disabled={busy || !destinations.length}
+            disabled={busy || (!destinations.length && !allDrives)}
             onClick={run}
           >
             <ArrowClockwiseIcon size={16} className={busy ? "spin" : ""} />
@@ -2433,8 +2447,8 @@ export function BackupsPage({ refresh, toast }: PageProps) {
         <Metric
           label={t("backups.lastFullCopy")}
           value={
-            data?.config.lastSuccess
-              ? new Date(data.config.lastSuccess).toLocaleDateString()
+            lastSuccess
+              ? new Date(lastSuccess).toLocaleDateString()
               : t("backups.never")
           }
           detail={t("backups.destinationsVerifyHint")}
@@ -2448,9 +2462,28 @@ export function BackupsPage({ refresh, toast }: PageProps) {
               {t("backups.destinations")}
             </h3>
             <Badge tone="gray">
-              {t("backups.foldersCount", { n: destinations.length })}
+              {t("backups.foldersCount", { n: allDrives ? availableTargets.length : destinations.length })}
             </Badge>
           </div>
+          <label className="checkbox-field">
+            <input
+              type="checkbox"
+              checked={allDrives}
+              disabled={busy}
+              onChange={(e) => save(destinations, e.target.checked)}
+            />
+            {t("backups.allDrives")}
+          </label>
+          <p className="muted">{t("backups.allDrivesHint")}</p>
+          {allDrives && (
+            <ul>
+              {availableTargets
+                .filter((d) => !destinations.includes(d))
+                .map((d) => (
+                  <li key={d}>{d}</li>
+                ))}
+            </ul>
+          )}
           <p className="muted">{t("backups.destinationsIntro")}</p>
           <div className="destination-list">
             {destinations.map((d, i) => (
@@ -2662,10 +2695,7 @@ export function SettingsPage({
       setBusy(false);
     }
   }
-  function onLogoFile(
-    file: File | null,
-    setLogo: (value: string) => void,
-  ) {
+  function onLogoFile(file: File | null, setLogo: (value: string) => void) {
     if (!file) return;
     if (!/^image\/(png|jpeg|jpg|webp|gif)$/i.test(file.type)) {
       setLocalError(t("settings.logoFileType"));

@@ -31,7 +31,11 @@ contextBridge.exposeInMainWorld(
         payload,
         token,
       );
-      if (!reply.ok) throw new Error(reply.error);
+      if (!reply.ok) {
+        const error = new Error(reply.error);
+        error.code = reply.code;
+        throw error;
+      }
       return reply.result;
     },
     pickFolder: () => ipcRenderer.invoke("vault:folder"),

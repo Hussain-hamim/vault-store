@@ -422,3 +422,59 @@ textarea {
 html[dir="rtl"] .people-row-balance,
 html[dir="rtl"] .inventory-row-cost,
 html[dir="rtl"] .inventory-row-price { text-align: right; }
+
+/* Stacked contact panels need their own natural rows instead of sharing a
+   compressed viewport-height grid that hides the ledger toolbar. */
+@media (max-width: 1440px) {
+  .people-page .people-layout.has-detail {
+    flex: 0 0 auto;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    overflow: visible;
+  }
+  .people-layout.has-detail > .people-list { min-height: 320px; max-height: 440px; }
+  .people-layout.has-detail > .people-detail { min-height: 280px; overflow: visible; }
+  .people-layout.has-detail .people-list-scroll { flex: 1 1 auto; min-height: 150px; }
+  .people-layout.has-detail .people-row { flex-shrink: 0; }
+}
+
+/* Desktop contacts: use the workspace for a list and right-hand ledger. */
+@container workspace (min-width: 800px) {
+  .people-page.page-content:has(.people-layout.has-detail) {
+    width: 100%;
+    max-width: 1480px;
+  }
+  .people-page .people-layout.has-detail {
+    flex: 1 1 auto;
+    grid-template-columns: minmax(300px, .9fr) minmax(390px, 1.1fr);
+    grid-template-rows: minmax(0, 1fr);
+    min-height: 400px;
+    align-items: stretch;
+  }
+  .people-layout.has-detail > .people-list {
+    min-width: 0;
+    min-height: 400px;
+    max-height: none;
+  }
+  .people-layout.has-detail > .people-detail {
+    min-width: 0;
+    min-height: 400px;
+    overflow: auto;
+  }
+  .people-layout.has-detail .people-list-cols { display: none; }
+  .people-layout.has-detail .people-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px 12px;
+    padding: 12px;
+  }
+  .people-layout.has-detail .people-row > .people-row-identity { grid-column: 1; grid-row: 1; }
+  .people-layout.has-detail .people-row > :nth-child(2) { grid-column: 1; grid-row: 2; }
+  .people-layout.has-detail .people-row > :nth-child(3) { grid-column: 1; grid-row: 3; }
+  .people-layout.has-detail .people-row > .people-row-balance { grid-column: 2; grid-row: 1; }
+  .people-layout.has-detail .people-row > .people-row-actions { grid-column: 2; grid-row: 2 / 4; }
+  .people-layout.has-detail .list-toolbar { flex-wrap: wrap; gap: 8px; }
+  .people-layout.has-detail .list-toolbar .search { flex-basis: 100%; }
+  .people-layout.has-detail .people-detail > .panel-heading { flex-wrap: wrap; gap: 8px; }
+  .people-layout.has-detail .people-detail .inline-actions { flex-wrap: wrap; gap: 6px; }
+  .people-layout.has-detail .people-detail .button { padding: 7px 9px; font-size: 11px; }
+}

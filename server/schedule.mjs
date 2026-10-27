@@ -13,7 +13,11 @@ export function scheduleDefinition(
   { executable, appPath, userData },
   platform = process.platform,
 ) {
-  const args = [...(appPath ? [appPath] : []), "--backup-mode"];
+  const args = [
+    ...(appPath ? [appPath] : []),
+    "--backup-mode",
+    `--backup-user-data=${userData}`,
+  ];
   if (platform === "darwin") {
     const plist = `<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0"><dict><key>Label</key><string>com.vault.store.backup</string><key>ProgramArguments</key><array>${[executable, ...args].map((a) => `<string>${xml(a)}</string>`).join("")}</array><key>StartInterval</key><integer>3600</integer><key>RunAtLoad</key><true/><key>StandardOutPath</key><string>${xml(path.join(userData, "backup.log"))}</string><key>StandardErrorPath</key><string>${xml(path.join(userData, "backup-errors.log"))}</string></dict></plist>`;
     return { contents: plist, args };

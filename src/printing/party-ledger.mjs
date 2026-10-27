@@ -49,6 +49,7 @@ export function partyLedgerPrintDocument({
   }
   return {
     kind: "report",
+    preferenceGroup: `${kind}-ledger`,
     locale,
     title: t("ledger.title"),
     subtitle: [party.name, party.phone].filter(Boolean).join(" · "),

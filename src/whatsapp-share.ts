@@ -2,7 +2,7 @@ import { getToken } from "./api";
 import { renderPrintDocument } from "./printing/document.mjs";
 import { printFonts } from "./printing/fonts";
 import type { PrintDocument, PrintOptions } from "./printing/types";
-import { normalizePrintOptions } from "../server/print-options.mjs";
+import { readPrintPreferences } from "./printing/preferences.mjs";
 import {
   isWhatsAppPhone,
   parsePhone,
@@ -47,10 +47,7 @@ export async function shareViaWhatsApp({
   if (window.vault?.shareWhatsApp) {
     let job: Record<string, unknown> | undefined;
     if (document) {
-      const options = normalizePrintOptions(
-        { paper: "A4", layout: "modern", theme: "mono" },
-        document.kind,
-      ) as PrintOptions;
+      const options = readPrintPreferences(document) as PrintOptions;
       const html = renderPrintDocument(document, options, printFonts);
       job = {
         mode: "pdf",
@@ -62,15 +59,32 @@ export async function shareViaWhatsApp({
         source: document.source,
       };
     }
-    const result = await window.vault.shareWhatsApp(
-      { phone: parsePhone(phone).e164, text: text || "", job },
-      getToken(),
-    );
-    if (document && !result?.pdfPath)
-      throw new Error(t("whatsapp.pdfFailed"));
+    let result;
+    try {
+      result = await window.vault.shareWhatsApp(
+        { phone: parsePhone(phone).e164, text: text || "", job, formatLabels: document ? { title: t("whatsapp.chooseFormat"), image: t("whatsapp.image"), cancel: t("whatsapp.cancelShare") } : undefined },
+        getToken(),
+      );
+    } catch (error: any) {
+      const messages: Record<string, string> = {
+        WHATSAPP_NOT_INSTALLED: "notInstalled",
+        WHATSAPP_AUTOMATION_DENIED: "automationDenied",
+        WHATSAPP_CHAT_NOT_READY: "chatNotReady",
+        WHATSAPP_ATTACH_FAILED: "attachFailed",
+        WHATSAPP_SEND_UNCONFIRMED: "sendUnconfirmed",
+        WHATSAPP_UNSUPPORTED: "needDesktop",
+        WHATSAPP_BUSY: "busy",
+        WHATSAPP_IMAGE_TOO_LARGE: "imageTooLarge",
+      };
+      // Electron's context bridge can discard custom Error properties.
+      const code = error.code || error.message;
+      if (messages[code]) throw new Error(t(`whatsapp.${messages[code]}`));
+      throw error;
+    }
+    if (result?.canceled) return { message: t("whatsapp.canceled") };
+    if (document && !result?.pdfPath) throw new Error(t("whatsapp.pdfFailed"));
     if (result?.pdfPath) {
-      if (result.sent || result.pasted)
-        return { message: t("whatsapp.openedWithPdf") };
+      if (result.submitted) return { message: t("whatsapp.fileSubmitted") };
       return { message: t("whatsapp.openedWithPdfManual") };
     }
     return { message: t("whatsapp.opened") };
@@ -79,10 +93,7 @@ export async function shareViaWhatsApp({
   // Browser / non-desktop fallback: save PDF if possible, never auto-open wa.me with text
   // when a document was requested (that only sends the greeting).
   if (document && window.vault?.renderPrint) {
-    const options = normalizePrintOptions(
-      { paper: "A4", layout: "modern", theme: "mono" },
-      document.kind,
-    ) as PrintOptions;
+    const options = readPrintPreferences(document) as PrintOptions;
     const html = renderPrintDocument(document, options, printFonts);
     await window.vault.renderPrint(
       {
