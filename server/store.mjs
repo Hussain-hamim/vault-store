@@ -1885,6 +1885,55 @@ export class Store {
       return this.getDocument(doc.id);
     });
   }
+  expenseUpdate(user, input) {
+    const d = z
+      .object({
+        id: z.string().min(1),
+        amount: money.refine((n) => n > 0),
+        category: text.optional(),
+        account_id: z.string().optional(),
+        note: text.min(2),
+        date: date.optional(),
+      })
+      .parse(input);
+    return this.transaction(() => {
+      const old = this.one("SELECT * FROM documents WHERE id=?", d.id);
+      if (!old || old.kind !== "expense")
+        throw new Error("Expense not found.");
+      const closed = this.setting("closedThrough");
+      if (closed && (old.date <= closed || (d.date && d.date <= closed)))
+        throw new Error("This accounting period is closed.");
+      const account = d.account_id
+        ? this.one("SELECT * FROM expense_accounts WHERE id=?", d.account_id)
+        : this.one(
+            "SELECT * FROM expense_accounts WHERE name=? COLLATE NOCASE",
+            d.category || "",
+          );
+      if (!account) throw new Error("Choose a valid expense account.");
+      const date = d.date || old.date;
+      this.run("DELETE FROM journal WHERE document_id=?", old.id);
+      this.run(
+        "UPDATE documents SET date=?, total=?, paid=?, note=?, category=?, expense_account_id=? WHERE id=?",
+        date,
+        d.amount,
+        d.amount,
+        d.note,
+        account.name,
+        account.id,
+        old.id,
+      );
+      const doc = { id: old.id, date };
+      this.ledger(doc, [
+        ["expenses", d.amount, 0],
+        ["cash", 0, d.amount],
+      ]);
+      this.audit(user, "Update expense", old.id, {
+        amount: d.amount,
+        category: account.name,
+      });
+      return this.getDocument(old.id);
+    });
+  }
   returnTrade(user, input) {
     const d = z
       .object({
@@ -3094,6 +3143,7 @@ export class Store {
       payment: "finance",
       paymentDelete: "finance",
       expense: "finance",
+      expenseUpdate: "finance",
       expenseAccounts: "finance",
       expenseAccountCreate: "finance",
       consignments: "finance",
@@ -3744,6 +3794,8 @@ export class Store {
       }
       case "expense":
         return this.expense(user, args);
+      case "expenseUpdate":
+        return this.expenseUpdate(user, args);
       case "reports":
         if (!user.permissions.includes("view_costs"))
           throw new Error("Permission required: view_costs");

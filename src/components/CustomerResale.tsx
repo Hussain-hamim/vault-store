@@ -641,7 +641,7 @@ export function ResaleReceiveDialog({
                             accessoryType: "",
                             specs: {},
                             units: [],
-                            showSpecs: !!specOrder(e.target.value).length,
+                            showSpecs: !!specOrder(e.target.value, "").length,
                           })
                         }
                       >
@@ -755,7 +755,7 @@ export function ResaleReceiveDialog({
                       />
                     </Field>
                   </div>
-                  {!!specOrder(line.category).length && (
+                  {!!specOrder(line.category, line.accessoryType).length && (
                     <div className="resale-line-extras">
                       <button
                         type="button"
@@ -782,7 +782,7 @@ export function ResaleReceiveDialog({
                   )}
                   {line.showSpecs && (
                     <div className="form-grid four">
-                      {specOrder(line.category).map((k) => (
+                      {specOrder(line.category, line.accessoryType).map((k) => (
                         <Field
                           key={line.key + k}
                           label={
@@ -808,7 +808,8 @@ export function ResaleReceiveDialog({
                       ))}
                     </div>
                   )}
-                  {!specOrder(line.category).length && serialized && (
+                  {!specOrder(line.category, line.accessoryType).length &&
+                    serialized && (
                     <ReceiveDevices
                       quantity={Number(line.quantity) || 0}
                       values={line.units}

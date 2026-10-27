@@ -14,6 +14,7 @@ import {
   PlusIcon,
   TrashIcon,
   ArrowRightIcon,
+  ArrowLeftIcon,
   PrinterIcon,
   ArrowCounterClockwiseIcon,
   PackageIcon,
@@ -22,6 +23,7 @@ import {
   DownloadSimpleIcon,
   BarcodeIcon,
   WhatsappLogoIcon,
+  FloppyDiskIcon,
 } from "@phosphor-icons/react";
 import {
   api,
@@ -1904,6 +1906,28 @@ export function TradeForm({
 function ShoppingIllustration() {
   return <PackageIcon size={28} weight="light" />;
 }
+type PartyDraft = {
+  id?: string;
+  name: string;
+  phone: string;
+  email: string;
+  address: string;
+  opening_balance: string;
+  opening_date: string;
+  walk_in?: number;
+};
+function blankParty(seed?: Party | null): PartyDraft {
+  return {
+    id: seed?.id,
+    name: seed?.name || "",
+    phone: seed?.phone || "",
+    email: seed?.email || "",
+    address: seed?.address || "",
+    opening_balance: "0",
+    opening_date: businessDate(),
+    walk_in: seed?.walk_in,
+  };
+}
 export function PartyForm({
   kind,
   party,
@@ -1916,57 +1940,117 @@ export function PartyForm({
   user?: User;
 } & DialogProps) {
   const t = useT();
-  const editing = !!party?.id;
-  const canOpening = user?.role === "Owner" && !party?.walk_in;
+  const [draft, setDraft] = useState<PartyDraft>(() => blankParty(party));
+  const [history, setHistory] = useState<PartyDraft[]>([]);
+  const [cursor, setCursor] = useState(-1);
   const [error, setError] = useState(""),
-    [busy, setBusy] = useState(false);
+    [busy, setBusy] = useState(false),
+    [notice, setNotice] = useState("");
   const key = useRef(requestKey());
-  async function submit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const f = new FormData(e.currentTarget);
+  const newDraft = useRef<PartyDraft>(blankParty());
+  const editing = !!draft.id;
+  const canOpening = user?.role === "Owner" && !draft.walk_in;
+  const sessionCreate = !party?.id;
+  function patch(name: keyof PartyDraft, value: string) {
+    setDraft((d) => ({ ...d, [name]: value }));
+    setNotice("");
+  }
+  function loadDraft(next: PartyDraft, index = -1) {
+    setDraft(next);
+    setCursor(index);
+    setError("");
+    setNotice("");
+    key.current = requestKey();
+  }
+  function previous() {
+    if (cursor >= 0)
+      setHistory((rows) => rows.map((row, i) => (i === cursor ? draft : row)));
+    else if (!editing) newDraft.current = draft;
+    const index = cursor < 0 ? history.length - 1 : cursor - 1;
+    if (index >= 0) loadDraft(history[index], index);
+  }
+  function backToNew() {
+    if (cursor >= 0)
+      setHistory((rows) => rows.map((row, i) => (i === cursor ? draft : row)));
+    loadDraft(newDraft.current);
+  }
+  async function save(mode: "close" | "next") {
     setBusy(true);
+    setError("");
     try {
-      const phone = assertPhoneValid(String(f.get("phone") || ""), t);
+      const phone = assertPhoneValid(draft.phone, t);
+      let saved: PartyDraft;
       if (editing) {
-        const updated = await api<{ id: string }>("partyUpdate", {
-          id: party!.id,
-          name: f.get("name"),
+        await api<{ id: string }>("partyUpdate", {
+          id: draft.id,
+          name: draft.name,
           phone,
-          email: f.get("email"),
-          address: f.get("address"),
+          email: draft.email,
+          address: draft.address,
         });
-        const opening = toMoney(f.get("opening_balance") || "0");
+        const opening = toMoney(draft.opening_balance || "0");
         if (opening > 0 && canOpening) {
           await api("openingBalance", {
-            party_id: party!.id,
+            party_id: draft.id,
             amount: opening,
-            date: f.get("opening_date") || businessDate(),
+            date: draft.opening_date || businessDate(),
             request_key: `${key.current}-opening`,
           });
         }
-        done(
+        saved = {
+          ...draft,
+          phone,
+          opening_balance: "0",
+        };
+        if (cursor >= 0)
+          setHistory((rows) =>
+            rows.map((row, i) => (i === cursor ? saved : row)),
+          );
+        await done(
           kind === "customer"
             ? t("partyForm.customerUpdated")
             : t("partyForm.supplierUpdated"),
-          updated,
+          { id: draft.id },
         );
       } else {
         const created = await api<{ id: string }>("partyCreate", {
           kind,
-          name: f.get("name"),
+          name: draft.name,
           phone,
-          email: f.get("email"),
-          address: f.get("address"),
-          opening_balance: toMoney(f.get("opening_balance") || "0"),
-          opening_date: f.get("opening_date") || businessDate(),
+          email: draft.email,
+          address: draft.address,
+          opening_balance: toMoney(draft.opening_balance || "0"),
+          opening_date: draft.opening_date || businessDate(),
           request_key: key.current,
         });
-        done(
+        saved = {
+          ...draft,
+          id: created.id,
+          phone,
+          opening_balance: "0",
+        };
+        setHistory((rows) => [...rows, saved]);
+        await done(
           kind === "customer"
             ? t("partyForm.customerAdded")
             : t("partyForm.supplierAdded"),
           created,
         );
+      }
+      if (mode === "next") {
+        const fresh = blankParty();
+        newDraft.current = fresh;
+        loadDraft(fresh);
+        setNotice(
+          kind === "customer"
+            ? t("entry.savedCustomerNext")
+            : t("partyForm.supplierAdded"),
+        );
+      } else if (editing && cursor >= 0) {
+        loadDraft(newDraft.current);
+        setNotice(t("entry.savedCustomerNext"));
+      } else {
+        close();
       }
     } catch (e: any) {
       setError(e.message);
@@ -1985,30 +2069,43 @@ export function PartyForm({
             ? t("partyForm.addCustomer")
             : t("partyForm.addSupplier")
       }
-      subtitle={t("partyForm.subtitle")}
+      subtitle={
+        cursor >= 0
+          ? t("entry.previousCustomer", { number: cursor + 1 })
+          : t("partyForm.subtitle")
+      }
       onClose={close}
     >
-      <form onSubmit={submit}>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          void save(editing && cursor >= 0 ? "next" : "close");
+        }}
+      >
         <div className="form-body">
           <Field label={t("partyForm.nameBusiness")}>
             <input
               name="name"
               required
               minLength={2}
-              defaultValue={party?.name || ""}
+              value={draft.name}
+              onChange={(e) => patch("name", e.target.value)}
             />
           </Field>
           <div className="form-grid">
             <PhoneField
+              key={`${draft.id || "new"}-${cursor}`}
               name="phone"
               label={t("party.phone")}
-              defaultValue={party?.phone || ""}
+              defaultValue={draft.phone}
+              onChange={(value) => patch("phone", value)}
             />
             <Field label={t("partyForm.emailOptional")}>
               <input
                 name="email"
                 type="email"
-                defaultValue={party?.email || ""}
+                value={draft.email}
+                onChange={(e) => patch("email", e.target.value)}
               />
             </Field>
           </div>
@@ -2016,7 +2113,8 @@ export function PartyForm({
             <textarea
               name="address"
               rows={2}
-              defaultValue={party?.address || ""}
+              value={draft.address}
+              onChange={(e) => patch("address", e.target.value)}
             />
           </Field>
           {(!editing || canOpening) && (
@@ -2041,7 +2139,8 @@ export function PartyForm({
                   name="opening_balance"
                   min="0"
                   step="0.01"
-                  defaultValue="0"
+                  value={draft.opening_balance}
+                  onChange={(e) => patch("opening_balance", e.target.value)}
                 />
               </Field>
               <Field
@@ -2052,18 +2151,56 @@ export function PartyForm({
                   name="opening_date"
                   type="date"
                   max={businessDate()}
-                  defaultValue={businessDate()}
+                  value={draft.opening_date}
+                  onChange={(e) => patch("opening_date", e.target.value)}
                 />
               </Field>
             </div>
           )}
+          {notice && <p className="entry-notice">{notice}</p>}
           <ErrorMessage error={error} />
         </div>
         <div className="modal-actions">
           <button type="button" className="button" onClick={close}>
             {t("common.cancel")}
           </button>
+          {sessionCreate && (
+            <>
+              <button
+                type="button"
+                className="button"
+                disabled={busy || !history.length || cursor === 0}
+                onClick={previous}
+              >
+                <ArrowLeftIcon size={15} aria-hidden="true" />
+                {t("entry.previous")}
+              </button>
+              {cursor >= 0 && (
+                <button
+                  type="button"
+                  className="button"
+                  disabled={busy}
+                  onClick={backToNew}
+                >
+                  <ArrowRightIcon size={15} aria-hidden="true" />
+                  {t("entry.backToNew")}
+                </button>
+              )}
+              {!editing && (
+                <button
+                  type="button"
+                  className="button"
+                  disabled={busy}
+                  onClick={() => void save("next")}
+                >
+                  <PlusIcon size={15} aria-hidden="true" />
+                  {t("entry.saveNew")}
+                </button>
+              )}
+            </>
+          )}
           <button className="button button-dark" disabled={busy}>
+            <FloppyDiskIcon size={15} aria-hidden="true" />
             {busy
               ? t("common.saving")
               : editing
@@ -2077,28 +2214,50 @@ export function PartyForm({
     </Modal>
   );
 }
+type ExpenseDraft = {
+  id?: string;
+  amount: string;
+  date: string;
+  account_id: string;
+  note: string;
+};
+function blankExpense(accountId = ""): ExpenseDraft {
+  return {
+    amount: "",
+    date: businessDate(),
+    account_id: accountId,
+    note: "",
+  };
+}
 export function ExpenseForm({ close, done }: DialogProps) {
   const t = useT();
   const [error, setError] = useState(""),
-    [busy, setBusy] = useState(false);
+    [busy, setBusy] = useState(false),
+    [notice, setNotice] = useState("");
   const key = useRef(requestKey());
   const [accounts, setAccounts] = useState<any[]>([]),
-    [accountId, setAccountId] = useState(""),
     [adding, setAdding] = useState(false),
     [accountName, setAccountName] = useState(""),
     [accountBusy, setAccountBusy] = useState(false);
+  const [draft, setDraft] = useState<ExpenseDraft>(() => blankExpense());
+  const [history, setHistory] = useState<ExpenseDraft[]>([]);
+  const [cursor, setCursor] = useState(-1);
+  const newDraft = useRef<ExpenseDraft>(blankExpense());
+  const defaultAccount = useRef("");
+  const editing = !!draft.id;
   useEffect(() => {
     let active = true;
     api("expenseAccounts")
       .then((data) => {
-        if (active) {
-          setAccounts(data.rows);
-          setAccountId(
-            data.rows.find((a: any) => a.name === "Rent")?.id ||
-              data.rows[0]?.id ||
-              "",
-          );
-        }
+        if (!active) return;
+        setAccounts(data.rows);
+        const id =
+          data.rows.find((a: any) => a.name === "Rent")?.id ||
+          data.rows[0]?.id ||
+          "";
+        defaultAccount.current = id;
+        setDraft((d) => (d.account_id ? d : { ...d, account_id: id }));
+        newDraft.current = blankExpense(id);
       })
       .catch((e) => {
         if (active) setError(e.message);
@@ -2107,13 +2266,36 @@ export function ExpenseForm({ close, done }: DialogProps) {
       active = false;
     };
   }, []);
+  function patch(name: keyof ExpenseDraft, value: string) {
+    setDraft((d) => ({ ...d, [name]: value }));
+    setNotice("");
+  }
+  function loadDraft(next: ExpenseDraft, index = -1) {
+    setDraft(next);
+    setCursor(index);
+    setError("");
+    setNotice("");
+    key.current = requestKey();
+  }
+  function previous() {
+    if (cursor >= 0)
+      setHistory((rows) => rows.map((row, i) => (i === cursor ? draft : row)));
+    else if (!editing) newDraft.current = draft;
+    const index = cursor < 0 ? history.length - 1 : cursor - 1;
+    if (index >= 0) loadDraft(history[index], index);
+  }
+  function backToNew() {
+    if (cursor >= 0)
+      setHistory((rows) => rows.map((row, i) => (i === cursor ? draft : row)));
+    loadDraft(newDraft.current);
+  }
   async function addAccount() {
     setAccountBusy(true);
     setError("");
     try {
       const created = await api("expenseAccountCreate", { name: accountName });
       setAccounts((rows) => [...rows, created]);
-      setAccountId(created.id);
+      patch("account_id", created.id);
       setAdding(false);
       setAccountName("");
     } catch (e: any) {
@@ -2122,20 +2304,50 @@ export function ExpenseForm({ close, done }: DialogProps) {
       setAccountBusy(false);
     }
   }
-
-  async function submit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
+  async function save(mode: "close" | "next") {
     setBusy(true);
-    const f = new FormData(e.currentTarget);
+    setError("");
     try {
-      await api("expense", {
-        amount: toMoney(f.get("amount")),
-        account_id: accountId,
-        date: f.get("date"),
-        note: f.get("note"),
-        request_key: key.current,
-      });
-      done(t("toast.expenseRecorded"));
+      let saved: ExpenseDraft;
+      if (editing) {
+        await api("expenseUpdate", {
+          id: draft.id,
+          amount: toMoney(draft.amount),
+          account_id: draft.account_id,
+          date: draft.date,
+          note: draft.note,
+        });
+        saved = { ...draft };
+        if (cursor >= 0)
+          setHistory((rows) =>
+            rows.map((row, i) => (i === cursor ? saved : row)),
+          );
+        await done(t("toast.expenseRecorded"));
+      } else {
+        const created = await api<{ id: string }>("expense", {
+          amount: toMoney(draft.amount),
+          account_id: draft.account_id,
+          date: draft.date,
+          note: draft.note,
+          request_key: key.current,
+        });
+        saved = { ...draft, id: created.id };
+        setHistory((rows) => [...rows, saved]);
+        await done(t("toast.expenseRecorded"));
+      }
+      if (mode === "next") {
+        const fresh = blankExpense(
+          draft.account_id || defaultAccount.current,
+        );
+        newDraft.current = fresh;
+        loadDraft(fresh);
+        setNotice(t("entry.savedExpenseNext"));
+      } else if (editing && cursor >= 0) {
+        loadDraft(newDraft.current);
+        setNotice(t("entry.savedExpenseNext"));
+      } else {
+        close();
+      }
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -2144,11 +2356,22 @@ export function ExpenseForm({ close, done }: DialogProps) {
   }
   return (
     <Modal
-      title={t("expense.recordAn")}
-      subtitle={t("expense.subtitleDaily")}
+      title={
+        editing ? t("expense.recordAn") : t("expense.recordAn")
+      }
+      subtitle={
+        cursor >= 0
+          ? t("entry.previousExpense", { number: cursor + 1 })
+          : t("expense.subtitleDaily")
+      }
       onClose={close}
     >
-      <form onSubmit={submit}>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          void save(editing && cursor >= 0 ? "next" : "close");
+        }}
+      >
         <div className="form-body">
           <div className="form-grid">
             <Field label={t("expense.amount")}>
@@ -2158,22 +2381,25 @@ export function ExpenseForm({ close, done }: DialogProps) {
                 step="0.01"
                 required
                 autoFocus
+                value={draft.amount}
+                onChange={(e) => patch("amount", e.target.value)}
               />
             </Field>
             <Field label={t("expense.date")}>
               <input
                 name="date"
                 type="date"
-                defaultValue={businessDate()}
+                value={draft.date}
                 max={businessDate()}
                 required
+                onChange={(e) => patch("date", e.target.value)}
               />
             </Field>
           </div>
           <Field label={t("expenseAccounts.account")}>
             <select
-              value={accountId}
-              onChange={(e) => setAccountId(e.target.value)}
+              value={draft.account_id}
+              onChange={(e) => patch("account_id", e.target.value)}
               required
               disabled={!accounts.length}
             >
@@ -2230,8 +2456,11 @@ export function ExpenseForm({ close, done }: DialogProps) {
               minLength={2}
               required
               rows={3}
+              value={draft.note}
+              onChange={(e) => patch("note", e.target.value)}
             />
           </Field>
+          {notice && <p className="entry-notice">{notice}</p>}
           <ErrorMessage error={error} />
         </div>
         <div className="modal-actions">
@@ -2239,10 +2468,46 @@ export function ExpenseForm({ close, done }: DialogProps) {
             {t("common.cancel")}
           </button>
           <button
-            className="button button-dark"
-            disabled={busy || accountBusy || !accountId || adding}
+            type="button"
+            className="button"
+            disabled={busy || !history.length || cursor === 0}
+            onClick={previous}
           >
-            {busy ? t("common.saving") : t("expense.record")}
+            <ArrowLeftIcon size={15} aria-hidden="true" />
+            {t("entry.previous")}
+          </button>
+          {cursor >= 0 && (
+            <button
+              type="button"
+              className="button"
+              disabled={busy}
+              onClick={backToNew}
+            >
+              <ArrowRightIcon size={15} aria-hidden="true" />
+              {t("entry.backToNew")}
+            </button>
+          )}
+          {!editing && (
+            <button
+              type="button"
+              className="button"
+              disabled={busy || accountBusy || !draft.account_id || adding}
+              onClick={() => void save("next")}
+            >
+              <PlusIcon size={15} aria-hidden="true" />
+              {t("entry.saveNew")}
+            </button>
+          )}
+          <button
+            className="button button-dark"
+            disabled={busy || accountBusy || !draft.account_id || adding}
+          >
+            <FloppyDiskIcon size={15} aria-hidden="true" />
+            {busy
+              ? t("common.saving")
+              : editing
+                ? t("common.save")
+                : t("expense.record")}
           </button>
         </div>
       </form>

@@ -4,24 +4,32 @@
 .modal.product-entry-modal {
   width: 1100px;
   max-width: calc(100vw - 32px);
-  height: calc(100dvh - 32px);
+  height: auto;
   max-height: calc(100dvh - 32px);
   min-height: 0;
   --modal-pad-x: 18px;
 }
+.product-entry-modal .modal-content > form {
+  overflow: hidden;
+}
+.product-entry-modal .form-body.product-entry-body {
+  overflow: visible;
+  min-height: 0;
+  padding: 8px 18px;
+}
 .product-entry-modal .modal-head {
-  padding: 12px 18px;
+  padding: 10px 18px;
 }
 .product-entry-modal .modal-head h2 {
-  font-size: 17px;
+  font-size: 16px;
 }
 .product-entry-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 8px 18px 0;
-  min-height: 36px;
+  padding: 6px 18px 0;
+  min-height: 28px;
   font-size: 11px;
 }
 .product-entry-toolbar .button {
@@ -29,23 +37,23 @@
   min-height: 28px;
 }
 .product-entry-body {
-  padding: 10px 18px;
+  padding: 8px 18px;
   min-height: 0;
 }
 .product-entry-panels {
   display: grid;
   grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
-  gap: 12px;
+  gap: 8px;
   align-items: start;
 }
 .product-entry-details {
   display: grid;
-  gap: 10px;
+  gap: 8px;
   min-width: 0;
 }
 .product-entry-panels .entry-section {
   min-width: 0;
-  padding: 11px 12px 12px;
+  padding: 8px 10px 9px;
   border: 1px solid
     color-mix(
       in srgb,
@@ -72,8 +80,8 @@
   display: flex;
   align-items: center;
   gap: 7px;
-  margin: 0 0 10px;
-  padding-bottom: 7px;
+  margin: 0 0 7px;
+  padding-bottom: 5px;
   border-bottom: 1px solid
     color-mix(in srgb, var(--entry-accent) 20%, transparent);
 }
@@ -93,26 +101,29 @@
   background-color: var(--paint-bg-f7f8f2, #f2f7f7);
 }
 .product-entry-panels h3 {
-  font-size: 12px;
-  margin: 4px 0 9px;
+  font-size: 11px;
+  margin: 2px 0 7px;
 }
 .product-entry-panels h3:not(:first-child) {
-  margin-top: 14px;
+  margin-top: 10px;
 }
 .product-entry-modal .entry-grid {
   display: grid;
-  gap: 8px 10px;
+  gap: 6px 8px;
   align-items: start;
 }
 .product-entry-modal .entry-grid.three {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.product-entry-modal .entry-grid.four {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 .product-entry-modal .entry-grid.two {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 .product-entry-modal .field {
   margin: 0;
-  gap: 4px;
+  gap: 3px;
 }
 .product-entry-modal .field > span {
   font-size: 10px;
@@ -120,9 +131,9 @@
 }
 .product-entry-modal .field input,
 .product-entry-modal .field select {
-  min-height: 32px;
-  height: 32px;
-  padding: 6px 9px;
+  min-height: 30px;
+  height: 30px;
+  padding: 5px 8px;
   font-size: 11px;
 }
 .product-entry-modal .field select {
@@ -135,14 +146,14 @@
   min-width: 0;
 }
 .product-entry-modal .product-photo-picker.compact .product-form-preview {
-  padding: 5px 9px;
-  margin: 0 0 10px;
-  gap: 10px;
-  min-height: 48px;
+  padding: 4px 8px;
+  margin: 0 0 8px;
+  gap: 8px;
+  min-height: 42px;
 }
 .product-entry-modal .product-photo-picker.compact .product-photo {
-  height: 42px;
-  width: 42px;
+  height: 36px;
+  width: 36px;
 }
 .product-photo-picker.compact .photo-picker-copy p {
   display: none;
@@ -166,12 +177,12 @@
   min-height: 30px;
 }
 .product-entry-modal .modal-actions {
-  padding: 10px 18px;
-  gap: 7px;
+  padding: 8px 18px;
+  gap: 6px;
 }
 .product-entry-modal .modal-actions > .button {
-  min-height: 32px;
-  padding: 7px 12px;
+  min-height: 30px;
+  padding: 6px 11px;
   font-size: 11px;
 }
 .product-entry-modal .modal-actions > .button:first-child {
@@ -223,12 +234,18 @@
   font-size: 10px;
   margin-top: 4px;
 }
+@media (max-height: 820px) {
+  .product-entry-modal .form-body.product-entry-body {
+    overflow: auto;
+  }
+}
 @media (max-width: 950px) {
   .product-entry-panels {
     grid-template-columns: 1fr 1fr;
-    gap: 10px;
+    gap: 8px;
   }
-  .product-entry-modal .entry-grid.three {
+  .product-entry-modal .entry-grid.three,
+  .product-entry-modal .entry-grid.four {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -248,7 +265,8 @@
   .product-entry-modal .modal-actions > .button {
     padding: 6px 8px;
   }
-  .product-entry-modal .entry-grid.three {
+  .product-entry-modal .entry-grid.three,
+  .product-entry-modal .entry-grid.four {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

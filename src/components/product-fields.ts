@@ -123,6 +123,16 @@ export function specFieldLabel(tr: (key: string) => string, key: string) {
     Video: "product.video",
     Shutter: "product.shutter",
     Battery: "product.battery",
+    NightVision: "product.nightVision",
+    IRRange: "product.irRange",
+    Power: "product.power",
+    Cable: "product.cable",
+    Channels: "product.channels",
+    Audio: "product.audio",
+    Housing: "product.housing",
+    IPRating: "product.ipRating",
+    ViewingAngle: "product.viewingAngle",
+    Included: "product.included",
   };
   return tr(map[key] || key);
 }

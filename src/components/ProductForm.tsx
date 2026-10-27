@@ -139,6 +139,16 @@ const fields = [
   "Video",
   "Shutter",
   "Battery",
+  "NightVision",
+  "IRRange",
+  "Power",
+  "Cable",
+  "Channels",
+  "Audio",
+  "Housing",
+  "IPRating",
+  "ViewingAngle",
+  "Included",
 ];
 function signature(e: Pick<Entry, "data" | "photo">) {
   return JSON.stringify([
@@ -159,7 +169,7 @@ function empty(common?: Values): Entry {
     barcode: generateProductBarcode(),
     accessory: "Keyboard",
     accessoryOther: "",
-    cameraType: "Mirrorless",
+    cameraType: "CCTV",
     cameraTypeOther: "",
     currency: common?.currency || "AED",
     cost: "",
@@ -189,7 +199,7 @@ function existing(p: Product): Entry {
     sku: p.sku,
     barcode: p.barcode || "",
     accessory: p.attributes?.Type || "Keyboard",
-    cameraType: p.attributes?.Type || "Mirrorless",
+    cameraType: p.attributes?.Type || "CCTV",
     currency: p.currency || "AED",
     cost:
       (p.cost_foreign ?? p.cost_aed)
@@ -247,6 +257,8 @@ export function ProductForm({
     dirty = signature(entry) !== entry.baseline;
   const resolvedCategory =
     d.category === "Other" ? d.categoryOther.trim() : d.category;
+  const resolvedCameraType =
+    d.cameraType === "Other" ? d.cameraTypeOther.trim() : d.cameraType;
   useEffect(() => {
     let active = true;
     api<string[]>("productCategories")
@@ -379,7 +391,7 @@ export function ProductForm({
         : 0;
     if (!purchase && (!cost || !rate))
       throw new Error(t("currencies.costRateRequired"));
-    const attrs = editableSpecKeys(category);
+    const attrs = editableSpecKeys(category, cameraType);
     const attributes = Object.fromEntries(
       attrs.filter((k) => d[k]).map((k) => [k, d[k]]),
     );
@@ -494,9 +506,7 @@ export function ProductForm({
     try {
       const data = payload();
       const delta = stockDelta();
-      const serialized = ["Computers", "Mobiles", "Tablets"].includes(
-        d.category,
-      );
+      const serialized = trackedCategory(resolvedCategory || d.category);
       if (editing && delta < 0 && serialized)
         throw new Error(t("productForm.stockReduceDevices"));
       if (editing && delta !== 0 && delta + (entry.original?.stock ?? 0) < 0)
@@ -619,7 +629,10 @@ export function ProductForm({
       setError(e.message);
     }
   }
-  const attrs = editableSpecKeys(resolvedCategory || d.category);
+  const attrs = editableSpecKeys(
+    resolvedCategory || d.category,
+    resolvedCameraType,
+  );
   let costAF = "";
   try {
     costAF =
@@ -799,7 +812,6 @@ export function ProductForm({
                           {t("barcode.printShort")}
                         </button>
                       </div>
-                      <p className="entry-field-hint">{t("barcode.hint")}</p>
                     </Field>
                     {resolvedCategory === "Accessories" && (
                       <Field label={t("product.accessoryType")}>
@@ -845,7 +857,11 @@ export function ProductForm({
                 </section>
                 <section className="entry-section entry-specifications">
                   <h3>{t("productForm.specs")}</h3>
-                  <div className="entry-grid three">
+                  <div
+                    className={`entry-grid ${
+                      resolvedCategory === "Cameras" ? "four" : "three"
+                    }`}
+                  >
                     {attrs.map((a) => (
                       <SpecInput
                         key={a}
@@ -1162,47 +1178,68 @@ function SpecInput({
   value: string;
   onChange: (value: string) => void;
 }) {
-  const suggestions =
-    name === "RAM"
-      ? ["4 GB", "8 GB", "16 GB", "32 GB", "64 GB", "128 GB"]
-      : name === "Storage"
-        ? ["128 GB", "256 GB", "512 GB", "1 TB", "2 TB", "4 TB"]
-        : name === "Generation"
-          ? [
-              "11th Gen",
-              "12th Gen",
-              "13th Gen",
-              "14th Gen",
-              "M1",
-              "M2",
-              "M3",
-              "M4",
-              "Ryzen 5000",
-              "Ryzen 7000",
-            ]
-          : name === "Sensor"
-            ? [
-                "Full-frame",
-                "APS-C",
-                "Micro Four Thirds",
-                "1-inch",
-                "1/2.3-inch",
-              ]
-            : name === "Resolution"
-              ? ["12 MP", "20 MP", "24 MP", "33 MP", "45 MP", "61 MP"]
-              : name === "Mount"
-                ? [
-                    "Canon RF",
-                    "Canon EF",
-                    "Sony E",
-                    "Nikon Z",
-                    "Fujifilm X",
-                    "Micro Four Thirds",
-                    "Fixed",
-                  ]
-                : name === "Video"
-                  ? ["1080p", "4K 30fps", "4K 60fps", "8K"]
-                  : [];
+  const suggestionMap: Record<string, string[]> = {
+    RAM: ["4 GB", "8 GB", "16 GB", "32 GB", "64 GB", "128 GB"],
+    Storage: ["128 GB", "256 GB", "512 GB", "1 TB", "2 TB", "4 TB"],
+    Generation: [
+      "11th Gen",
+      "12th Gen",
+      "13th Gen",
+      "14th Gen",
+      "M1",
+      "M2",
+      "M3",
+      "M4",
+      "Ryzen 5000",
+      "Ryzen 7000",
+    ],
+    Sensor: ["Full-frame", "APS-C", "Micro Four Thirds", "1-inch", "1/2.3-inch"],
+    Resolution: [
+      "2 MP",
+      "4 MP",
+      "5 MP",
+      "8 MP",
+      "12 MP",
+      "20 MP",
+      "24 MP",
+      "45 MP",
+    ],
+    Mount: [
+      "Canon RF",
+      "Canon EF",
+      "Sony E",
+      "Nikon Z",
+      "Fujifilm X",
+      "Micro Four Thirds",
+      "Fixed",
+    ],
+    Video: ["1080p", "4K 30fps", "4K 60fps", "8K"],
+    Lens: ["2.8 mm", "3.6 mm", "6 mm", "12 mm", "24-70 mm", "18-55 mm"],
+    NightVision: ["IR", "ColorVu", "Starlight", "None"],
+    IRRange: ["10 m", "20 m", "30 m", "40 m", "50 m"],
+    Power: ["PoE", "12V DC", "24V AC", "Dual (PoE/12V)", "USB"],
+    Cable: [
+      "20 m BNC",
+      "30 m BNC",
+      "Cat6 20 m",
+      "Cat6 30 m",
+      "Power + video 20 m",
+      "No cable",
+    ],
+    Channels: ["1 ch", "4 ch", "8 ch", "16 ch", "32 ch"],
+    Audio: ["Built-in mic", "Mic + speaker", "No audio"],
+    Housing: ["Indoor", "Outdoor", "Dome", "Bullet", "Turret"],
+    IPRating: ["IP66", "IP67", "IP68", "Indoor only"],
+    ViewingAngle: ["60°", "80°", "90°", "110°", "140°"],
+    Included: [
+      "Cable + power adapter",
+      "Cable + mount",
+      "Power adapter + mount",
+      "Cable + adapter + mount",
+      "Camera only",
+    ],
+  };
+  const suggestions = suggestionMap[name] || [];
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
   const listId = useId();

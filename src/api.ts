@@ -49,8 +49,8 @@ export type Party = {
 };
 
 /** Ordered attribute keys by product category for bills / inventory. */
-export function specOrder(category?: string) {
-  return categorySpecOrder(category);
+export function specOrder(category?: string, type?: string) {
+  return categorySpecOrder(category, type);
 }
 
 export function productSpecEntries(product: {
@@ -62,7 +62,7 @@ export function productSpecEntries(product: {
     typeof raw === "string"
       ? (JSON.parse(raw || "{}") as Record<string, string>)
       : raw || {};
-  const ordered = specOrder(product.category);
+  const ordered = specOrder(product.category, attrs.Type);
   const seen = new Set<string>();
   const specs: { key: string; value: string }[] = [];
   for (const key of ordered) {
