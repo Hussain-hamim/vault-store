@@ -56,7 +56,6 @@ import { generateProductBarcode } from "../barcode/generate.mjs";
 import { canEncodeQr } from "../barcode/qrcode.mjs";
 import { barcodeLabelDocument } from "../printing/barcode-label.mjs";
 import { PrintDialog } from "../printing/PrintDialog";
-import { BarcodeCopiesDialog } from "./BarcodeLabelPrint";
 import type { PrintDocument } from "../printing/types";
 import "./product-entry.css";
 const fieldIcons: Record<string, Icon> = {
@@ -166,7 +165,7 @@ function empty(common?: Values): Entry {
     brandOther: common?.brandOther || "",
     model: "",
     sku: "",
-    barcode: generateProductBarcode(),
+    barcode: "",
     accessory: "Keyboard",
     accessoryOther: "",
     cameraType: "CCTV",
@@ -232,7 +231,7 @@ export function ProductForm({
   const t = useT();
   const { locale } = useI18n();
   const [labelDoc, setLabelDoc] = useState<PrintDocument | null>(null);
-  const [askCopies, setAskCopies] = useState(false);
+  const [labelCopies, setLabelCopies] = useState(1);
   const [entry, setEntry] = useState<Entry>(() =>
     product ? existing(product) : empty(),
   );
@@ -439,10 +438,13 @@ export function ProductForm({
       return;
     }
     setError("");
-    setAskCopies(true);
-  }
-  function confirmBarcodeCopies(copies: number) {
-    setAskCopies(false);
+    const stockGuess =
+      Number(d.opening_quantity) > 0
+        ? Number(d.opening_quantity)
+        : editing
+          ? entry.original?.stock || 1
+          : 1;
+    setLabelCopies(Math.max(1, stockGuess));
     setLabelDoc(
       barcodeLabelDocument(
         [
@@ -451,12 +453,12 @@ export function ProductForm({
             brand: d.brand === "Other" ? d.brandOther : d.brand,
             model: d.model,
             sku: d.sku,
-            barcode: d.barcode.trim(),
+            barcode: code,
             stock: Number(d.opening_quantity) || 0,
           },
         ],
-        { t, locale, copies },
-      ),
+        { t, locale, copies: Math.max(1, stockGuess) },
+      ) as PrintDocument,
     );
   }
   async function saveDraft(): Promise<boolean> {
@@ -1032,29 +1034,12 @@ export function ProductForm({
           </div>
         </form>
       </Modal>
-      {askCopies && (
-        <BarcodeCopiesDialog
-          product={{
-            name: d.name.trim() || t("entry.untitled"),
-            brand: d.brand === "Other" ? d.brandOther : d.brand,
-            model: d.model,
-            sku: d.sku,
-            barcode: d.barcode,
-            stock: Number(d.opening_quantity) || 0,
-          }}
-          defaultCopies={
-            Number(d.opening_quantity) > 0
-              ? Number(d.opening_quantity)
-              : editing
-                ? entry.original?.stock || 1
-                : 1
-          }
-          onClose={() => setAskCopies(false)}
-          onReady={confirmBarcodeCopies}
-        />
-      )}
       {labelDoc && (
-        <PrintDialog document={labelDoc} onClose={() => setLabelDoc(null)} />
+        <PrintDialog
+          document={labelDoc}
+          defaultCopies={labelCopies}
+          onClose={() => setLabelDoc(null)}
+        />
       )}
       {showDrafts && (
         <Modal

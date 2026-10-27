@@ -52,7 +52,6 @@ import { barcodeLabelDocument } from "../printing/barcode-label.mjs";
 import type { PrintDocument } from "../printing/types";
 import { generateProductBarcode } from "../barcode/generate.mjs";
 import { canEncodeQr } from "../barcode/qrcode.mjs";
-import { BarcodeCopiesDialog } from "./BarcodeLabelPrint";
 import {
   Modal,
   Field,
@@ -3557,7 +3556,7 @@ export function ProductDetail({
   const [receiveUnits, setReceiveUnits] = useState<DeviceDetails[]>([]);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [labelDoc, setLabelDoc] = useState<PrintDocument | null>(null);
-  const [askCopies, setAskCopies] = useState(false);
+  const [labelCopies, setLabelCopies] = useState(1);
   const [data, setData] = useState<any>(null),
     [error, setError] = useState(""),
     [adjust, setAdjust] = useState(false),
@@ -4008,7 +4007,15 @@ export function ProductDetail({
                   setBusy(false);
                 }
               }
-              setAskCopies(true);
+              const suggested = product.stock > 0 ? product.stock : 1;
+              setLabelCopies(suggested);
+              setLabelDoc(
+                barcodeLabelDocument([product], {
+                  t,
+                  locale,
+                  copies: suggested,
+                }) as PrintDocument,
+              );
             }}
           >
             <BarcodeIcon size={15} />
@@ -4027,21 +4034,12 @@ export function ProductDetail({
         </button>
       </div>
     </Modal>
-    {askCopies && (
-      <BarcodeCopiesDialog
-        product={product}
-        defaultCopies={product.stock > 0 ? product.stock : 1}
-        onClose={() => setAskCopies(false)}
-        onReady={(copies) => {
-          setAskCopies(false);
-          setLabelDoc(
-            barcodeLabelDocument([product], { t, locale, copies }),
-          );
-        }}
-      />
-    )}
     {labelDoc && (
-      <PrintDialog document={labelDoc} onClose={() => setLabelDoc(null)} />
+      <PrintDialog
+        document={labelDoc}
+        defaultCopies={labelCopies}
+        onClose={() => setLabelDoc(null)}
+      />
     )}
     </>
   );

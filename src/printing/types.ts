@@ -65,4 +65,6 @@ export type PrintDocument = {
     barcode: string;
     svg: string;
   }[];
+  /** Suggested sticky-label copy count shown in print setup (label jobs). */
+  labelCopies?: number;
 };

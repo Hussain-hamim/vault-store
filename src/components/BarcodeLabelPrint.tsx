@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { BarcodeIcon, PrinterIcon } from "@phosphor-icons/react";
+import { PrinterIcon } from "@phosphor-icons/react";
 import { api, type Product } from "../api";
 import { useI18n } from "../i18n";
-import { Modal, Field, NumericInput, ErrorMessage, Search } from "./ui";
+import { Modal, Field, ErrorMessage, Search } from "./ui";
 import { canEncodeQr } from "../barcode/qrcode.mjs";
 import { generateProductBarcode } from "../barcode/generate.mjs";
 import { barcodeLabelDocument } from "../printing/barcode-label.mjs";
@@ -49,12 +49,12 @@ export function BarcodeLabelPrintModal({
   const [q, setQ] = useState("");
   const [rows, setRows] = useState<Product[]>([]);
   const [selected, setSelected] = useState<Product | null>(initial || null);
-  const [copies, setCopies] = useState(
-    String(Math.max(1, initial?.stock || 1)),
-  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [doc, setDoc] = useState<PrintDocument | null>(null);
+  const [labelCopies, setLabelCopies] = useState(
+    Math.max(1, initial?.stock || 1),
+  );
 
   useEffect(() => {
     let active = true;
@@ -83,8 +83,15 @@ export function BarcodeLabelPrintModal({
     try {
       const product = await ensureBarcode(selected);
       setSelected(product);
-      const n = Math.max(1, Math.min(500, Number(copies) || 1));
-      setDoc(barcodeLabelDocument([product], { t, locale, copies: n }));
+      const suggested = Math.max(1, product.stock || 1);
+      setLabelCopies(suggested);
+      setDoc(
+        barcodeLabelDocument([product], {
+          t,
+          locale,
+          copies: suggested,
+        }) as PrintDocument,
+      );
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -120,7 +127,6 @@ export function BarcodeLabelPrintModal({
                 }
                 onClick={() => {
                   setSelected(p);
-                  setCopies(String(Math.max(1, p.stock || 1)));
                   setError("");
                 }}
               >
@@ -137,24 +143,13 @@ export function BarcodeLabelPrintModal({
             ))}
             {!rows.length && <p className="muted">{t("common.noResults")}</p>}
           </div>
-          <div className="form-grid two">
-            <Field label={t("barcode.copies")}>
-              <NumericInput
-                min="1"
-                max="500"
-                step="1"
-                value={copies}
-                onChange={(e) => setCopies(e.target.value)}
-              />
-            </Field>
-            <Field label={t("product.barcode")}>
-              <input
-                readOnly
-                dir="ltr"
-                value={selected?.barcode || t("barcode.willGenerate")}
-              />
-            </Field>
-          </div>
+          <Field label={t("product.barcode")}>
+            <input
+              readOnly
+              dir="ltr"
+              value={selected?.barcode || t("barcode.willGenerate")}
+            />
+          </Field>
           <p className="muted">{t("barcode.thermalHint")}</p>
           <ErrorMessage error={error} />
         </div>
@@ -176,6 +171,7 @@ export function BarcodeLabelPrintModal({
       {doc && (
         <PrintDialog
           document={doc}
+          defaultCopies={labelCopies}
           onClose={() => {
             setDoc(null);
             onClose();
@@ -183,68 +179,5 @@ export function BarcodeLabelPrintModal({
         />
       )}
     </>
-  );
-}
-
-export function BarcodeCopiesDialog({
-  product,
-  defaultCopies,
-  onClose,
-  onReady,
-}: {
-  product: Pick<
-    Product,
-    "name" | "brand" | "model" | "sku" | "barcode" | "stock"
-  >;
-  defaultCopies?: number;
-  onClose: () => void;
-  onReady: (copies: number) => void;
-}) {
-  const { t } = useI18n();
-  const [copies, setCopies] = useState(
-    String(
-      Math.max(1, defaultCopies ?? (product.stock > 0 ? product.stock : 1)),
-    ),
-  );
-  return (
-    <Modal title={t("barcode.print")} onClose={onClose}>
-      <div className="form-body">
-        <p>
-          <strong>{product.name}</strong>
-        </p>
-        <p className="muted">
-          {[product.brand, product.model, product.sku, product.barcode]
-            .filter(Boolean)
-            .join(" · ")}
-        </p>
-        <Field label={t("barcode.copies")}>
-          <NumericInput
-            min="1"
-            max="500"
-            step="1"
-            value={copies}
-            onChange={(e) => setCopies(e.target.value)}
-            autoFocus
-          />
-        </Field>
-        <p className="muted">{t("barcode.copiesHint")}</p>
-        <p className="muted">{t("barcode.thermalHint")}</p>
-      </div>
-      <div className="modal-actions">
-        <button type="button" className="button" onClick={onClose}>
-          {t("common.cancel")}
-        </button>
-        <button
-          type="button"
-          className="button button-dark"
-          onClick={() =>
-            onReady(Math.max(1, Math.min(500, Number(copies) || 1)))
-          }
-        >
-          <BarcodeIcon size={15} />
-          {t("barcode.continuePrint")}
-        </button>
-      </div>
-    </Modal>
   );
 }

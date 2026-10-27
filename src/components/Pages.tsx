@@ -17,7 +17,6 @@ import {
   PackageIcon,
   ArrowRightIcon,
   PrinterIcon,
-  BarcodeIcon,
   WhatsappLogoIcon,
   LockIcon,
   DatabaseIcon,
@@ -42,7 +41,6 @@ import {
 import { useI18n, useT, LOCALES, type Locale } from "../i18n";
 import { ReportPrintButton } from "../printing/PrintDialog";
 import type { PrintDocument } from "../printing/types";
-import { BarcodeLabelPrintModal } from "./BarcodeLabelPrint";
 import { partyLedgerPrintDocument } from "../printing/party-ledger.mjs";
 import { canWhatsApp, shareViaWhatsApp } from "../whatsapp-share";
 
@@ -138,8 +136,7 @@ export function ProductsPage({
     [next, setNext] = useState<string | null>(null),
     [loading, setLoading] = useState(true),
     [loadingMore, setLoadingMore] = useState(false),
-    [error, setError] = useState(""),
-    [barcodePrint, setBarcodePrint] = useState(false);
+    [error, setError] = useState("");
   const searchQ = useDebouncedValue(q, 200);
   useEffect(() => {
     setQ(globalSearch);
@@ -289,30 +286,15 @@ export function ProductsPage({
         title={t("inventory.title")}
         description={t("inventory.description")}
         action={
-          <div className="page-intro-actions">
-            {user.permissions.includes("inventory") && (
-              <button
-                className="button"
-                type="button"
-                onClick={() => setBarcodePrint(true)}
-              >
-                <BarcodeIcon size={16} />
-                {t("barcode.printStation")}
-              </button>
-            )}
-            <button
-              className="button button-dark"
-              onClick={() => open("product")}
-            >
-              <PlusIcon size={16} />
-              {t("inventory.addProduct")}
-            </button>
-          </div>
+          <button
+            className="button button-dark"
+            onClick={() => open("product")}
+          >
+            <PlusIcon size={16} />
+            {t("inventory.addProduct")}
+          </button>
         }
       />
-      {barcodePrint && (
-        <BarcodeLabelPrintModal onClose={() => setBarcodePrint(false)} />
-      )}
       <section
         className={`panel inventory-list${showCost ? " with-cost" : ""}`}
       >

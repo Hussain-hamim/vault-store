@@ -7,7 +7,7 @@ import {
 } from "@phosphor-icons/react";
 import { api, sendPrintJob } from "../api";
 import { useI18n } from "../i18n";
-import { ErrorMessage, Field, Modal } from "../components/ui";
+import { ErrorMessage, Field, Modal, NumericInput } from "../components/ui";
 import {
   normalizePrintOptions,
   PAPER_SIZES,
@@ -30,16 +30,53 @@ function readOptions(kind: string): PrintOptions {
     return normalizePrintOptions({}, kind);
   }
 }
+
+function expandLabelCopies(
+  doc: PrintDocument,
+  copies: number,
+  subtitle: string,
+): PrintDocument {
+  if (doc.kind !== "label") return doc;
+  const n = Math.max(1, Math.min(500, Math.floor(Number(copies) || 1)));
+  const templates = doc.labels || [];
+  const labels = [];
+  for (const label of templates) {
+    for (let i = 0; i < n; i++) labels.push(label);
+  }
+  return {
+    ...doc,
+    labels,
+    labelCopies: n,
+    subtitle,
+  };
+}
+
 export function PrintDialog({
-  document: doc,
+  document: baseDoc,
   onClose,
+  defaultCopies,
 }: {
   document: PrintDocument;
   onClose: () => void;
+  defaultCopies?: number;
 }) {
   const { t } = useI18n();
+  const labelJob = baseDoc.kind === "label";
   const [options, setOptions] = useState<PrintOptions>(() =>
-    readOptions(doc.kind),
+    readOptions(baseDoc.kind),
+  );
+  const [copies, setCopies] = useState(() =>
+    String(
+      Math.max(
+        1,
+        Math.min(
+          500,
+          Math.floor(
+            Number(defaultCopies ?? baseDoc.labelCopies ?? 1) || 1,
+          ),
+        ),
+      ),
+    ),
   );
   const [remember, setRemember] = useState(true),
     [busy, setBusy] = useState(false),
@@ -63,6 +100,19 @@ export function PrintDialog({
       active = false;
     };
   }, [t]);
+  const doc = useMemo(
+    () =>
+      expandLabelCopies(
+        baseDoc,
+        Number(copies) || 1,
+        t("barcode.labelsSubtitle", {
+          n:
+            (baseDoc.labels?.length || 0) *
+            Math.max(1, Math.min(500, Math.floor(Number(copies) || 1))),
+        }),
+      ),
+    [baseDoc, copies, t],
+  );
   const html = useMemo(
     () => renderPrintDocument(doc, options, fonts || {}),
     [doc, options, fonts],
@@ -158,7 +208,6 @@ export function PrintDialog({
       setBusy(false);
     }
   }
-  const labelJob = doc.kind === "label";
   return createPortal(
     <Modal
       title={t(labelJob ? "barcode.printSetup" : "printing.title")}
@@ -171,6 +220,21 @@ export function PrintDialog({
     >
       <div className="print-setup-grid">
         <div className="print-settings">
+          {labelJob && (
+            <div className="print-settings-group">
+              <Field label={t("barcode.copies")}>
+                <NumericInput
+                  min="1"
+                  max="500"
+                  step="1"
+                  value={copies}
+                  onChange={(e) => setCopies(e.target.value)}
+                  autoFocus
+                />
+              </Field>
+              <p className="muted">{t("barcode.copiesHint")}</p>
+            </div>
+          )}
           {!labelJob && (
           <div className="print-settings-group">
             <h3>{t("printing.layout")}</h3>
@@ -236,7 +300,7 @@ export function PrintDialog({
               <Field label={t("barcode.labelSize")}>
                 <input
                   readOnly
-                  value={`${t(`printing.papers.${LABEL_PAPERS[0]}`)} · ${PAPER_SIZES[LABEL_PAPERS[0]].width} × ${PAPER_SIZES[LABEL_PAPERS[0]].height} mm`}
+                  value={`${t(`printing.papers.${LABEL_PAPERS[0]}`)} · ${PAPER_SIZES.label29x18.width} × ${PAPER_SIZES.label29x18.height} mm`}
                 />
                 <p className="muted">{t("barcode.thermalHint")}</p>
               </Field>
@@ -247,7 +311,9 @@ export function PrintDialog({
                 onChange={(e) => update("paper", e.target.value)}
               >
                 {(labelJob
-                  ? LABEL_PAPERS.map((id) => [id, PAPER_SIZES[id]] as const)
+                  ? (LABEL_PAPERS as readonly (keyof typeof PAPER_SIZES)[]).map(
+                      (id) => [id, PAPER_SIZES[id]] as const,
+                    )
                   : Object.entries(PAPER_SIZES).filter(
                       ([id]) =>
                         (doc.kind === "invoice" || !id.startsWith("receipt")) &&
