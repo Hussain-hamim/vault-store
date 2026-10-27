@@ -113,11 +113,15 @@ export function ProductPhoto({
   const title =
     preview || selected.kind === "custom"
       ? t("photos.custom")
-      : selected.photo
-        ? t(selected.kind === "exact" ? "photos.exact" : "photos.reference", {
-            model: selected.photo.brand + " " + selected.photo.model,
-          })
-        : t("photos.missing");
+      : selected.kind === "category" && selected.photo
+        ? product.category === "Accessories" && product.attributes?.Type
+          ? t("photos.accessory", { type: product.attributes.Type })
+          : t("photos.category", { category: product.category || "" })
+        : selected.photo
+          ? t(selected.kind === "exact" ? "photos.exact" : "photos.reference", {
+              model: selected.photo.brand + " " + selected.photo.model,
+            })
+          : t("photos.missing");
   const url = src.startsWith("/")
     ? new URL(src.slice(1), document.baseURI).href
     : src;

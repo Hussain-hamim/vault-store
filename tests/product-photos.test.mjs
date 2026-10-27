@@ -48,14 +48,14 @@ function fixture(t, file = ":memory:") {
   });
   return { s, token: session.token, user: s.auth(session.token) };
 }
-test("automatic photos match company/category/model and never call an iPhone a Samsung", () => {
-  assert.match(
+test("automatic photos use clean studio category illustrations", () => {
+  assert.equal(
     automaticProductPhoto({
       brand: "Samsung",
       category: "Mobiles",
       model: "Galaxy S24",
     }).src,
-    /samsung-galaxy-s24/,
+    "/assets/phone.png",
   );
   assert.equal(
     automaticProductPhoto({
@@ -63,56 +63,57 @@ test("automatic photos match company/category/model and never call an iPhone a S
       category: "Mobiles",
       model: "S24",
     }).kind,
-    "exact",
+    "category",
   );
-  assert.match(
+  assert.equal(
     automaticProductPhoto({
       brand: "Apple",
       category: "Mobiles",
       model: "iPhone 15 Pro",
     }).src,
-    /apple-iphone-15-pro/,
+    "/assets/phone.png",
   );
-  assert.match(
+  assert.equal(
     automaticProductPhoto({
       brand: "Hewlett-Packard",
       category: "Computers",
       model: "EliteBook 840 G4",
     }).src,
-    /hp-elitebook-840-g4/,
+    "/assets/laptop.png",
   );
   assert.equal(
     automaticProductPhoto({
-      brand: "Samsung",
-      category: "Mobiles",
-      model: "Galaxy S24 Ultra",
-    }).kind,
-    "reference",
-  );
-  assert.equal(
-    automaticProductPhoto({
-      brand: "Unlisted company",
-      category: "Mobiles",
-      model: "Rare model",
-    }).kind,
-    "missing",
-  );
-  assert.equal(
-    automaticProductPhoto({
-      brand: "Samsung",
-      category: "Computers",
-      model: "Galaxy S24",
+      brand: "Apple",
+      category: "Tablets",
+      model: "iPad",
     }).src,
-    "",
+    "/assets/tablet.png",
+  );
+  assert.equal(
+    automaticProductPhoto({
+      brand: "Samsung",
+      category: "Storage",
+      model: "990 EVO",
+    }).src,
+    "/assets/storage.png",
   );
   assert.equal(
     automaticProductPhoto({
       brand: "Apple",
       category: "Accessories",
-      model: "iPhone 15 Pro",
+      model: "Case",
       attributes: { Type: "Case" },
     }).src,
-    "",
+    "/assets/case.jpg",
+  );
+  assert.equal(
+    automaticProductPhoto({
+      brand: "Logitech",
+      category: "Accessories",
+      model: "K380",
+      attributes: { Type: "Keyboard" },
+    }).src,
+    "/assets/keyboard.jpg",
   );
   const legacy = productPhotoSelection({
     brand: "Samsung",
@@ -120,38 +121,32 @@ test("automatic photos match company/category/model and never call an iPhone a S
     model: "Galaxy S24",
     image: "/assets/phone.png",
   });
-  assert.match(legacy.src, /samsung/);
-  assert.equal(legacy.kind, "exact");
-  const wrong = productPhotoSelection({
+  assert.equal(legacy.src, "/assets/phone.png");
+  assert.equal(legacy.kind, "category");
+  const fromWiki = productPhotoSelection({
     brand: "HP",
     category: "Computers",
     model: "840 G4",
     image: "/assets/products/apple-macbook-air-m2.jpg",
   });
-  assert.match(wrong.src, /hp-/);
-  assert.equal(
-    productPhotoSelection({
-      brand: "Logitech",
-      category: "Accessories",
-      model: "M185",
-      attributes: { Type: "Keyboard" },
-      image: "/assets/products/logitech-m185.jpg",
-    }).kind,
-    "missing",
-  );
+  assert.equal(fromWiki.src, "/assets/laptop.png");
+  assert.equal(fromWiki.kind, "category");
 });
-test("every bundled photo is local, non-empty and has an attributable source and license", () => {
+test("bundled studio and reference photo files stay local and attributable", () => {
+  for (const src of [
+    "/assets/phone.png",
+    "/assets/laptop.png",
+    "/assets/tablet.png",
+    "/assets/storage.png",
+    "/assets/keyboard.jpg",
+  ]) {
+    const path = new URL("../public" + src, import.meta.url);
+    assert.ok(existsSync(path), src);
+    assert.ok(readFileSync(path).length > 1000, src);
+  }
   assert.ok(PRODUCT_PHOTO_CATALOG.length >= 10);
   const credits = productPhotoCreditUrls();
   for (const photo of PRODUCT_PHOTO_CATALOG) {
-    const resolved = automaticProductPhoto({
-      brand: photo.brand,
-      category: photo.category,
-      model: photo.model,
-      attributes: { Type: photo.accessoryType || "" },
-    });
-    assert.equal(resolved.src, photo.src);
-    assert.equal(resolved.kind, "exact");
     assert.ok(photo.src.startsWith("/assets/products/"));
     const path = new URL("../public" + photo.src, import.meta.url);
     assert.ok(existsSync(path));
@@ -418,8 +413,8 @@ test("editing product details without a photo field preserves the custom photo u
     before,
   );
   await f.s.dispatch("productUpdate", { ...changed, image: "" }, f.token);
-  assert.match(
+  assert.equal(
     f.s.one("SELECT image FROM products WHERE id=?", created.id).image,
-    /samsung-galaxy-s24/,
+    "/assets/phone.png",
   );
 });

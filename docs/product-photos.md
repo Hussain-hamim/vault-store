@@ -1,8 +1,8 @@
 # Offline product photos
 
-Product forms automatically select a real product image from a local catalog using category, company and exact model aliases. Accessory matches also require the accessory type. These files ship inside the desktop app; no image request goes to the internet while using the app.
+Product forms automatically show a clean studio category or accessory illustration (laptop, phone, tablet, storage, keyboard, and similar). These files ship inside the desktop app; no image request goes to the internet while using the app.
 
-An exact match means a supported model name, not a guarantee of identical color, storage, generation suffix or condition. Other models can use a clearly labeled reference from the same company and category. An unsupported company/category shows a neutral icon instead of a different company’s product. The form identifies exact matches, references and saved custom photos.
+Automatic photos are illustrations for the category or accessory type, not phone snapshots of a specific model. Upload a JPG/PNG/WebP for the exact item when you have one. The form labels studio category photos, accessory photos and saved custom photos.
 
 Use Choose photo in Add/Edit product or new resale intake for the exact item. JPG, PNG and WebP are resized locally to a maximum 640-pixel edge and adaptively compressed as JPEG to at most 150,000 bytes. Existing saved photos are not recompressed. The source file limit is 12 MiB. After saving, another product with the same category, company and model can reuse that uploaded photo. Use automatic photo resets the current selection.
 
@@ -12,7 +12,7 @@ Automated checks: npm test; npm run build; npm run test:photos:desktop. The desk
 
 ## Bundled sources and licenses
 
-Attribution is also available offline in Settings → About → Product photo credits and public/assets/products/CREDITS.json. Each image retains its individual license. Download URLs and exact aliases are recorded in that JSON file. Existing generic category illustrations are no longer used as substitutes for company photos.
+Automatic photos use the studio illustrations under `public/assets/` (see `docs/asset-manifest.json`). Optional licensed reference files under `public/assets/products/` remain in the package with credits in Settings → About → Product photo credits and `CREDITS.json`; they are not used for the default automatic look.
 
 ### Samsung Galaxy S24
 

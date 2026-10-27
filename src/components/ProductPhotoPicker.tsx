@@ -127,11 +127,15 @@ export function ProductPhotoPicker({
   const custom = !!savedRef || (!!upload && !useAuto);
   const label = custom
     ? t("photos.custom")
-    : selection.photo
-      ? t(selection.kind === "exact" ? "photos.exact" : "photos.reference", {
-          model: selection.photo.brand + " " + selection.photo.model,
-        })
-      : t("photos.missing");
+    : selection.kind === "category" && selection.photo
+      ? product.category === "Accessories" && product.attributes?.Type
+        ? t("photos.accessory", { type: product.attributes.Type })
+        : t("photos.category", { category: product.category || "" })
+      : selection.photo
+        ? t(selection.kind === "exact" ? "photos.exact" : "photos.reference", {
+            model: selection.photo.brand + " " + selection.photo.model,
+          })
+        : t("photos.missing");
   return (
     <div className={"product-photo-picker" + (compact ? " compact" : "")}>
       <div className="product-form-preview">
@@ -147,11 +151,13 @@ export function ProductPhotoPicker({
             {t(
               custom
                 ? "photos.savedHint"
-                : selection.kind === "reference"
-                  ? "photos.referenceHint"
-                  : selection.kind === "missing"
-                    ? "photos.missingHint"
-                    : "photos.exactHint",
+                : selection.kind === "category"
+                  ? "photos.categoryHint"
+                  : selection.kind === "reference"
+                    ? "photos.referenceHint"
+                    : selection.kind === "missing"
+                      ? "photos.missingHint"
+                      : "photos.exactHint",
             )}
           </p>
         </div>

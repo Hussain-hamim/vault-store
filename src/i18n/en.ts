@@ -132,12 +132,16 @@ export const en: MessageTree = {
     title: "Product photo",
     exact: "Model photo: {model}",
     reference: "Company reference photo: {model}",
+    category: "{category} catalog photo",
+    accessory: "{type} accessory photo",
     custom: "Your saved product photo",
     missing: "No matching photo available",
     exactHint:
       "Real catalog image, stored with the app for offline use. Color and configuration may differ; upload a photo for this exact item.",
     referenceHint:
       "This is a real product from the selected company, not an exact match for the entered model. Upload the exact product photo if needed.",
+    categoryHint:
+      "Clean studio illustration for this category. Upload a photo from your computer for this exact item.",
     missingHint:
       "Upload this product’s photo. A neutral icon is shown instead of another company’s product.",
     savedHint:
@@ -151,7 +155,7 @@ export const en: MessageTree = {
       "This image could not be read. Try a different JPG, PNG or WebP photo.",
     credits: "Product photo credits",
     creditsHint:
-      "Bundled product images are credited below. Each image keeps its listed license; source and license links need internet, but the photos work offline.",
+      "Automatic photos use clean studio category illustrations bundled with the app. Optional licensed reference files are credited below; source and license links need internet, but the photos work offline.",
   },
   currencies: {
     refundReceived: "Supplier refund received",
