@@ -847,9 +847,11 @@ export function DocumentsPage({
                     </div>
                     <div className="docs-row-meta">
                       <span className="docs-row-party">
-                        {kind === "expense"
-                          ? d.category || t("expenses.title")
-                          : d.party_name || EM_DASH}
+                        {kind === "expense" ? (
+                          d.category || t("expenses.title")
+                        ) : (
+                          <strong>{d.party_name || EM_DASH}</strong>
+                        )}
                       </span>
                       {kind !== "expense" && d.party_phone ? (
                         <small>

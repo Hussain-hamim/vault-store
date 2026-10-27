@@ -1175,6 +1175,11 @@ export const en: MessageTree = {
     hintZeroStock:
       "Active products with no units available, ready for your order list.",
     zeroStockNote: "Only active products with exactly zero stock are listed.",
+    availableStock: "Available stock",
+    hintAvailableStock:
+      "Active products with stock on hand — print, PDF, or CSV of current available inventory.",
+    availableStockNote:
+      "Only active shop products with stock greater than zero are listed. Customer resale (consignment) items are excluded.",
     reorder: "Low stock",
     hintReorder:
       "Products at or below reorder level — print, PDF, or CSV for your order list. Empty shelves first, then items running low.",
@@ -1288,8 +1293,11 @@ export const en: MessageTree = {
     debtNote:
       "Current outstanding debt · up to 100 contacts with the highest balance. Overdue means an unpaid invoice past its due date.",
     colProduct: "Product",
+    colCategory: "Category",
     colQuantity: "Quantity",
     colInventoryValue: "Inventory value",
+    stockValue: "Stock value",
+    products: "Products",
     colOldestReceipt: "Oldest available receipt",
     colAge: "Age",
     ageDays: "{n} days",

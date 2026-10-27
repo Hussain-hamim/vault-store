@@ -1165,6 +1165,11 @@ export const prs: MessageTree = {
     zeroStock: "موجودی صفر",
     hintZeroStock: "اجناس فعال که هیچ واحد موجود ندارند و نیاز به سفارش دارند.",
     zeroStockNote: "تنها اجناس فعال با موجودی دقیقاً صفر نمایش داده می‌شوند.",
+    availableStock: "موجودی موجود",
+    hintAvailableStock:
+      "اجناس فعال با موجودی در دست — چاپ، PDF یا CSV از موجودی فعلی.",
+    availableStockNote:
+      "تنها اجناس فعال فروشگاه با موجودی بیشتر از صفر فهرست می‌شوند. اجناس فروش امانی مشتری شامل نیست.",
     reorder: "موجودی کم",
     hintReorder:
       "اجناسی که در یا زیر حد سفارش مجدد هستند — برای چاپ، PDF یا CSV. نخست قفسه‌های خالی، سپس اجناس رو به اتمام.",
@@ -1277,8 +1282,11 @@ export const prs: MessageTree = {
     debtNote:
       "بدهی فعلی · تا ۱۰۰ مخاطب با بالاترین بیلانس. معوق یعنی بل پس از سررسید پرداخت نشده.",
     colProduct: "جنس",
+    colCategory: "کتگوری",
     colQuantity: "تعداد",
     colInventoryValue: "ارزش موجودی",
+    stockValue: "ارزش موجودی",
+    products: "اجناس",
     colOldestReceipt: "قدیمی‌ترین رسید",
     colAge: "عمر",
     ageDays: "{n} روز",

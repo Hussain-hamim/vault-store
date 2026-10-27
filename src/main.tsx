@@ -168,6 +168,95 @@ document.addEventListener("keydown", (event) => {
     event.preventDefault();
 });
 
+/** Enter advances focus like Tab inside forms and editors (barcode/listboxes keep their own Enter). */
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter" || event.defaultPrevented || event.isComposing)
+    return;
+  if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return;
+  if (target.closest("[data-enter-submit],[data-no-enter-tab]")) return;
+  if (target instanceof HTMLTextAreaElement) return;
+  if (
+    target instanceof HTMLButtonElement ||
+    target.getAttribute("role") === "button"
+  )
+    return;
+  if (target instanceof HTMLInputElement) {
+    const type = (target.type || "text").toLowerCase();
+    if (
+      [
+        "button",
+        "submit",
+        "reset",
+        "checkbox",
+        "radio",
+        "file",
+        "image",
+      ].includes(type)
+    )
+      return;
+    const name = `${target.name || ""} ${target.getAttribute("aria-label") || ""} ${target.id || ""}`;
+    if (/barcode/i.test(name)) return;
+  }
+  if (target.getAttribute("aria-expanded") === "true") return;
+  if (
+    target.closest(
+      "[role=listbox],[role=menu],[role=combobox][aria-expanded=true],.global-search,.command-palette",
+    )
+  )
+    return;
+  const root =
+    target.closest(
+      "form, .modal, [role=dialog], .product-entry, .sale-board, .purchase-board, [data-enter-tab-root]",
+    ) || null;
+  if (!root) return;
+  const focusable = Array.from(
+    root.querySelectorAll<HTMLElement>(
+      "input:not([disabled]):not([tabindex='-1']), select:not([disabled]):not([tabindex='-1']), textarea:not([disabled]):not([tabindex='-1'])",
+    ),
+  ).filter((el) => {
+    if (el instanceof HTMLInputElement) {
+      const type = (el.type || "text").toLowerCase();
+      if (
+        [
+          "hidden",
+          "button",
+          "submit",
+          "reset",
+          "file",
+          "checkbox",
+          "radio",
+          "image",
+        ].includes(type)
+      )
+        return false;
+    }
+    if (el instanceof HTMLTextAreaElement) return false;
+    const style = window.getComputedStyle(el);
+    if (style.visibility === "hidden" || style.display === "none") return false;
+    return el.getClientRects().length > 0;
+  });
+  const index = focusable.indexOf(target);
+  if (index < 0) return;
+  event.preventDefault();
+  const next = focusable[index + 1];
+  if (!next) return;
+  next.focus();
+  if (
+    next instanceof HTMLInputElement &&
+    ["text", "search", "tel", "url", "password", "email", "number"].includes(
+      (next.type || "text").toLowerCase(),
+    )
+  ) {
+    try {
+      next.select();
+    } catch {
+      /* number inputs may not support select */
+    }
+  }
+});
+
 createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <I18nProvider>

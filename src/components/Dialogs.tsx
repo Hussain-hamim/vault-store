@@ -1215,6 +1215,8 @@ export function TradeForm({
                         <Field label={t("currencies.paymentCurrency")}>
                           <CurrencyPicker
                             compact
+                            allowCodes={["AFN", "USD"]}
+                            allowAdd={false}
                             value={currency}
                             onChange={(code) => {
                               setCurrency(code);

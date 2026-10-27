@@ -389,6 +389,12 @@ export class Store {
         "INSERT INTO sequences VALUES ('documents',?)",
         this.one("SELECT COUNT(*) n FROM documents").n,
       );
+    if (!this.one("SELECT value FROM sequences WHERE name='sale_documents'")) {
+      const sold = this.one(
+        "SELECT COUNT(*) n FROM documents WHERE kind='sale'",
+      ).n;
+      this.run("INSERT INTO sequences VALUES ('sale_documents',?)", sold);
+    }
     if (!this.setting("productSnapshotsReady"))
       this.transaction(() => {
         this.db.exec(
@@ -594,7 +600,9 @@ export class Store {
     };
     const number =
       data.number ||
-      `${prefixes[kind]}-${String(this.one("UPDATE sequences SET value=value+1 WHERE name='documents' RETURNING value").value).padStart(6, "0")}`;
+      (kind === "sale"
+        ? `SAL-${this.one("UPDATE sequences SET value=value+1 WHERE name='sale_documents' RETURNING value").value}`
+        : `${prefixes[kind]}-${String(this.one("UPDATE sequences SET value=value+1 WHERE name='documents' RETURNING value").value).padStart(6, "0")}`);
     const d = {
       id: id(),
       number,
@@ -2388,28 +2396,45 @@ export class Store {
         cursor: z.string().max(1500).nullable().optional(),
         revision: z.number().int().nonnegative().optional(),
         zeroOnly: z.boolean().default(false),
+        availableOnly: z.boolean().default(false),
       })
       .parse(args);
     // Audit revision prevents a multi-page export from mixing stock snapshots.
     const revision = this.one("SELECT COALESCE(MAX(id),0) n FROM audit").n;
     if (d.revision !== undefined && d.revision !== revision)
       throw new Error("REPORT_CHANGED");
-    const eligible =
-      "active=1 AND consignment_only=0 AND stock<=reorder_level" +
-      (d.zeroOnly ? " AND stock=0" : "");
+    const available = d.availableOnly;
+    const eligible = available
+      ? "active=1 AND consignment_only=0 AND stock>0"
+      : "active=1 AND consignment_only=0 AND stock<=reorder_level" +
+        (d.zeroOnly ? " AND stock=0" : "");
     const referenceCost =
       "COALESCE((SELECT b.unit_cost FROM batches b WHERE b.product_id=p.id AND b.owner_id IS NULL ORDER BY b.received_at DESC,b.rowid DESC LIMIT 1),p.unit_cost)";
     let after = "",
       params = [];
     if (d.cursor) {
-      const cursor = z
-        .tuple([z.number().int().min(0).max(1), z.string(), z.string()])
-        .parse(JSON.parse(d.cursor));
-      after = " AND ((stock=0) < ? OR ((stock=0)=? AND (sku,id)>(?,?)))";
-      params = [cursor[0], ...cursor];
+      if (available) {
+        const cursor = z
+          .tuple([z.string(), z.string()])
+          .parse(JSON.parse(d.cursor));
+        after = " AND (sku,id)>(?,?)";
+        params = cursor;
+      } else {
+        const cursor = z
+          .tuple([z.number().int().min(0).max(1), z.string(), z.string()])
+          .parse(JSON.parse(d.cursor));
+        after = " AND ((stock=0) < ? OR ((stock=0)=? AND (sku,id)>(?,?)))";
+        params = [cursor[0], ...cursor];
+      }
     }
     const rows = this.all(
-      `SELECT id,name,brand,model,sku,stock,reorder_level,
+      available
+        ? `SELECT id,name,brand,model,sku,barcode,category,stock,reorder_level,
+      ${referenceCost} reference_unit_cost,
+      stock*${referenceCost} estimated_cost
+      FROM products p WHERE ${eligible}${after}
+      ORDER BY sku,id LIMIT ?`
+        : `SELECT id,name,brand,model,sku,stock,reorder_level,
       MAX(1,reorder_level*2) target_level,
       MAX(1,reorder_level*2)-stock suggested_quantity,
       ${referenceCost} reference_unit_cost,
@@ -2424,7 +2449,13 @@ export class Store {
     const last = rows.at(-1);
     const summary = d.cursor
       ? undefined
-      : this.one(`SELECT COUNT(*) products,
+      : available
+        ? this.one(`SELECT COUNT(*) products,
+      COALESCE(SUM(stock),0) units,
+      COALESCE(SUM(stock*${referenceCost}),0) estimated_cost,
+      COALESCE(SUM(${referenceCost}=0),0) unpriced
+      FROM products p WHERE ${eligible}`)
+        : this.one(`SELECT COUNT(*) products,
       COALESCE(SUM(stock=0),0) out_of_stock,
       COALESCE(SUM(stock>0),0) low_stock,
       COALESCE(SUM(MAX(1,reorder_level*2)-stock),0) suggested_quantity,
@@ -2433,7 +2464,11 @@ export class Store {
       FROM products p WHERE ${eligible}`);
     for (const amount of [
       ...rows.map((r) => r.estimated_cost),
-      ...(summary ? [summary.estimated_cost, summary.suggested_quantity] : []),
+      ...(summary
+        ? available
+          ? [summary.estimated_cost, summary.units]
+          : [summary.estimated_cost, summary.suggested_quantity]
+        : []),
     ])
       if (!Number.isSafeInteger(amount))
         throw new Error("Report totals exceed supported precision.");
@@ -2443,7 +2478,9 @@ export class Store {
       revision,
       as_of: today(),
       next: hasMore
-        ? JSON.stringify([Number(last.stock === 0), last.sku, last.id])
+        ? available
+          ? JSON.stringify([last.sku, last.id])
+          : JSON.stringify([Number(last.stock === 0), last.sku, last.id])
         : null,
     };
   }
@@ -2731,10 +2768,13 @@ export class Store {
       params.push(d.expense_account_id);
     }
     if (d.q) {
+      const like = d.q.replace(/[\\%_]/g, "\\$&");
+      const prefix = like + "%";
+      const contains = "%" + like + "%";
       clauses.push(
-        "(d.number LIKE ? OR p.name LIKE ? OR d.category LIKE ? OR d.note LIKE ?)",
+        "(d.number LIKE ? ESCAPE '\\' OR d.number LIKE ? ESCAPE '\\' OR p.name LIKE ? ESCAPE '\\' OR IFNULL(p.phone,'') LIKE ? ESCAPE '\\' OR d.category LIKE ? ESCAPE '\\' OR d.note LIKE ? ESCAPE '\\')",
       );
-      params.push(d.q + "%", d.q + "%", d.q + "%", d.q + "%");
+      params.push(prefix, contains, contains, prefix, contains, contains);
     }
     if (d.after) {
       let cursor;
@@ -3344,12 +3384,13 @@ export class Store {
         const canPeople = user.permissions.includes("people");
         if (canProducts) {
           const products = this.all(
-            `SELECT p.* FROM products p WHERE p.active=1 AND p.consignment_only=0 AND (p.name LIKE ? ESCAPE '\\' OR p.sku LIKE ? ESCAPE '\\' OR p.brand LIKE ? ESCAPE '\\' OR p.model LIKE ? ESCAPE '\\' OR p.barcode=? COLLATE NOCASE) ORDER BY p.name LIMIT ?`,
+            `SELECT p.* FROM products p WHERE p.active=1 AND p.consignment_only=0 AND (p.name LIKE ? ESCAPE '\\' OR p.sku LIKE ? ESCAPE '\\' OR p.brand LIKE ? ESCAPE '\\' OR p.model LIKE ? ESCAPE '\\' OR p.barcode=? COLLATE NOCASE OR IFNULL(p.barcode,'') LIKE ? ESCAPE '\\') ORDER BY p.name LIMIT ?`,
             contains,
             prefix,
             contains,
             contains,
             q.trim(),
+            contains,
             d.limit,
           );
           for (const p of products) {
@@ -3367,7 +3408,9 @@ export class Store {
               type: "product",
               id: p.id,
               title: p.name,
-              subtitle: [p.brand, p.model, p.sku].filter(Boolean).join(" · "),
+              subtitle: [p.brand, p.model, p.sku, p.barcode]
+                .filter(Boolean)
+                .join(" · "),
               meta: `${p.stock} in stock · ${p.category}`,
               product: p,
             });

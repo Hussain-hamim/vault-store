@@ -212,6 +212,7 @@ export function reportPrintModel(
     "payables",
     "reorder",
     "zeroStock",
+    "availableStock",
   ].includes(tab);
   const doc = {
     kind: "report",
@@ -717,6 +718,42 @@ export function reportPrintModel(
       rows.reduce((s, p) => s + p.overdue, 0),
       "negative",
     );
+  } else if (tab === "availableStock") {
+    const r = reorder;
+    table(
+      [
+        "reports.colProduct",
+        "reports.colCategory",
+        "reports.onHand",
+        "reports.reorderPoint",
+        "reports.stockValue",
+      ],
+      ["text", "text", "number", "number", "money"],
+      r.rows.map((p) => [
+        [
+          p.name,
+          [p.brand, p.model, p.sku, p.barcode].filter(Boolean).join(" · "),
+        ]
+          .filter(Boolean)
+          .join("\n"),
+        p.category || "",
+        p.stock,
+        p.reorder_level,
+        p.estimated_cost,
+      ]),
+      t("reports.availableStockNote") + "\n" + t("reports.estimateNote"),
+      ["neutral", "neutral", "blue", "neutral", "blue"],
+    );
+    metric("reports.products", r.summary.products, "blue", "number");
+    metric("reports.listedUnits", r.summary.units, "blue", "number");
+    metric("reports.stockValue", r.summary.estimated_cost, "blue");
+    doc.summary = doc.metrics.map(({ label, value, tone }) => ({
+      label,
+      value,
+      tone,
+    }));
+    if (r.summary.unpriced)
+      doc.note = t("reports.unpricedNote", { n: r.summary.unpriced });
   } else if (["reorder", "zeroStock"].includes(tab)) {
     const r = reorder;
     table(

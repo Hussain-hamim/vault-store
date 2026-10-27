@@ -91,10 +91,15 @@ export function CurrencyPicker({
   value,
   onChange,
   compact = false,
+  allowCodes,
+  allowAdd = true,
 }: {
   value: string;
   onChange: (code: string) => void;
   compact?: boolean;
+  /** When set, only these codes appear (current value still shown if missing). */
+  allowCodes?: readonly string[];
+  allowAdd?: boolean;
 }) {
   const { t, locale } = useI18n();
   const [rows, setRows] = useState<Currency[]>(DEFAULT_CURRENCIES);
@@ -119,7 +124,10 @@ export function CurrencyPicker({
       window.removeEventListener("currencies-changed", refresh);
     };
   }, []);
-  const selected = rows.find((c) => c.code === value);
+  const options = allowCodes
+    ? rows.filter((c) => allowCodes.includes(c.code) || c.code === value)
+    : rows;
+  const selected = options.find((c) => c.code === value) || rows.find((c) => c.code === value);
   const names = new Intl.DisplayNames([locale === "prs" ? "fa-AF" : locale], {
     type: "region",
   });
@@ -164,27 +172,29 @@ export function CurrencyPicker({
           onChange={(e) => onChange(e.target.value)}
         >
           {!selected && <option value={value}>{value}</option>}
-          {rows.map((c) => (
+          {options.map((c) => (
             <option key={c.code} value={c.code}>
               {!compact && flagEmoji(c.country)} {c.code}
               {!compact && ` · ${c.name}`}
             </option>
           ))}
         </select>
-        <button
-          type="button"
-          className="button"
-          title={t("currencies.add")}
-          aria-label={t("currencies.add")}
-          onClick={() => {
-            setError("");
-            setCode("");
-            setName("");
-            setAdding(true);
-          }}
-        >
-          {compact ? <span aria-hidden="true">+</span> : t("currencies.add")}
-        </button>
+        {allowAdd && (
+          <button
+            type="button"
+            className="button"
+            title={t("currencies.add")}
+            aria-label={t("currencies.add")}
+            onClick={() => {
+              setError("");
+              setCode("");
+              setName("");
+              setAdding(true);
+            }}
+          >
+            {compact ? <span aria-hidden="true">+</span> : t("currencies.add")}
+          </button>
+        )}
       </div>
       {!adding && <ErrorMessage error={error} />}
       {adding &&

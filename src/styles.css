@@ -6880,6 +6880,10 @@ html[dir="rtl"] .sale-customer-name select {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.docs-row-party strong {
+  font-weight: 700;
+  color: var(--paint-fg-2f3328, #2f3328);
+}
 .docs-row-money strong {
   display: block;
   font-size: 13px;

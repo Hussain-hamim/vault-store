@@ -44,6 +44,7 @@ const TABS = [
   ["stockAging", ClockIcon],
   ["reorder", WarningCircleIcon],
   ["zeroStock", PackageIcon],
+  ["availableStock", StackIcon],
   ["receivables", UsersIcon],
   ["payables", TruckIcon],
 ] as const;
@@ -53,6 +54,7 @@ const CURRENT = new Set<Tab>([
   "stockAging",
   "reorder",
   "zeroStock",
+  "availableStock",
   "receivables",
   "payables",
 ]);
@@ -97,7 +99,8 @@ export function ReportsPage({
     asOf = AS_OF.has(tab);
   const invalid =
     !current && (!to || (!asOf && (!from || from > to)) || to > businessDate());
-  const stockAlert = tab === "reorder" || tab === "zeroStock";
+  const stockAlert =
+    tab === "reorder" || tab === "zeroStock" || tab === "availableStock";
   const command = stockAlert
     ? "reorderReport"
     : current
@@ -106,7 +109,10 @@ export function ReportsPage({
         ? "capitalReport"
         : "reports";
   const args = stockAlert
-    ? { zeroOnly: tab === "zeroStock" }
+    ? {
+        zeroOnly: tab === "zeroStock",
+        availableOnly: tab === "availableStock",
+      }
     : current
       ? {}
       : asOf
@@ -212,6 +218,7 @@ export function ReportsPage({
         cursor: data.next,
         revision: data.revision,
         zeroOnly: tab === "zeroStock",
+        availableOnly: tab === "availableStock",
       });
       if (mounted.current && keyRef.current === requestKey) {
         setResult((previous) =>
@@ -245,7 +252,11 @@ export function ReportsPage({
     try {
       const all = await collectReorderReport(
         (args: any) =>
-          api("reorderReport", { ...args, zeroOnly: tab === "zeroStock" }),
+          api("reorderReport", {
+            ...args,
+            zeroOnly: tab === "zeroStock",
+            availableOnly: tab === "availableStock",
+          }),
         data.revision,
         () => mounted.current && keyRef.current === requestKey,
       );

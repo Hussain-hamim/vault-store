@@ -1159,6 +1159,11 @@ export const ps: MessageTree = {
     hintZeroStock:
       "فعال توکي چې هېڅ واحد یې نه دی پاتې او بیا پېرود ته اړتیا لري.",
     zeroStockNote: "یوازې هغه فعال توکي ښودل کېږي چې موجودي یې پوره صفر ده.",
+    availableStock: "شته موجودي",
+    hintAvailableStock:
+      "فعال توکي چې موجودي لري — د اوسنۍ شته زېرمې چاپ، PDF یا CSV.",
+    availableStockNote:
+      "یوازې هغه فعال پلورنځي توکي چې موجودي یې له صفر زیاته وي ښودل کېږي. د پیرودونکي بیا پلور (امانت) توکي نه دي شامل.",
     reorder: "کمه زېرمه",
     hintReorder:
       "هغه توکي چې په یا د بیا غوښتنې کچې لاندې دي — د چاپ، PDF یا CSV لپاره. لومړی تشې المارۍ، بیا کم شوي توکي.",
@@ -1270,8 +1275,11 @@ export const ps: MessageTree = {
     debtNote:
       "اوسنی پور · تر ۱۰۰ اړیکو پورې لوړ بیلانس. وروستۍ پاتې پور یعنی بل له نېټې وروسته.",
     colProduct: "توکی",
+    colCategory: "کټګوري",
     colQuantity: "شمېر",
     colInventoryValue: "د ذخیرې ارزښت",
+    stockValue: "د موجودۍ ارزښت",
+    products: "توکي",
     colOldestReceipt: "پخوانۍ ترلاسه شوې رسید",
     colAge: "عمر",
     ageDays: "{n} ورځې",
