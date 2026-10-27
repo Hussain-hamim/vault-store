@@ -307,8 +307,10 @@ export function App() {
     if (opts?.reload) setRefresh((v) => v + 1);
   }, []);
   const done = useCallback(
-    (s: string) => {
-      setModal((m) => (m?.returnTo ? { ...m.returnTo } : null));
+    (s: string, result?: { keepOpen?: boolean }) => {
+      // Save & New passes keepOpen so the form can clear and stay mounted.
+      if (!result?.keepOpen)
+        setModal((m) => (m?.returnTo ? { ...m.returnTo } : null));
       toast(s, { reload: true });
     },
     [toast],

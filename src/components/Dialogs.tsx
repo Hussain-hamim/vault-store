@@ -1857,8 +1857,11 @@ export function TradeForm({
           kind={purchase ? "supplier" : "customer"}
           close={() => setAddingParty(false)}
           done={(_message, result) => {
-            setAddingParty(false);
-            const created = result as Party | { id?: string } | undefined;
+            const created = result as
+              | (Party & { keepOpen?: boolean })
+              | { id?: string; keepOpen?: boolean }
+              | undefined;
+            if (!created?.keepOpen) setAddingParty(false);
             if (created?.id) {
               chooseParty({
                 id: created.id,
@@ -2009,7 +2012,7 @@ export function PartyForm({
           kind === "customer"
             ? t("partyForm.customerUpdated")
             : t("partyForm.supplierUpdated"),
-          { id: draft.id },
+          { id: draft.id, keepOpen: mode === "next" },
         );
       } else {
         const created = await api<{ id: string }>("partyCreate", {
@@ -2033,7 +2036,7 @@ export function PartyForm({
           kind === "customer"
             ? t("partyForm.customerAdded")
             : t("partyForm.supplierAdded"),
-          created,
+          { ...created, keepOpen: mode === "next" },
         );
       }
       if (mode === "next") {
@@ -2043,11 +2046,15 @@ export function PartyForm({
         setNotice(
           kind === "customer"
             ? t("entry.savedCustomerNext")
-            : t("partyForm.supplierAdded"),
+            : t("entry.savedSupplierNext"),
         );
       } else if (editing && cursor >= 0) {
         loadDraft(newDraft.current);
-        setNotice(t("entry.savedCustomerNext"));
+        setNotice(
+          kind === "customer"
+            ? t("entry.savedCustomerNext")
+            : t("entry.savedSupplierNext"),
+        );
       } else {
         close();
       }
@@ -2321,7 +2328,10 @@ export function ExpenseForm({ close, done }: DialogProps) {
           setHistory((rows) =>
             rows.map((row, i) => (i === cursor ? saved : row)),
           );
-        await done(t("toast.expenseRecorded"));
+        await done(t("toast.expenseRecorded"), {
+          id: draft.id,
+          keepOpen: mode === "next",
+        });
       } else {
         const created = await api<{ id: string }>("expense", {
           amount: toMoney(draft.amount),
@@ -2332,7 +2342,10 @@ export function ExpenseForm({ close, done }: DialogProps) {
         });
         saved = { ...draft, id: created.id };
         setHistory((rows) => [...rows, saved]);
-        await done(t("toast.expenseRecorded"));
+        await done(t("toast.expenseRecorded"), {
+          ...created,
+          keepOpen: mode === "next",
+        });
       }
       if (mode === "next") {
         const fresh = blankExpense(

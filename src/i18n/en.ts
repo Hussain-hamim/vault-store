@@ -14,6 +14,7 @@ export const en: MessageTree = {
     previousExpense: "Editing previous expense {number}",
     savedNext: "Product saved. Ready for the next product.",
     savedCustomerNext: "Customer saved. Ready for the next customer.",
+    savedSupplierNext: "Supplier saved. Ready for the next supplier.",
     savedExpenseNext: "Expense saved. Ready for the next expense.",
     refreshFailed: "Saved successfully, but the list could not refresh.",
     wrongContext: "This draft belongs to another entry screen.",

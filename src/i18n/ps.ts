@@ -15,6 +15,7 @@ export const ps: MessageTree = {
     previousExpense: "د مخکیني لګښت {number} سمون",
     savedNext: "توکی وساتل شو. بل توکی ورزیات کړئ.",
     savedCustomerNext: "پیرودونکی وساتل شو. بل پیرودونکی ورزیات کړئ.",
+    savedSupplierNext: "عرضه‌کوونکی وساتل شو. بل عرضه‌کوونکی ورزیات کړئ.",
     savedExpenseNext: "لګښت وساتل شو. بل لګښت ورزیات کړئ.",
     refreshFailed: "وساتل شو، خو لېست تازه نه شو.",
     wrongContext: "دا مسوده د بلې برخې ده.",

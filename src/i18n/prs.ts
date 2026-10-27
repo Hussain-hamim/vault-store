@@ -15,6 +15,7 @@ export const prs: MessageTree = {
     previousExpense: "ویرایش هزینه قبلی {number}",
     savedNext: "کالا ذخیره شد. کالای بعدی را وارد کنید.",
     savedCustomerNext: "مشتری ذخیره شد. مشتری بعدی را وارد کنید.",
+    savedSupplierNext: "عرضه‌کننده ذخیره شد. عرضه‌کننده بعدی را وارد کنید.",
     savedExpenseNext: "هزینه ذخیره شد. هزینه بعدی را وارد کنید.",
     refreshFailed: "ذخیره شد، اما فهرست تازه نشد.",
     wrongContext: "این پیش‌نویس مربوط به بخش دیگری است.",
