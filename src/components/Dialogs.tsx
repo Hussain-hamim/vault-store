@@ -21,6 +21,7 @@ import {
   WarningCircleIcon,
   DownloadSimpleIcon,
   BarcodeIcon,
+  WhatsappLogoIcon,
 } from "@phosphor-icons/react";
 import {
   api,
@@ -43,9 +44,13 @@ import {
   productSpecEntries,
 } from "../api";
 import { useT, useI18n } from "../i18n";
-import { PrintDialog } from "../printing/PrintDialog";
+import { PrintDialog, ReportPrintButton } from "../printing/PrintDialog";
 import { invoicePrintModel } from "../printing/models.mjs";
+import { barcodeLabelDocument } from "../printing/barcode-label.mjs";
 import type { PrintDocument } from "../printing/types";
+import { generateProductBarcode } from "../barcode/generate.mjs";
+import { canEncodeCode128 } from "../barcode/code128.mjs";
+import { BarcodeCopiesDialog } from "./BarcodeLabelPrint";
 import {
   Modal,
   Field,
@@ -69,6 +74,9 @@ export {
 import { PRODUCT_CATEGORIES, categoryLabel } from "./product-fields";
 import { ProductForm } from "./ProductForm";
 import { PartySearchSelect } from "./PartySearchSelect";
+import { PhoneField, assertPhoneValid } from "./PhoneField";
+import { canWhatsApp, shareViaWhatsApp } from "../whatsapp-share";
+import { partyLedgerPrintDocument } from "../printing/party-ledger.mjs";
 export { ProductForm } from "./ProductForm";
 
 type CartLine = {
@@ -472,8 +480,8 @@ export function TradeForm({
   }
   const cargoUnitAfn = (l: CartLine) => {
     try {
-      if (!purchase || !(l.cargoRent || "").trim() || !fxRate.trim()) return 0;
-      return afnFromAed(toMoney(l.cargoRent!), toFxRate(fxRate));
+      if (!purchase || !(l.cargoRent || "").trim()) return 0;
+      return toMoney(l.cargoRent!);
     } catch {
       return 0;
     }
@@ -525,7 +533,7 @@ export function TradeForm({
       return party;
     }
     const name = customerName.trim();
-    const phone = customerPhone.trim();
+    const phone = assertPhoneValid(customerPhone, t);
     if (name.length < 2) throw new Error(t("sales.errCustomerName"));
     const found = await api<{ rows: Party[] }>("parties", {
       kind: "customer",
@@ -793,18 +801,14 @@ export function TradeForm({
                                   autoComplete="off"
                                 />
                               </label>
-                              <label className="sale-customer-phone">
-                                <span>{t("party.phone")}</span>
-                                <input
-                                  value={customerPhone}
-                                  onChange={(e) =>
-                                    setCustomerPhone(e.target.value)
-                                  }
-                                  placeholder={t("party.phonePh")}
-                                  inputMode="tel"
-                                  autoComplete="tel"
+                              <div className="sale-customer-phone">
+                                <PhoneField
+                                  key={documentId || "new-sale-phone"}
+                                  label={t("party.phone")}
+                                  defaultValue={customerPhone}
+                                  onChange={setCustomerPhone}
                                 />
-                              </label>
+                              </div>
                             </>
                           ) : (
                             <label className="sale-customer-name">
@@ -1098,7 +1102,7 @@ export function TradeForm({
                                 </Field>
                                 <Field
                                   label={t("currencies.cargoRent", {
-                                    code: currency,
+                                    code: "AFN",
                                   })}
                                 >
                                   <NumericInput
@@ -1251,12 +1255,10 @@ export function TradeForm({
                               {foreignMoney(
                                 lines.reduce((sum, l) => {
                                   try {
-                                    const unit =
-                                      toMoney(l.costAed || "0") +
-                                      ((l.cargoRent || "").trim()
-                                        ? toMoney(l.cargoRent!)
-                                        : 0);
-                                    return sum + unit * l.quantity;
+                                    return (
+                                      sum +
+                                      toMoney(l.costAed || "0") * l.quantity
+                                    );
                                   } catch {
                                     return sum;
                                   }
@@ -1710,14 +1712,9 @@ export function TradeForm({
                                 />
                               </Field>
                               <Field
-                                label={
-                                  <span className="currency-rate-label">
-                                    <CurrencyFlag code={currency} />
-                                    {t("currencies.cargoRent", {
-                                      code: currency,
-                                    })}
-                                  </span>
-                                }
+                                label={t("currencies.cargoRent", {
+                                  code: "AFN",
+                                })}
                               >
                                 <NumericInput
                                   min="0"
@@ -1928,11 +1925,12 @@ export function PartyForm({
     const f = new FormData(e.currentTarget);
     setBusy(true);
     try {
+      const phone = assertPhoneValid(String(f.get("phone") || ""), t);
       if (editing) {
         const updated = await api<{ id: string }>("partyUpdate", {
           id: party!.id,
           name: f.get("name"),
-          phone: f.get("phone"),
+          phone,
           email: f.get("email"),
           address: f.get("address"),
         });
@@ -1955,7 +1953,7 @@ export function PartyForm({
         const created = await api<{ id: string }>("partyCreate", {
           kind,
           name: f.get("name"),
-          phone: f.get("phone"),
+          phone,
           email: f.get("email"),
           address: f.get("address"),
           opening_balance: toMoney(f.get("opening_balance") || "0"),
@@ -2000,17 +1998,11 @@ export function PartyForm({
             />
           </Field>
           <div className="form-grid">
-            <Field label={t("party.phone")}>
-              <input
-                name="phone"
-                type="tel"
-                inputMode="tel"
-                autoComplete="tel"
-                dir="ltr"
-                data-digits="western"
-                defaultValue={party?.phone || ""}
-              />
-            </Field>
+            <PhoneField
+              name="phone"
+              label={t("party.phone")}
+              defaultValue={party?.phone || ""}
+            />
             <Field label={t("partyForm.emailOptional")}>
               <input
                 name="email"
@@ -2412,6 +2404,7 @@ export function InvoiceDialog({
   const [doc, setDoc] = useState<any>(null),
     [store, setStore] = useState<any>(null),
     [error, setError] = useState(""),
+    [notice, setNotice] = useState(""),
     [returning, setReturning] = useState(false),
     [refundCurrency, setRefundCurrency] = useState("AFN"),
     [refundRate, setRefundRate] = useState("1"),
@@ -2643,11 +2636,7 @@ export function InvoiceDialog({
                       </th>
                     )}
                     {doc.kind === "purchase" && (
-                      <th>
-                        {t("currencies.cargoRent", {
-                          code: doc.currency || "AED",
-                        })}
-                      </th>
+                      <th>{t("currencies.cargoRent", { code: "AFN" })}</th>
                     )}
                     <th>
                       {["purchase", "purchase_return"].includes(doc.kind)
@@ -2721,14 +2710,7 @@ export function InvoiceDialog({
                           </td>
                         )}
                         {doc.kind === "purchase" && (
-                          <td>
-                            {l.cargo_rent
-                              ? foreignMoney(
-                                  l.cargo_rent,
-                                  l.currency || doc.currency || "AED",
-                                )
-                              : "—"}
-                          </td>
+                          <td>{l.cargo_rent ? af(l.cargo_rent, 2) : "—"}</td>
                         )}
                         <td>
                           {af(
@@ -3035,6 +3017,11 @@ export function InvoiceDialog({
         </>
       )}
       <ErrorMessage error={!returning ? error : ""} />
+      {notice && !returning && (
+        <p className="entry-notice" role="status">
+          {notice}
+        </p>
+      )}
       <div className="modal-actions invoice-actions">
         {["sale", "purchase"].includes(doc?.kind) &&
           ["Owner", "Manager"].includes(user.role) && (
@@ -3095,6 +3082,47 @@ export function InvoiceDialog({
         <button className="button" onClick={close}>
           {t("common.close")}
         </button>
+        {doc && canWhatsApp(doc.party_phone) && (
+          <button
+            className="button"
+            disabled={busy}
+            onClick={async () => {
+              if (!store) return;
+              setBusy(true);
+              setError("");
+              try {
+                const printDoc = invoicePrintModel(doc, store, {
+                  locale,
+                  t,
+                  money: af,
+                  foreignMoney: (amount: number, code?: string) =>
+                    foreignMoney(amount, code || doc.currency || "AED"),
+                  specs: productSpecEntries,
+                  rate: (rate: number) =>
+                    fxRateLabel(rate, doc.currency || "AED"),
+                }) as PrintDocument;
+                const result = await shareViaWhatsApp({
+                  phone: doc.party_phone,
+                  text: t("whatsapp.invoiceText", {
+                    number: doc.number,
+                    name: doc.party_name || "",
+                    total: af(doc.total, 2),
+                  }),
+                  document: printDoc,
+                  t,
+                });
+                setNotice(result.message);
+              } catch (e: any) {
+                setError(e.message);
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            <WhatsappLogoIcon size={16} />
+            {t("whatsapp.sendInvoice")}
+          </button>
+        )}
         {doc && (
           <button
             className="button"
@@ -3256,10 +3284,13 @@ export function ProductDetail({
   sell?: () => void;
 } & DialogProps) {
   const t = useT();
+  const { locale } = useI18n();
   const [adjustQty, setAdjustQty] = useState("1");
   const [adjustUnits, setAdjustUnits] = useState<Device[]>([]);
   const [receiveUnits, setReceiveUnits] = useState<DeviceDetails[]>([]);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [labelDoc, setLabelDoc] = useState<PrintDocument | null>(null);
+  const [askCopies, setAskCopies] = useState(false);
   const [data, setData] = useState<any>(null),
     [error, setError] = useState(""),
     [adjust, setAdjust] = useState(false),
@@ -3318,6 +3349,7 @@ export function ProductDetail({
     }
   }
   return (
+    <>
     <Modal
       title={product.name}
       subtitle={`${product.sku} · ${product.brand} · ${product.model}`}
@@ -3661,6 +3693,62 @@ export function ProductDetail({
           </button>
         )}
         {user.permissions.includes("inventory") && (
+          <button
+            className="button"
+            disabled={busy}
+            onClick={async () => {
+              setError("");
+              let code = String(product.barcode || "").trim();
+              if (!code || !canEncodeCode128(code)) {
+                setBusy(true);
+                try {
+                  code = generateProductBarcode();
+                  const result = await api<{ product: Product }>(
+                    "productUpdate",
+                    {
+                      id: product.id,
+                      name: product.name,
+                      brand: product.brand,
+                      model: product.model,
+                      sku: product.sku,
+                      barcode: code,
+                      category: product.category,
+                      price: product.price,
+                      minimum: product.minimum ?? 0,
+                      location: product.location || "",
+                      reorder_level: product.reorder_level,
+                      condition: product.condition || "New",
+                      warranty: product.warranty || "",
+                      attributes: product.attributes || {},
+                      currency: product.currency || "AED",
+                      cost_foreign:
+                        product.cost_foreign ?? product.cost_aed ?? 0,
+                      cost_aed: product.cost_aed ?? 0,
+                      cargo_rent: product.cargo_rent ?? 0,
+                      fx_rate: product.fx_rate ?? 0,
+                      unit_cost: product.unit_cost,
+                    },
+                  );
+                  setData((current: any) =>
+                    current
+                      ? { ...current, product: result.product }
+                      : { product: result.product, movements: [] },
+                  );
+                } catch (e: any) {
+                  setError(e.message);
+                  return;
+                } finally {
+                  setBusy(false);
+                }
+              }
+              setAskCopies(true);
+            }}
+          >
+            <BarcodeIcon size={15} />
+            {t("barcode.printShort")}
+          </button>
+        )}
+        {user.permissions.includes("inventory") && (
           <button className="button" onClick={() => setAdjust(!adjust)}>
             {adjust
               ? t("productDetail.cancelAdjust")
@@ -3672,6 +3760,23 @@ export function ProductDetail({
         </button>
       </div>
     </Modal>
+    {askCopies && (
+      <BarcodeCopiesDialog
+        product={product}
+        defaultCopies={product.stock > 0 ? product.stock : 1}
+        onClose={() => setAskCopies(false)}
+        onReady={(copies) => {
+          setAskCopies(false);
+          setLabelDoc(
+            barcodeLabelDocument([product], { t, locale, copies }),
+          );
+        }}
+      />
+    )}
+    {labelDoc && (
+      <PrintDialog document={labelDoc} onClose={() => setLabelDoc(null)} />
+    )}
+    </>
   );
 }
 function partyLedgerLabel(
@@ -3713,7 +3818,7 @@ export function PartyDetailDialog({
   refresh?: number;
   done?: DialogProps["done"];
 } & Pick<DialogProps, "close">) {
-  const t = useT();
+  const { t, locale } = useI18n();
   const [ledgerAfter, setLedgerAfter] = useState("");
   const [ledgerHistory, setLedgerHistory] = useState<string[]>([]);
   const [detail, setDetail] = useState<any>(null);
@@ -3949,13 +4054,89 @@ export function PartyDetailDialog({
               </button>
             </div>
           )}
-          <h3>
-            {t(
-              ledgerView === "resale"
-                ? "resale.ownerLedger"
-                : "partyDetail.ledgerTitle",
+          <div className="panel-heading party-ledger-heading">
+            <h3>
+              {t(
+                ledgerView === "resale"
+                  ? "resale.ownerLedger"
+                  : "partyDetail.ledgerTitle",
+              )}
+            </h3>
+            {detail && (
+              <div className="inline-actions">
+                <ReportPrintButton
+                  getDocument={() =>
+                    partyLedgerPrintDocument({
+                      party: detail.party,
+                      entries: detail.entries,
+                      pageStartBalance: detail.page_start_balance,
+                      kind,
+                      locale,
+                      t,
+                      money: af,
+                      foreignMoney,
+                      labelFor: (e: any) =>
+                        partyLedgerLabel(t, e) || e.kind || "",
+                    }) as PrintDocument
+                  }
+                />
+                <ReportPrintButton
+                  intent="pdf"
+                  getDocument={() =>
+                    partyLedgerPrintDocument({
+                      party: detail.party,
+                      entries: detail.entries,
+                      pageStartBalance: detail.page_start_balance,
+                      kind,
+                      locale,
+                      t,
+                      money: af,
+                      foreignMoney,
+                      labelFor: (e: any) =>
+                        partyLedgerLabel(t, e) || e.kind || "",
+                    }) as PrintDocument
+                  }
+                />
+                {canWhatsApp(detail.party?.phone || current.phone) && (
+                  <button
+                    type="button"
+                    className="button"
+                    onClick={async () => {
+                      try {
+                        const doc = partyLedgerPrintDocument({
+                          party: detail.party,
+                          entries: detail.entries,
+                          pageStartBalance: detail.page_start_balance,
+                          kind,
+                          locale,
+                          t,
+                          money: af,
+                          foreignMoney,
+                          labelFor: (e: any) =>
+                            partyLedgerLabel(t, e) || e.kind || "",
+                        }) as PrintDocument;
+                        const result = await shareViaWhatsApp({
+                          phone: detail.party.phone || current.phone,
+                          text: t("whatsapp.ledgerText", {
+                            name: detail.party.name,
+                            balance: af(detail.party.balance, 2),
+                          }),
+                          document: doc,
+                          t,
+                        });
+                        done?.(result.message);
+                      } catch (e: any) {
+                        setError(e.message);
+                      }
+                    }}
+                  >
+                    <WhatsappLogoIcon size={15} />
+                    {t("whatsapp.sendLedger")}
+                  </button>
+                )}
+              </div>
             )}
-          </h3>
+          </div>
           <p className="subtle ledger-hint">
             {t(
               ledgerView === "resale"
@@ -3969,10 +4150,11 @@ export function PartyDetailDialog({
           ) : (
             <>
               <div className="table-wrap">
-                <table className="data-table">
+                <table className="data-table ledger-table">
                   <thead>
                     <tr>
-                      <th>{t("partyDetail.colDateRef")}</th>
+                      <th>{t("common.date")}</th>
+                      <th>{t("ledger.reference")}</th>
                       <th className="numeric">{t("partyDetail.debit")}</th>
                       <th className="numeric">{t("partyDetail.credit")}</th>
                       <th className="numeric">{t("partyDetail.balance")}</th>
@@ -3989,12 +4171,16 @@ export function PartyDetailDialog({
                           })
                         }
                       >
-                        <td>
-                          {e.date}
-                          <small className="block muted">
-                            {e.label}
-                            {e.number ? ` · ${e.number}` : ""}
-                          </small>
+                        <td className="ledger-col-date">
+                          <bdi dir="ltr">{e.date}</bdi>
+                        </td>
+                        <td className="ledger-col-ref">
+                          <strong>{e.label}</strong>
+                          {e.number ? (
+                            <small className="block muted">
+                              <bdi dir="ltr">{e.number}</bdi>
+                            </small>
+                          ) : null}
                         </td>
                         <td
                           className={`money ${e.debit ? (kind === "customer" && ledgerView !== "resale" ? "text-red" : "text-green") : "muted"}`}

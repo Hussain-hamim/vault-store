@@ -11,6 +11,7 @@ import { ErrorMessage, Field, Modal } from "../components/ui";
 import {
   normalizePrintOptions,
   PAPER_SIZES,
+  LABEL_PAPERS,
   PRINT_LAYOUTS,
   PRINT_THEMES,
   printGeometry,
@@ -157,16 +158,20 @@ export function PrintDialog({
       setBusy(false);
     }
   }
+  const labelJob = doc.kind === "label";
   return createPortal(
     <Modal
-      title={t("printing.title")}
-      subtitle={t("printing.subtitle")}
+      title={t(labelJob ? "barcode.printSetup" : "printing.title")}
+      subtitle={t(
+        labelJob ? "barcode.printSetupHint" : "printing.subtitle",
+      )}
       onClose={onClose}
       wide
       className="print-setup-modal"
     >
       <div className="print-setup-grid">
         <div className="print-settings">
+          {!labelJob && (
           <div className="print-settings-group">
             <h3>{t("printing.layout")}</h3>
             <div
@@ -198,6 +203,8 @@ export function PrintDialog({
               ))}
             </div>
           </div>
+          )}
+          {!labelJob && (
           <div className="print-settings-group">
             <h3>{t("printing.theme")}</h3>
             <div
@@ -223,18 +230,21 @@ export function PrintDialog({
               ))}
             </div>
           </div>
+          )}
           <div className="print-settings-group">
-            <Field label={t("printing.paper")}>
+            <Field label={t(labelJob ? "barcode.labelSize" : "printing.paper")}>
               <select
                 value={options.paper}
                 onChange={(e) => update("paper", e.target.value)}
               >
-                {Object.entries(PAPER_SIZES)
-                  .filter(
-                    ([id]) =>
-                      doc.kind === "invoice" || !id.startsWith("receipt"),
-                  )
-                  .map(([id, paper]) => (
+                {(labelJob
+                  ? LABEL_PAPERS.map((id) => [id, PAPER_SIZES[id]] as const)
+                  : Object.entries(PAPER_SIZES).filter(
+                      ([id]) =>
+                        (doc.kind === "invoice" || !id.startsWith("receipt")) &&
+                        !id.startsWith("label"),
+                    )
+                ).map(([id, paper]) => (
                     <option key={id} value={id}>
                       {t(`printing.papers.${id}`)} · {paper.width} ×{" "}
                       {paper.height} mm
@@ -242,6 +252,7 @@ export function PrintDialog({
                   ))}
               </select>
             </Field>
+            {!labelJob && (
             <div className="form-grid">
               <Field label={t("printing.orientation")}>
                 <select
@@ -264,15 +275,20 @@ export function PrintDialog({
                 </select>
               </Field>
             </div>
+            )}
+            {labelJob && (
+              <p className="muted">{t("barcode.driverHint")}</p>
+            )}
           </div>
           <div className="print-settings-group print-toggles">
-            {(
-              [
-                "showLogo",
-                ...(doc.kind === "invoice" ? ["showSpecs"] : []),
-                "showFooter",
-              ] as (keyof PrintOptions)[]
-            ).map((key) => (
+            {!labelJob &&
+              (
+                [
+                  "showLogo",
+                  ...(doc.kind === "invoice" ? ["showSpecs"] : []),
+                  "showFooter",
+                ] as (keyof PrintOptions)[]
+              ).map((key) => (
               <label key={key}>
                 <input
                   type="checkbox"

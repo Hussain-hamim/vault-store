@@ -24,7 +24,7 @@ export type PrintSection = {
   rawRows?: (string | number)[][];
 };
 export type PrintDocument = {
-  kind: "invoice" | "report";
+  kind: "invoice" | "report" | "label";
   companyCredit?: { label: string; whatsapp: string };
   title: string;
   reference?: string;
@@ -58,4 +58,10 @@ export type PrintDocument = {
   note?: string;
   endNote?: string;
   emptyLabel?: string;
+  labels?: {
+    name: string;
+    identity?: string;
+    barcode: string;
+    svg: string;
+  }[];
 };

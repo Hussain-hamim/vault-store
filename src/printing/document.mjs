@@ -55,6 +55,39 @@ export function renderPrintDocument(doc, input, fonts = {}) {
         `<section class="document-section">${section.title ? `<h3>${e(section.title)}</h3>` : ""}${section.note ? `<p class="section-note">${e(section.note)}</p>` : ""}<table><thead><tr>${section.columns.map((c) => `<th${c.numeric ? ' class="num"' : ""}>${e(c.label)}</th>`).join("")}</tr></thead><tbody>${section.rows.length ? section.rows.map((row, r) => `<tr>${section.columns.map((c, i) => cell(row[i], c.numeric, section.tones?.[r]?.[i])).join("")}</tr>`).join("") : `<tr><td colspan="${section.columns.length}">${e(doc.emptyLabel)}</td></tr>`}</tbody></table></section>`,
     )
     .join("");
+  const labels = (doc.labels || [])
+    .map(
+      (label) =>
+        `<article class="barcode-label"><strong>${e(label.name)}</strong>${label.identity ? `<small>${e(label.identity)}</small>` : ""}${typeof label.svg === "string" && label.svg.startsWith("<svg") ? `<div class="barcode-svg">${label.svg}</div>` : ""}<bdi dir="ltr">${e(label.barcode)}</bdi></article>`,
+    )
+    .join("");
+  const labelSheet = labels
+    ? `<section class="barcode-label-sheet">${labels}</section>`
+    : doc.labels
+      ? `<p class="section-note">${e(doc.emptyLabel || "")}</p>`
+      : "";
+  if (doc.kind === "label") {
+    const labelCss = `
+${fontFaces}
+*{box-sizing:border-box}html{background:white}body{margin:0;color:#111;font:10px ${rtl ? "Printarabic,Printlatin" : "Printlatin"},Arial,sans-serif;line-height:1.25;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.barcode-label{width:100%;min-height:${page.height - page.margin * 2}mm;padding:1mm;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;page-break-after:always;break-after:page}
+.barcode-label:last-child{page-break-after:auto;break-after:auto}
+.barcode-label strong{display:block;font-size:9px;line-height:1.2;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.barcode-label small{display:block;font-size:7px;color:#333;margin:1px 0 2px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.barcode-svg{display:flex;justify-content:center;width:100%;margin:1px 0}
+.barcode-svg svg{max-width:100%;height:auto;max-height:14mm}
+.barcode-label bdi{display:block;font-family:ui-monospace,Consolas,monospace;font-size:8px;letter-spacing:.03em;margin-top:1px}
+.empty-labels{padding:8px;text-align:center;color:#555}
+@page{size:${page.width}mm ${page.height}mm;margin:${page.margin}mm}
+@media screen{html{background:#e8ebef}body{background:white;width:${page.width}mm;min-height:${page.height}mm;padding:${page.margin}mm;margin:8px auto;box-shadow:0 0 0 1px #c5cad1}
+.barcode-label{min-height:${Math.max(18, page.height - page.margin * 2)}mm;border:1px dashed #b0b6bf;margin-bottom:8px;page-break-after:auto}}
+@media print{body{margin:0;padding:0}.barcode-label{border:0;margin:0}}
+`;
+    const body = labels
+      ? labels
+      : `<p class="empty-labels">${e(doc.emptyLabel || "")}</p>`;
+    return `<!doctype html><html lang="${doc.locale === "prs" ? "fa-AF" : rtl ? "ps" : "en"}" dir="${rtl ? "rtl" : "ltr"}"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; font-src data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"><title>${e(doc.title)}</title><style>${labelCss}</style></head><body>${body}</body></html>`;
+  }
   const invoiceLines = (doc.lines || [])
     .map((line) => {
       const details = [
@@ -111,10 +144,11 @@ ${fontFaces}
 .layout-modern .document-header{border-top:8px solid var(--accent);padding-top:22px}.layout-classic .document-header{border-bottom:2px double var(--accent);border-top:2px double var(--accent);padding-top:20px}.layout-classic th{background:var(--soft);color:var(--ink);border-block:1px solid var(--accent)}.layout-classic tbody tr{background:white}.layout-classic table td,.layout-classic table th{border:1px solid #c5cad1}.layout-minimal .document-header{border-bottom:1px solid #ccd1d7}.layout-minimal .metadata{background:none;padding-inline:0}.layout-minimal th{background:none;color:var(--accent);border-bottom:2px solid var(--accent)}.layout-minimal tbody tr{background:white}.layout-minimal .grand-total{background:none}.layout-compact{font-size:10px}.layout-compact th,.layout-compact td{padding:6px}.layout-compact .metadata{margin:12px 0;padding:10px}.layout-compact .document-header{padding-block:10px}.layout-compact h2,.layout-compact .business-name{font-size:18px}
 .tone-positive{color:#237654}.tone-negative{color:#b13d4d}.tone-blue{color:#326b91}.tone-amber{color:#91601b}
 .theme-mono th{background:white;color:black;border-bottom:2px solid black}.theme-mono tbody tr,.theme-mono .metadata,.theme-mono .grand-total{background:white}.theme-mono *{color:black!important}.theme-mono img{filter:grayscale(1)}
-${options.paper.startsWith("receipt") ? "body{font-size:10px}.document-header{display:block;text-align:center;gap:0;padding-bottom:10px}.document-heading{text-align:center;margin-top:12px}.business-name,.document-heading h2{font-size:17px}.logo{margin-inline:auto;max-width:100px}.metadata{display:block;margin:12px 0;padding:8px}.metadata>div{margin-bottom:6px}.summary{max-width:none;margin:14px 0}.summary>div{padding-inline:0}.grand-total{font-size:12px}.store-footer{text-align:center;margin-top:15px}" : ""}
+.barcode-label-sheet{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin:18px 0}.barcode-label{border:1px dashed #9aa3ad;border-radius:8px;padding:10px 12px;text-align:center;break-inside:avoid}.barcode-label strong{display:block;font-size:12px;line-height:1.3;margin-bottom:2px}.barcode-label small{display:block;color:#626974;font-size:9px;margin-bottom:6px}.barcode-svg{display:flex;justify-content:center;margin:4px 0 2px}.barcode-svg svg{max-width:100%;height:auto}.barcode-label bdi{display:block;font-family:ui-monospace,Consolas,monospace;font-size:11px;letter-spacing:.04em;margin-top:2px}
+${options.paper.startsWith("receipt") ? "body{font-size:10px}.document-header{display:block;text-align:center;gap:0;padding-bottom:10px}.document-heading{text-align:center;margin-top:12px}.business-name,.document-heading h2{font-size:17px}.logo{margin-inline:auto;max-width:100px}.metadata{display:block;margin:12px 0;padding:8px}.metadata>div{margin-bottom:6px}.summary{max-width:none;margin:14px 0}.summary>div{padding-inline:0}.grand-total{font-size:12px}.store-footer{text-align:center;margin-top:15px}.barcode-label-sheet{grid-template-columns:1fr}" : ""}
 @page{size:${page.width}mm ${page.height}mm;margin:${page.margin}mm}tr{break-inside:avoid}h3{break-after:avoid}table{break-inside:auto}.document-header{break-inside:avoid}
 @media screen{html{background:#e8ebef}body{background:white;width:${page.width}mm;min-height:${page.height}mm;padding:${page.margin}mm;margin:0}.sheet{width:100%;min-height:${page.height - page.margin * 2}mm;margin:0}}
 @media print{body{margin:0;padding:0}.sheet{width:auto;min-height:0;margin:0}a{text-decoration:none;color:inherit}}
 `;
-  return `<!doctype html><html lang="${doc.locale === "prs" ? "fa-AF" : rtl ? "ps" : "en"}" dir="${rtl ? "rtl" : "ltr"}"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; font-src data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"><title>${e(doc.reference || doc.title)}</title><style>${css}</style></head><body class="layout-${options.layout} theme-${options.theme}"><main class="sheet"><header class="document-header"><div>${options.showLogo && logo ? `<img class="logo" src="${e(logo)}" alt="">` : ""}<h1 class="business-name">${e(doc.store?.name || "")}</h1><p class="business-info">${e([doc.store?.address, [doc.store?.phone, doc.store?.email].filter(Boolean).join(" · ")].filter(Boolean).join("\n"))}</p></div><div class="document-heading"><h2>${e(doc.title)}</h2>${doc.reference ? `<strong class="document-reference">${e(doc.reference)}</strong>` : ""}${doc.subtitle ? `<p class="document-subtitle">${e(doc.subtitle)}</p>` : ""}</div></header>${meta ? `<section class="metadata">${meta}</section>` : ""}${invoice}${tables}${totals ? `<section class="summary">${totals}</section>` : ""}${doc.note ? `<p class="document-note">${e(doc.note)}</p>` : ""}${footer}${doc.endNote ? `<p class="end-note">${e(doc.endNote)}</p>` : ""}${companyCredit}</main></body></html>`;
+  return `<!doctype html><html lang="${doc.locale === "prs" ? "fa-AF" : rtl ? "ps" : "en"}" dir="${rtl ? "rtl" : "ltr"}"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; font-src data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"><title>${e(doc.reference || doc.title)}</title><style>${css}</style></head><body class="layout-${options.layout} theme-${options.theme}"><main class="sheet"><header class="document-header"><div>${options.showLogo && logo ? `<img class="logo" src="${e(logo)}" alt="">` : ""}<h1 class="business-name">${e(doc.store?.name || "")}</h1><p class="business-info">${e([doc.store?.address, [doc.store?.phone, doc.store?.email].filter(Boolean).join(" · ")].filter(Boolean).join("\n"))}</p></div><div class="document-heading"><h2>${e(doc.title)}</h2>${doc.reference ? `<strong class="document-reference">${e(doc.reference)}</strong>` : ""}${doc.subtitle ? `<p class="document-subtitle">${e(doc.subtitle)}</p>` : ""}</div></header>${meta ? `<section class="metadata">${meta}</section>` : ""}${invoice}${tables}${labelSheet}${totals ? `<section class="summary">${totals}</section>` : ""}${doc.note ? `<p class="document-note">${e(doc.note)}</p>` : ""}${footer}${doc.endNote ? `<p class="end-note">${e(doc.endNote)}</p>` : ""}${companyCredit}</main></body></html>`;
 }

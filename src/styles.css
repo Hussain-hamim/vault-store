@@ -2184,6 +2184,60 @@ html[dir="rtl"] .period-picker select {
 .party-ledger-only .people-ledger-bar {
   margin-top: 0;
 }
+.ledger-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+.ledger-table th,
+.ledger-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--paint-border-e2e4da, #e2e4da);
+  vertical-align: top;
+}
+.ledger-table thead th {
+  background: var(--paint-bg-f4f6f2, #f4f6f2);
+  font-size: 11px;
+  font-weight: 700;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.ledger-col-date {
+  white-space: nowrap;
+  width: 7.5rem;
+}
+.ledger-col-ref strong {
+  font-weight: 650;
+}
+.phone-field {
+  display: grid;
+  grid-template-columns: minmax(7.5rem, 0.9fr) auto minmax(0, 1.2fr);
+  gap: 6px;
+  align-items: center;
+}
+.phone-field select,
+.phone-field input[type="tel"] {
+  min-width: 0;
+}
+.phone-dial {
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--paint-fg-54584f, #54584f);
+  white-space: nowrap;
+}
+.field-error {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: var(--paint-fg-b6505c, #b6505c);
+}
+.party-ledger-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
 .people-row-go {
   width: 32px;
   height: 32px;

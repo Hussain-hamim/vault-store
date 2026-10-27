@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { CameraIcon, ArrowClockwiseIcon } from "@phosphor-icons/react";
+import {
+  CameraIcon,
+  ArrowClockwiseIcon,
+  ImageIcon,
+} from "@phosphor-icons/react";
 import { api } from "../api";
 import { useI18n } from "../i18n";
 import { prepareProductPhoto } from "../product-photo-upload";
@@ -10,6 +14,7 @@ import {
   productPhotoSelection,
 } from "../../server/product-images.mjs";
 import { ProductPhoto, PhotoProduct } from "./ProductPhoto";
+import { Modal, ErrorMessage } from "./ui";
 import "./product-photos.css";
 export type PhotoValue = { image: string; photo_data?: string };
 export function ProductPhotoPicker({
@@ -49,7 +54,8 @@ export function ProductPhotoPicker({
     ),
     [error, setError] = useState(""),
     [reading, setReading] = useState(false),
-    [searching, setSearching] = useState(false);
+    [searching, setSearching] = useState(false),
+    [cameraOpen, setCameraOpen] = useState(false);
   const originalPhoto = isStoredPhoto(original.current) ? original.current : "";
   // A manual upload belongs to this form, even while product details change.
   const upload = uploaded?.src || "";
@@ -163,7 +169,7 @@ export function ProductPhotoPicker({
         </div>
         <div className="photo-picker-actions">
           <label className="button">
-            <CameraIcon size={16} />
+            <ImageIcon size={16} />
             {t(reading ? "photos.reading" : "photos.choose")}
             <input
               type="file"
@@ -175,6 +181,18 @@ export function ProductPhotoPicker({
               }}
             />
           </label>
+          <button
+            type="button"
+            className="button"
+            disabled={reading}
+            onClick={() => {
+              setError("");
+              setCameraOpen(true);
+            }}
+          >
+            <CameraIcon size={16} />
+            {t("photos.camera")}
+          </button>
           {custom && (
             <button
               className="text-button"
@@ -196,6 +214,119 @@ export function ProductPhotoPicker({
           {error}
         </p>
       )}
+      {cameraOpen && (
+        <CameraCapture
+          onClose={() => setCameraOpen(false)}
+          onCapture={async (file) => {
+            setCameraOpen(false);
+            await pick(file);
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+function CameraCapture({
+  onClose,
+  onCapture,
+}: {
+  onClose: () => void;
+  onCapture: (file: File) => void | Promise<void>;
+}) {
+  const { t } = useI18n();
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const [error, setError] = useState("");
+  const [ready, setReady] = useState(false);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    let active = true;
+    async function start() {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setError(t("photos.cameraUnsupported"));
+        return;
+      }
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: {
+            facingMode: { ideal: "environment" },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
+        });
+        if (!active) {
+          stream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+        streamRef.current = stream;
+        const video = videoRef.current;
+        if (video) {
+          video.srcObject = stream;
+          await video.play();
+          if (active) setReady(true);
+        }
+      } catch {
+        if (active) setError(t("photos.cameraDenied"));
+      }
+    }
+    void start();
+    return () => {
+      active = false;
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    };
+  }, [t]);
+  async function snap() {
+    const video = videoRef.current;
+    if (!video || !ready || busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      const canvas = document.createElement("canvas");
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 480;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("photos.unreadable");
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const blob = await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob(resolve, "image/jpeg", 0.92),
+      );
+      if (!blob) throw new Error("photos.unreadable");
+      await onCapture(
+        new File([blob], `product-${Date.now()}.jpg`, { type: "image/jpeg" }),
+      );
+    } catch (e: any) {
+      setError(
+        t(e.message?.startsWith("photos.") ? e.message : "photos.unreadable"),
+      );
+      setBusy(false);
+    }
+  }
+  return (
+    <Modal title={t("photos.camera")} onClose={onClose}>
+      <div className="form-body product-camera-body">
+        <div className="product-camera-frame">
+          <video ref={videoRef} playsInline muted autoPlay />
+        </div>
+        <ErrorMessage error={error} />
+        <p className="muted">{t("photos.cameraHint")}</p>
+      </div>
+      <div className="modal-actions">
+        <button type="button" className="button" onClick={onClose}>
+          {t("common.cancel")}
+        </button>
+        <button
+          type="button"
+          className="button button-dark"
+          disabled={!ready || busy || !!error}
+          onClick={() => void snap()}
+        >
+          <CameraIcon size={16} />
+          {busy ? t("photos.reading") : t("photos.capture")}
+        </button>
+      </div>
+    </Modal>
   );
 }

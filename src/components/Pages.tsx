@@ -17,6 +17,8 @@ import {
   PackageIcon,
   ArrowRightIcon,
   PrinterIcon,
+  BarcodeIcon,
+  WhatsappLogoIcon,
   LockIcon,
   DatabaseIcon,
   HardDrivesIcon,
@@ -40,6 +42,9 @@ import {
 import { useI18n, useT, LOCALES, type Locale } from "../i18n";
 import { ReportPrintButton } from "../printing/PrintDialog";
 import type { PrintDocument } from "../printing/types";
+import { BarcodeLabelPrintModal } from "./BarcodeLabelPrint";
+import { partyLedgerPrintDocument } from "../printing/party-ledger.mjs";
+import { canWhatsApp, shareViaWhatsApp } from "../whatsapp-share";
 
 import { CompanyPage, HelpContent } from "./CompanyPages";
 import { expenseAccountName } from "../expense-accounts";
@@ -132,7 +137,8 @@ export function ProductsPage({
     [next, setNext] = useState<string | null>(null),
     [loading, setLoading] = useState(true),
     [loadingMore, setLoadingMore] = useState(false),
-    [error, setError] = useState("");
+    [error, setError] = useState(""),
+    [barcodePrint, setBarcodePrint] = useState(false);
   const searchQ = useDebouncedValue(q, 200);
   useEffect(() => {
     setQ(globalSearch);
@@ -281,15 +287,30 @@ export function ProductsPage({
         title={t("inventory.title")}
         description={t("inventory.description")}
         action={
-          <button
-            className="button button-dark"
-            onClick={() => open("product")}
-          >
-            <PlusIcon size={16} />
-            {t("inventory.addProduct")}
-          </button>
+          <div className="page-intro-actions">
+            {user.permissions.includes("inventory") && (
+              <button
+                className="button"
+                type="button"
+                onClick={() => setBarcodePrint(true)}
+              >
+                <BarcodeIcon size={16} />
+                {t("barcode.printStation")}
+              </button>
+            )}
+            <button
+              className="button button-dark"
+              onClick={() => open("product")}
+            >
+              <PlusIcon size={16} />
+              {t("inventory.addProduct")}
+            </button>
+          </div>
         }
       />
+      {barcodePrint && (
+        <BarcodeLabelPrintModal onClose={() => setBarcodePrint(false)} />
+      )}
       <section
         className={`panel inventory-list${showCost ? " with-cost" : ""}`}
       >
@@ -1500,43 +1521,84 @@ export function PeoplePage({
           <section className="panel contact-detail people-detail people-ledger-only">
             <div className="panel-heading">
               <h3>{t("ledger.title")}</h3>
-              <ReportPrintButton
-                disabled={!detail?.party || detailPending || !!detailError}
-                getDocument={() => ({
-                  kind: "report",
-                  locale,
-                  title: t("ledger.title"),
-                  subtitle: detail.party.name,
-                  source: { type: "report", permission: "people" },
-                  emptyLabel: t("reports.noRows"),
-                  summary: [
-                    {
-                      label: t("common.outstanding"),
-                      value: af(detail.party.balance, 2),
-                    },
-                  ],
-                  sections: [
-                    {
-                      note: t("printing.ledgerPage"),
-                      columns: [
-                        { label: t("partyDetail.colDateRef") },
-                        { label: t("ledger.debit"), numeric: true },
-                        { label: t("ledger.credit"), numeric: true },
-                        { label: t("ledger.balance"), numeric: true },
-                      ],
-                      rows: ledgerRows.map((e: any) => [
-                        `${e.date} · ${e.label} · ${e.number || ""}${["payment", "receipt"].includes(e.kind) && e.paid_foreign != null ? ` · ${foreignMoney(e.paid_foreign, e.currency)} → ${af(afnFromAed(e.paid_foreign, e.fx_rate), 2)}` : ""}`,
-                        af(e.debit, 2),
-                        af(e.credit, 2),
-                        af(e.running, 2),
-                      ]),
-                    },
-                  ],
-                })}
-              />
-              <button className="text-button" onClick={() => setSelected(null)}>
-                {t("common.close")}
-              </button>
+              <div className="inline-actions">
+                <ReportPrintButton
+                  disabled={!detail?.party || detailPending || !!detailError}
+                  getDocument={() =>
+                    partyLedgerPrintDocument({
+                      party: detail.party,
+                      entries: detail.entries,
+                      pageStartBalance: detail.page_start_balance,
+                      kind,
+                      locale,
+                      t,
+                      money: af,
+                      foreignMoney,
+                      labelFor: (e: any) => ledgerLabel(e, t),
+                    }) as PrintDocument
+                  }
+                />
+                <ReportPrintButton
+                  intent="pdf"
+                  disabled={!detail?.party || detailPending || !!detailError}
+                  getDocument={() =>
+                    partyLedgerPrintDocument({
+                      party: detail.party,
+                      entries: detail.entries,
+                      pageStartBalance: detail.page_start_balance,
+                      kind,
+                      locale,
+                      t,
+                      money: af,
+                      foreignMoney,
+                      labelFor: (e: any) => ledgerLabel(e, t),
+                    }) as PrintDocument
+                  }
+                />
+                {detail?.party && canWhatsApp(detail.party.phone) && (
+                  <button
+                    type="button"
+                    className="button"
+                    disabled={detailPending || !!detailError}
+                    onClick={async () => {
+                      try {
+                        const doc = partyLedgerPrintDocument({
+                          party: detail.party,
+                          entries: detail.entries,
+                          pageStartBalance: detail.page_start_balance,
+                          kind,
+                          locale,
+                          t,
+                          money: af,
+                          foreignMoney,
+                          labelFor: (e: any) => ledgerLabel(e, t),
+                        }) as PrintDocument;
+                        const result = await shareViaWhatsApp({
+                          phone: detail.party.phone,
+                          text: t("whatsapp.ledgerText", {
+                            name: detail.party.name,
+                            balance: af(detail.party.balance, 2),
+                          }),
+                          document: doc,
+                          t,
+                        });
+                        toast(result.message);
+                      } catch (e: any) {
+                        setDetailActionError(e.message);
+                      }
+                    }}
+                  >
+                    <WhatsappLogoIcon size={15} />
+                    {t("whatsapp.sendLedger")}
+                  </button>
+                )}
+                <button
+                  className="text-button"
+                  onClick={() => setSelected(null)}
+                >
+                  {t("common.close")}
+                </button>
+              </div>
             </div>
             <ErrorMessage error={detailError || detailActionError} />
             {!detailPending &&
@@ -1582,10 +1644,11 @@ export function PeoplePage({
                 </div>
                 <p className="subtle ledger-hint">{t("ledger.hint")}</p>
                 <p className="subtle ledger-hint">{t("people.paymentDeleteHint")}</p>
-                <table className="data-table">
+                <table className="data-table ledger-table">
                   <thead>
                     <tr>
-                      <th>{t("ledger.dateReference")}</th>
+                      <th>{t("common.date")}</th>
+                      <th>{t("ledger.reference")}</th>
                       <th className="numeric">{t("ledger.debit")}</th>
                       <th className="numeric">{t("ledger.credit")}</th>
                       <th className="numeric">{t("ledger.balance")}</th>
@@ -1602,12 +1665,16 @@ export function PeoplePage({
                           })
                         }
                       >
-                        <td>
-                          {e.date}
-                          <small className="block muted">
-                            {e.label}
-                            {e.number ? ` · ${e.number}` : ""}
-                          </small>
+                        <td className="ledger-col-date">
+                          <bdi dir="ltr">{e.date}</bdi>
+                        </td>
+                        <td className="ledger-col-ref">
+                          <strong>{e.label}</strong>
+                          {e.number ? (
+                            <small className="block muted">
+                              <bdi dir="ltr">{e.number}</bdi>
+                            </small>
+                          ) : null}
                           {["payment", "receipt"].includes(e.kind) &&
                             e.paid_foreign != null && (
                               <small className="block ledger-foreign-payment">

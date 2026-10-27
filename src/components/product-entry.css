@@ -297,3 +297,52 @@
 .entry-suggestions button[aria-selected="true"] {
   background: var(--paint-bg-f7f8f2, #f2f7f7);
 }
+.entry-barcode-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.entry-barcode-row input {
+  flex: 1 1 140px;
+  min-width: 0;
+}
+.entry-barcode-row .button {
+  padding: 5px 9px;
+  min-height: 30px;
+  font-size: 11px;
+  gap: 5px;
+}
+.entry-field-hint {
+  margin: 5px 0 0;
+  font-size: 10px;
+  line-height: 1.45;
+  color: var(--paint-fg-84939b, #84939b);
+}
+.barcode-pick-list {
+  display: grid;
+  gap: 6px;
+  max-height: 240px;
+  overflow: auto;
+  margin: 8px 0 12px;
+}
+.barcode-pick-row {
+  display: grid;
+  gap: 2px;
+  text-align: start;
+  padding: 8px 10px;
+  border: 1px solid var(--paint-border-e2e4da, #dce3e6);
+  border-radius: 10px;
+  background: var(--paint-bg-fff, #fff);
+  cursor: pointer;
+}
+.barcode-pick-row.selected,
+.barcode-pick-row[aria-selected="true"] {
+  border-color: var(--paint-bg-289285, #289285);
+  background: color-mix(in srgb, #289285 8%, white);
+}
+.barcode-pick-row small,
+.barcode-pick-row span {
+  font-size: 11px;
+  color: var(--paint-fg-84939b, #84939b);
+}

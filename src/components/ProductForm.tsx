@@ -1,4 +1,3 @@
-import { ReceiveDevices } from "./DeviceInventory";
 import {
   BarcodeIcon,
   PackageIcon,
@@ -10,7 +9,6 @@ import {
   MemoryIcon,
   CurrencyCircleDollarIcon,
   ArrowsLeftRightIcon,
-  ShieldCheckIcon,
   StackIcon,
   FloppyDiskIcon,
   PlusIcon,
@@ -18,12 +16,13 @@ import {
   ArrowRightIcon,
   FolderOpenIcon,
   XIcon,
+  PrinterIcon,
+  ArrowsClockwiseIcon,
   type Icon,
 } from "@phosphor-icons/react";
 import {
   useEffect,
   useId,
-  useMemo,
   useRef,
   useState,
   type ReactNode,
@@ -38,7 +37,7 @@ import {
   requestKey,
   type Product,
 } from "../api";
-import { useT } from "../i18n";
+import { useI18n, useT } from "../i18n";
 import { Modal, Field as BaseField, NumericInput, ErrorMessage } from "./ui";
 import { ProductPhotoPicker, type PhotoValue } from "./ProductPhotoPicker";
 import { CurrencyPicker } from "./CurrencyPicker";
@@ -49,6 +48,12 @@ import {
   categoryLabel,
   specFieldLabel,
 } from "./product-fields";
+import { generateProductBarcode } from "../barcode/generate.mjs";
+import { canEncodeCode128 } from "../barcode/code128.mjs";
+import { barcodeLabelDocument } from "../printing/barcode-label.mjs";
+import { PrintDialog } from "../printing/PrintDialog";
+import { BarcodeCopiesDialog } from "./BarcodeLabelPrint";
+import type { PrintDocument } from "../printing/types";
 import "./product-entry.css";
 const fieldIcons: Record<string, Icon> = {
   name: PackageIcon,
@@ -65,9 +70,9 @@ const fieldIcons: Record<string, Icon> = {
   cost: CurrencyCircleDollarIcon,
   price: CurrencyCircleDollarIcon,
   rate: ArrowsLeftRightIcon,
+  cargo: CurrencyCircleDollarIcon,
   opening_quantity: StackIcon,
   reorder_level: StackIcon,
-  warranty: ShieldCheckIcon,
 };
 function Field({
   label,
@@ -136,7 +141,7 @@ function empty(common?: Values): Entry {
     brandOther: common?.brandOther || "",
     model: "",
     sku: "",
-    barcode: "",
+    barcode: generateProductBarcode(),
     accessory: "Keyboard",
     accessoryOther: "",
     currency: common?.currency || "AED",
@@ -174,6 +179,7 @@ function existing(p: Product): Entry {
     cargo: p.cargo_rent ? moneyInput(p.cargo_rent) : "",
     rate: p.fx_rate ? fxRateInput(p.fx_rate) : "",
     price: moneyInput(p.price),
+    opening_quantity: String(p.stock ?? 0),
     reorder_level: String(p.reorder_level),
     condition: p.condition,
     warranty: p.warranty,
@@ -195,6 +201,9 @@ export function ProductForm({
   intent?: "catalog" | "purchase";
 }) {
   const t = useT();
+  const { locale } = useI18n();
+  const [labelDoc, setLabelDoc] = useState<PrintDocument | null>(null);
+  const [askCopies, setAskCopies] = useState(false);
   const [entry, setEntry] = useState<Entry>(() =>
     product ? existing(product) : empty(),
   );
@@ -216,14 +225,6 @@ export function ProductForm({
   const d = entry.data,
     editing = !!entry.original,
     dirty = signature(entry) !== entry.baseline;
-  const unitDetails = useMemo(() => {
-    try {
-      const rows = JSON.parse(d.unit_data || "[]");
-      return Array.isArray(rows) ? rows : [];
-    } catch {
-      return [];
-    }
-  }, [d.unit_data]);
   function value(name: string, value: string) {
     setEntry((e) => ({ ...e, data: { ...e.data, [name]: value } }));
     setNotice("");
@@ -347,6 +348,10 @@ export function ProductForm({
       attrs.filter((k) => d[k]).map((k) => [k, d[k]]),
     );
     if (d.category === "Accessories") attributes.Type = accessory;
+    const serialized = ["Computers", "Mobiles", "Tablets"].includes(
+      d.category,
+    );
+    const openingQty = purchase ? 0 : Number(d.opening_quantity) || 0;
     return {
       id: entry.original?.id,
       name: d.name,
@@ -355,19 +360,14 @@ export function ProductForm({
       sku: d.sku,
       barcode: d.barcode,
       category: d.category,
-      serialized: ["Computers", "Mobiles", "Tablets"].includes(d.category),
-      units: d.unit_data
-        ? Array.from(
-            { length: Math.min(1000, Number(d.opening_quantity) || 0) },
-            (_, i) => unitDetails[i] || {},
-          )
-        : undefined,
+      serialized,
+      units: undefined,
       price: toMoney(d.price),
       minimum: entry.original?.minimum ?? 0,
       location: entry.original?.location || "",
       reorder_level: Number(d.reorder_level),
-      condition: d.condition,
-      warranty: d.warranty,
+      condition: entry.original?.condition || "New",
+      warranty: entry.original?.warranty || "",
       attributes,
       currency: purchase ? entry.original?.currency || d.currency : d.currency,
       cost_foreign: cost,
@@ -376,12 +376,41 @@ export function ProductForm({
       fx_rate: rate,
       unit_cost: purchase
         ? (entry.original?.unit_cost ?? 0)
-        : afnFromAed(cost + cargo, rate),
-      ...(!editing
-        ? { opening_quantity: purchase ? 0 : Number(d.opening_quantity) }
-        : {}),
+        : afnFromAed(cost, rate) + cargo,
+      ...(!editing ? { opening_quantity: openingQty } : {}),
       ...entry.photo,
     };
+  }
+  function stockDelta() {
+    if (!editing || intent === "purchase") return 0;
+    return (Number(d.opening_quantity) || 0) - (entry.original?.stock ?? 0);
+  }
+  function printBarcodeLabel() {
+    const code = d.barcode.trim();
+    if (!code || !canEncodeCode128(code)) {
+      setError(t("barcode.needValid"));
+      return;
+    }
+    setError("");
+    setAskCopies(true);
+  }
+  function confirmBarcodeCopies(copies: number) {
+    setAskCopies(false);
+    setLabelDoc(
+      barcodeLabelDocument(
+        [
+          {
+            name: d.name.trim() || t("entry.untitled"),
+            brand: d.brand === "Other" ? d.brandOther : d.brand,
+            model: d.model,
+            sku: d.sku,
+            barcode: d.barcode.trim(),
+            stock: Number(d.opening_quantity) || 0,
+          },
+        ],
+        { t, locale, copies },
+      ),
+    );
   }
   async function saveDraft(): Promise<boolean> {
     if (locked.current || photoBusy) return false;
@@ -429,6 +458,14 @@ export function ProductForm({
     let committed = false;
     try {
       const data = payload();
+      const delta = stockDelta();
+      const serialized = ["Computers", "Mobiles", "Tablets"].includes(
+        d.category,
+      );
+      if (editing && delta < 0 && serialized)
+        throw new Error(t("productForm.stockReduceDevices"));
+      if (editing && delta !== 0 && delta + (entry.original?.stock ?? 0) < 0)
+        throw new Error(t("productForm.stockNegative"));
       let p: Product;
       if (editing) {
         const result = await api<{ id: string; product: Product }>(
@@ -436,6 +473,19 @@ export function ProductForm({
           data,
         );
         p = result.product;
+        if (delta !== 0) {
+          await api("adjust", {
+            product_id: p.id,
+            quantity: delta,
+            cost: delta > 0 ? data.unit_cost || p.unit_cost || 0 : 0,
+            note: t("productForm.stockEditNote"),
+            request_key: requestKey(),
+          });
+          const detail = await api<{ product: Product }>("productDetail", {
+            id: p.id,
+          });
+          p = detail.product;
+        }
       } else {
         const r = await api<{ id: string; product: Product }>(
           "productDraftPublish",
@@ -547,10 +597,8 @@ export function ProductForm({
     costAF =
       d.cost && d.rate
         ? moneyInput(
-            afnFromAed(
-              toMoney(d.cost) + (d.cargo.trim() ? toMoney(d.cargo) : 0),
-              toFxRate(d.rate),
-            ),
+            afnFromAed(toMoney(d.cost), toFxRate(d.rate)) +
+              (d.cargo.trim() ? toMoney(d.cargo) : 0),
           )
         : "";
   } catch {}
@@ -674,7 +722,43 @@ export function ProductForm({
                       text("brandOther", t("productForm.customBrand"), true)}
                     {text("model", t("product.model"), true)}
                     {text("sku", t("product.sku"), true)}
-                    {text("barcode", t("product.barcode"))}
+                    <Field label={t("product.barcode")} icon={BarcodeIcon}>
+                      <div className="entry-barcode-row">
+                        <input
+                          name="barcode"
+                          value={d.barcode}
+                          onChange={(e) => value("barcode", e.target.value)}
+                          placeholder={t("productForm.barcodePh")}
+                          dir="ltr"
+                          autoComplete="off"
+                        />
+                        <button
+                          type="button"
+                          className="button"
+                          title={t("barcode.generate")}
+                          aria-label={t("barcode.generate")}
+                          disabled={busy || photoBusy}
+                          onClick={() =>
+                            value("barcode", generateProductBarcode())
+                          }
+                        >
+                          <ArrowsClockwiseIcon size={15} aria-hidden="true" />
+                          {t("barcode.generateShort")}
+                        </button>
+                        <button
+                          type="button"
+                          className="button"
+                          title={t("barcode.print")}
+                          aria-label={t("barcode.print")}
+                          disabled={busy || photoBusy || !d.barcode.trim()}
+                          onClick={printBarcodeLabel}
+                        >
+                          <PrinterIcon size={15} aria-hidden="true" />
+                          {t("barcode.printShort")}
+                        </button>
+                      </div>
+                      <p className="entry-field-hint">{t("barcode.hint")}</p>
+                    </Field>
                     {d.category === "Accessories" && (
                       <Field label={t("product.accessoryType")}>
                         <select
@@ -744,7 +828,7 @@ export function ProductForm({
                       )}
                       {number(
                         "cargo",
-                        t("currencies.cargoRent", { code: d.currency }),
+                        t("currencies.cargoRent", { code: "AFN" }),
                       )}
                       <Field
                         label={t("currencies.rate", { code: d.currency })}
@@ -773,48 +857,18 @@ export function ProductForm({
                     </>
                   )}
                   {number("price", t("product.sellingPrice"))}
-                  {!editing &&
-                    intent !== "purchase" &&
+                  {intent !== "purchase" &&
                     number(
                       "opening_quantity",
-                      t("productForm.openingQty"),
+                      editing
+                        ? t("productForm.stockOnHand")
+                        : t("productForm.openingQty"),
                       true,
                     )}
                   {number("reorder_level", t("product.reorder"), true)}
-                  <Field label={t("product.condition")} icon={ShieldCheckIcon}>
-                    <select
-                      name="condition"
-                      value={d.condition}
-                      onChange={(e) => value("condition", e.target.value)}
-                    >
-                      {["New", "Used", "Refurbished"].map((v, i) => (
-                        <option key={v} value={v}>
-                          {t(
-                            [
-                              "productForm.conditionNew",
-                              "productForm.conditionUsed",
-                              "productForm.conditionRefurb",
-                            ][i],
-                          )}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
-                  {text("warranty", t("product.warranty"))}
                 </div>
               </section>
             </div>
-            {!editing &&
-              intent !== "purchase" &&
-              ["Computers", "Mobiles", "Tablets"].includes(d.category) &&
-              Number(d.opening_quantity) > 0 && (
-                <ReceiveDevices
-                  defaultCondition={d.condition}
-                  quantity={Number(d.opening_quantity)}
-                  values={unitDetails}
-                  onChange={(rows) => value("unit_data", JSON.stringify(rows))}
-                />
-              )}
             <ErrorMessage error={error} />
             {notice && (
               <p className="entry-notice" role="status">
@@ -900,6 +954,30 @@ export function ProductForm({
           </div>
         </form>
       </Modal>
+      {askCopies && (
+        <BarcodeCopiesDialog
+          product={{
+            name: d.name.trim() || t("entry.untitled"),
+            brand: d.brand === "Other" ? d.brandOther : d.brand,
+            model: d.model,
+            sku: d.sku,
+            barcode: d.barcode,
+            stock: Number(d.opening_quantity) || 0,
+          }}
+          defaultCopies={
+            Number(d.opening_quantity) > 0
+              ? Number(d.opening_quantity)
+              : editing
+                ? entry.original?.stock || 1
+                : 1
+          }
+          onClose={() => setAskCopies(false)}
+          onReady={confirmBarcodeCopies}
+        />
+      )}
+      {labelDoc && (
+        <PrintDialog document={labelDoc} onClose={() => setLabelDoc(null)} />
+      )}
       {showDrafts && (
         <Modal
           title={t("entry.drafts")}

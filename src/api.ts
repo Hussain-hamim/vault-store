@@ -120,6 +120,14 @@ declare global {
       }>;
       request: (command: string, args: unknown, token?: string) => Promise<any>;
       openExternal?: (url: string) => Promise<void>;
+      shareWhatsApp?: (
+        payload: {
+          phone: string;
+          text?: string;
+          job?: unknown;
+        },
+        token: string,
+      ) => Promise<{ opened?: boolean; pdfPath?: string | null }>;
       pickFolder: () => Promise<string | null>;
       pickBackup: () => Promise<string | null>;
       restore: (path: string, token: string) => Promise<any>;

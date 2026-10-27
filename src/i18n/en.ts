@@ -146,7 +146,15 @@ export const en: MessageTree = {
       "Upload this product’s photo. A neutral icon is shown instead of another company’s product.",
     savedHint:
       "Saved offline in your store database and included in backups. Reused automatically for the same company and model.",
-    choose: "Choose exact photo",
+    choose: "Choose from files",
+    camera: "Take photo",
+    cameraHint:
+      "Point the camera at the product, then capture. The photo is compressed and saved offline with the product.",
+    capture: "Capture",
+    cameraDenied:
+      "Camera access was denied. Allow the camera for this app, or choose a photo from files.",
+    cameraUnsupported:
+      "This device does not support the camera here. Choose a photo from files instead.",
     reading: "Preparing photo…",
     useAutomatic: "Use automatic photo",
     invalidType: "Choose a JPG, PNG or WebP image.",
@@ -156,6 +164,37 @@ export const en: MessageTree = {
     credits: "Product photo credits",
     creditsHint:
       "Automatic photos use clean studio category illustrations bundled with the app. Optional licensed reference files are credited below; source and license links need internet, but the photos work offline.",
+  },
+  barcode: {
+    generate: "Generate barcode",
+    generateShort: "Generate",
+    print: "Print barcode label",
+    printShort: "Print",
+    printStation: "Print barcode labels",
+    printStationHint:
+      "Choose a product, set how many sticky labels you need, then print on your barcode label printer.",
+    printSetup: "Barcode label print",
+    printSetupHint:
+      "Pick your label size to match the roll in the barcode printer, then print.",
+    labelSize: "Label size",
+    copies: "Number of labels",
+    copiesHint:
+      "Use the stock quantity when you need one sticker per unit (for example 10 MacBooks → 10 labels).",
+    continuePrint: "Continue to print",
+    pickProduct: "Choose product",
+    willGenerate: "Will generate on print",
+    thermalHint:
+      "Made for sticky barcode-label printers. Choose the label size that matches your roll (for example 50×30 mm).",
+    driverHint:
+      "Install your printer’s Windows/macOS driver (or the maker’s “barcode label” driver), select that printer in the print dialog, and set the same label size there. No extra app driver is required beyond the normal printer driver.",
+    hint: "Generated codes can be printed and stuck on items without a factory barcode. Keep a manufacturer barcode if the product already has one.",
+    needValid: "Enter or generate a barcode that can be printed (letters and numbers).",
+    unsupported: "This barcode uses characters that cannot be printed as Code 128.",
+    labelsTitle: "Barcode labels",
+    labelsSubtitle: "{n} labels",
+    noLabels: "No printable barcodes in this selection.",
+    labelsHint:
+      "Stick each label on the matching product. Scan the barcode on New Sale or New Purchase to add the item.",
   },
   currencies: {
     refundReceived: "Supplier refund received",
@@ -462,6 +501,11 @@ export const en: MessageTree = {
       A3: "A3",
       receipt80: "80 mm receipt",
       receipt58: "58 mm receipt",
+      label40x30: "40×30 mm label",
+      label50x30: "50×30 mm label",
+      label60x40: "60×40 mm label",
+      label80x50: "80×50 mm label",
+      label100x50: "100×50 mm label",
     },
   },
   app: {
@@ -908,7 +952,7 @@ export const en: MessageTree = {
   },
   ledger: {
     title: "Account ledger",
-    hint: "Payments and invoices, newest first.",
+    hint: "Payments and invoices, newest first. Debits are red and credits are green for customers.",
     empty: "No ledger entries yet.",
     opening: "Opening balance",
     sale: "Sale",
@@ -923,9 +967,29 @@ export const en: MessageTree = {
     adjustment: "Stock adjustment",
     entry: "Entry",
     dateReference: "Date / reference",
+    reference: "Reference",
     debit: "Debit",
     credit: "Credit",
     balance: "Balance",
+  },
+  phone: {
+    country: "Country code",
+    nationalPh: "{n} digits",
+    lengthHint: "Enter the national number for +{dial} ({n} digits).",
+    invalidLength: "Phone number for +{dial} must be {n} digits.",
+  },
+  whatsapp: {
+    sendInvoice: "WhatsApp invoice",
+    sendLedger: "WhatsApp ledger",
+    needPhone:
+      "Add a valid phone number with country code for this customer first.",
+    opened: "WhatsApp opened for this customer.",
+    openedWithPdf:
+      "WhatsApp opened and the PDF was saved. Attach that PDF file in the chat (WhatsApp cannot auto-attach files from desktop apps).",
+    invoiceText:
+      "Hello {name}, here is invoice {number}. Total: {total}. Please find the PDF attached.",
+    ledgerText:
+      "Hello {name}, here is your account ledger. Outstanding balance: {balance}. Please find the PDF attached.",
   },
   pagination: {
     loadMore: "Load more",
@@ -1616,6 +1680,11 @@ export const en: MessageTree = {
     fxRateDayHint: "The Afghani rate on the day you bought this stock.",
     unitCostAfHint: "Calculated from AED × rate for inventory and profit.",
     openingQty: "Opening stock quantity",
+    stockOnHand: "Stock on hand",
+    stockEditNote: "Stock updated while editing the product",
+    stockReduceDevices:
+      "To reduce stock for computers, phones or tablets, open the product and use Adjust so you can pick the exact devices.",
+    stockNegative: "Stock on hand cannot be negative.",
     openingQtyHint:
       "Existing stock, not a new supplier purchase. Owner access is required for opening balances.",
     stockOnPurchase: "Stock on this purchase",

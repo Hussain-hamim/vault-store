@@ -812,10 +812,11 @@ export class Store {
       d.opening_quantity > 1000
     )
       throw new Error("Receive at most 1,000 individual devices per entry.");
+    // Cargo rent is always entered in AFN and added on top of converted unit cost.
     const cargo = d.cargo_rent || 0;
     const unitCost =
       d.cost_foreign && d.fx_rate
-        ? afnFromAed(d.cost_foreign + cargo, d.fx_rate)
+        ? afnFromAed(d.cost_foreign, d.fx_rate) + cargo
         : (d.unit_cost ?? 0);
     return this.transaction(() => {
       const pid = id();
@@ -932,14 +933,9 @@ export class Store {
             );
           l.fx_rate = l.fx_rate || d.fx_rate;
         }
-        if (d.kind === "purchase" && l.cargo_rent && !(l.fx_rate || d.fx_rate))
-          throw new Error(
-            "Enter the currency→AFN exchange rate used for cargo rent.",
-          );
+        // Cargo rent is AFN per unit (not converted from the purchase currency).
         const cargoAfn =
-          d.kind === "purchase" && l.cargo_rent
-            ? afnFromAed(l.cargo_rent, l.fx_rate || d.fx_rate)
-            : 0;
+          d.kind === "purchase" && l.cargo_rent ? l.cargo_rent : 0;
         if (l.discount > l.price * l.quantity + cargoAfn * l.quantity)
           throw new Error("Discount exceeds line value.");
         total += l.price * l.quantity - l.discount + cargoAfn * l.quantity;
@@ -3239,7 +3235,7 @@ export class Store {
           const cargo = d.cargo_rent || 0;
           const unitCost =
             d.cost_foreign && d.fx_rate
-              ? afnFromAed(d.cost_foreign + cargo, d.fx_rate)
+              ? afnFromAed(d.cost_foreign, d.fx_rate) + cargo
               : d.unit_cost !== undefined
                 ? d.unit_cost
                 : existing.unit_cost;

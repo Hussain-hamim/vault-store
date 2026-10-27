@@ -485,6 +485,21 @@ async function start() {
       return { ok: false, error: error.message };
     }
   });
+  let printBusy = false;
+  function isCustomerWhatsAppUrl(url) {
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol !== "https:" || parsed.hostname !== "wa.me")
+        return false;
+      if (!/^[1-9]\d{6,14}$/.test(parsed.pathname.replace(/^\//, "")))
+        return false;
+      for (const key of parsed.searchParams.keys())
+        if (key !== "text") return false;
+      return true;
+    } catch {
+      return false;
+    }
+  }
   ipcMain.handle("vault:open-support", async (event, url) => {
     trusted(event);
     const { supportLinks } = await import(
@@ -497,11 +512,61 @@ async function start() {
       typeof url !== "string" ||
       !(
         supportLinks(brand.support).some((link) => link.url === url) ||
-        productPhotoCreditUrls().includes(url)
+        productPhotoCreditUrls().includes(url) ||
+        isCustomerWhatsAppUrl(url)
       )
     )
       throw new Error("Unknown support destination.");
     await shell.openExternal(url);
+  });
+  ipcMain.handle("vault:whatsapp-share", async (event, payload, token) => {
+    trusted(event);
+    licensing.assertActive();
+    const phone = String(payload?.phone || "").replace(/\D+/g, "");
+    if (!/^[1-9]\d{6,14}$/.test(phone))
+      throw new Error("Enter a valid WhatsApp phone number.");
+    const text = typeof payload?.text === "string" ? payload.text.slice(0, 1000) : "";
+    let pdfPath = null;
+    if (payload?.job) {
+      if (printBusy)
+        throw new Error(
+          "Another print job is open. Finish it before starting another.",
+        );
+      printBusy = true;
+      try {
+        const { validatePrintJob, withPrintWindow } = require("./printing.cjs");
+        const job = validatePrintJob(payload.job);
+        const user = await db.request("me", {}, token);
+        if (job.kind === "invoice")
+          await db.request("document", { id: job.source.id }, token);
+        else if (!user.permissions.includes(job.source.permission))
+          throw new Error("Permission required: " + job.source.permission);
+        const { electronPrintOptions } = await import(
+          pathToFileURL(path.join(serviceRoot, "print-options.mjs")).href
+        );
+        const safeTitle = job.title.replace(/[\\/:*?"<>|\u0000-\u001f]/g, "-");
+        pdfPath = path.join(
+          app.getPath("temp"),
+          `radefy-${safeTitle.slice(0, 40)}-${Date.now()}.pdf`,
+        );
+        await withPrintWindow(BrowserWindow, job.html, mainWindow, async (contents) => {
+          const bytes = await contents.printToPDF(
+            electronPrintOptions(job.options, job.kind, true),
+          );
+          await fs.promises.writeFile(pdfPath, bytes);
+          return { saved: true };
+        });
+        shell.showItemInFolder(pdfPath);
+      } finally {
+        printBusy = false;
+      }
+    }
+    const url =
+      "https://wa.me/" +
+      phone +
+      (text ? `?text=${encodeURIComponent(text)}` : "");
+    await shell.openExternal(url);
+    return { ok: true, result: { opened: true, pdfPath } };
   });
   ipcMain.handle("vault:folder", async (event) => {
     trusted(event);
@@ -573,7 +638,6 @@ async function start() {
       throw e;
     }
   });
-  let printBusy = false;
   ipcMain.handle("vault:render-print", async (event, input, token) => {
     trusted(event);
     licensing.assertActive();
@@ -638,7 +702,10 @@ async function start() {
     }
   });
   session.defaultSession.setPermissionRequestHandler(
-    (_webContents, _permission, callback) => callback(false),
+    (_webContents, permission, callback) => {
+      // Product photo capture needs the camera; deny everything else.
+      callback(permission === "media");
+    },
   );
   mainWindow = new BrowserWindow({
     width: 1440,

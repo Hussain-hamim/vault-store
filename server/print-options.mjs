@@ -6,7 +6,20 @@ export const PAPER_SIZES = Object.freeze({
   A3: { width: 297, height: 420 },
   receipt80: { width: 80, height: 200 },
   receipt58: { width: 58, height: 200 },
+  // Common sticky barcode-label rolls (width × height mm).
+  label40x30: { width: 40, height: 30 },
+  label50x30: { width: 50, height: 30 },
+  label60x40: { width: 60, height: 40 },
+  label80x50: { width: 80, height: 50 },
+  label100x50: { width: 100, height: 50 },
 });
+export const LABEL_PAPERS = Object.freeze([
+  "label40x30",
+  "label50x30",
+  "label60x40",
+  "label80x50",
+  "label100x50",
+]);
 export const PRINT_LAYOUTS = ["modern", "classic", "minimal", "compact"];
 export const PRINT_THEMES = Object.freeze({
   charcoal: { accent: "#30323a", soft: "#f0f1f3", ink: "#20232b" },
@@ -16,25 +29,52 @@ export const PRINT_THEMES = Object.freeze({
   rose: { accent: "#9d435c", soft: "#fbf0f3", ink: "#542d3b" },
   mono: { accent: "#111111", soft: "#ffffff", ink: "#111111" },
 });
+function isLabelPaper(paper) {
+  return String(paper || "").startsWith("label");
+}
+function isThermalPaper(paper) {
+  return (
+    String(paper || "").startsWith("receipt") || isLabelPaper(paper)
+  );
+}
 export function normalizePrintOptions(input = {}, kind = "invoice") {
   const raw = input && typeof input === "object" ? input : {};
-  const thermal =
-    ["receipt80", "receipt58"].includes(raw.paper) && kind === "invoice";
-  const paper =
+  const labelJob = kind === "label";
+  let paper = "A4";
+  if (labelJob) {
+    paper = LABEL_PAPERS.includes(raw.paper) ? raw.paper : "label50x30";
+  } else if (
     Object.hasOwn(PAPER_SIZES, raw.paper) &&
-    (kind === "invoice" || !raw.paper.startsWith("receipt"))
-      ? raw.paper
-      : "A4";
+    (kind === "invoice" || !String(raw.paper).startsWith("receipt")) &&
+    !isLabelPaper(raw.paper)
+  ) {
+    paper = raw.paper;
+  }
+  const thermal =
+    (["receipt80", "receipt58"].includes(paper) && kind === "invoice") ||
+    labelJob;
   return {
     paper,
-    layout: PRINT_LAYOUTS.includes(raw.layout) ? raw.layout : "modern",
-    theme: Object.hasOwn(PRINT_THEMES, raw.theme) ? raw.theme : "charcoal",
+    layout: labelJob
+      ? "compact"
+      : PRINT_LAYOUTS.includes(raw.layout)
+        ? raw.layout
+        : "modern",
+    theme: labelJob
+      ? "mono"
+      : Object.hasOwn(PRINT_THEMES, raw.theme)
+        ? raw.theme
+        : "charcoal",
     orientation:
       !thermal && raw.orientation === "landscape" ? "landscape" : "portrait",
-    margins: raw.margins === "narrow" ? "narrow" : "standard",
-    showLogo: raw.showLogo !== false,
+    margins: labelJob
+      ? "narrow"
+      : raw.margins === "narrow"
+        ? "narrow"
+        : "standard",
+    showLogo: labelJob ? false : raw.showLogo !== false,
     showSpecs: raw.showSpecs !== false,
-    showFooter: raw.showFooter !== false,
+    showFooter: labelJob ? false : raw.showFooter !== false,
   };
 }
 export function printGeometry(input, kind = "invoice") {
@@ -44,17 +84,19 @@ export function printGeometry(input, kind = "invoice") {
   return {
     width: landscape ? page.height : page.width,
     height: landscape ? page.width : page.height,
-    margin: options.paper.startsWith("receipt")
-      ? 3
-      : options.margins === "narrow"
-        ? 10
-        : 16,
+    margin: isLabelPaper(options.paper)
+      ? 1.5
+      : options.paper.startsWith("receipt")
+        ? 3
+        : options.margins === "narrow"
+          ? 10
+          : 16,
   };
 }
 export function electronPrintOptions(input, kind = "invoice", pdf = false) {
   const options = normalizePrintOptions(input, kind);
   const page = PAPER_SIZES[options.paper];
-  const custom = options.paper.startsWith("receipt");
+  const custom = isThermalPaper(options.paper);
   const margin = printGeometry(options, kind).margin;
   return {
     printBackground: true,
