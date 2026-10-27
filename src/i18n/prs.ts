@@ -980,9 +980,9 @@ export const prs: MessageTree = {
     needPhone: "نخست شماره معتبر با کد کشور برای این مشتری وارد کنید.",
     opened: "واتساپ برای این مشتری باز شد.",
     openedWithPdf:
-      "واتساپ با PDF در چت آماده شد. اگر فرستاده نشد Send را بزنید.",
+      "PDF در Downloads ذخیره و در واتساپ پیست شد. برای ارسال Enter را بزنید.",
     openedWithPdfManual:
-      "واتساپ باز شد و PDF کپی شد. در چت Ctrl+V بزنید سپس Send.",
+      "PDF در Downloads ذخیره شد. در واتساپ Ctrl+V بزنید سپس Enter برای ارسال.",
     invoiceText:
       "سلام {name}، این فاکتور {number} است. مجموع: {total}. لطفاً PDF پیوست را ببینید.",
     ledgerText:

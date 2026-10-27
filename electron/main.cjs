@@ -553,10 +553,11 @@ async function start() {
     if (process.platform === "win32") {
       const script = [
         "Add-Type -AssemblyName System.Windows.Forms",
-        "Start-Sleep -Milliseconds 2000",
+        "$w = New-Object -ComObject WScript.Shell",
+        "Start-Sleep -Milliseconds 2200",
+        "[void]$w.AppActivate('WhatsApp')",
+        "Start-Sleep -Milliseconds 400",
         "[System.Windows.Forms.SendKeys]::SendWait('^v')",
-        "Start-Sleep -Milliseconds 500",
-        "[System.Windows.Forms.SendKeys]::SendWait('{ENTER}')",
       ].join("; ");
       execFile(
         "powershell.exe",
@@ -568,15 +569,26 @@ async function start() {
     }
     if (process.platform === "darwin") {
       const script = [
-        "delay 2.0",
+        "delay 2.2",
+        'tell application "WhatsApp" to activate',
+        "delay 0.4",
         'tell application "System Events" to keystroke "v" using command down',
-        "delay 0.5",
-        'tell application "System Events" to keystroke return',
       ].join("\n");
       execFile("osascript", ["-e", script], () => {});
       return true;
     }
     return false;
+  }
+  function safeDownloadName(base) {
+    const cleaned = String(base || "document")
+      .normalize("NFKC")
+      .replace(/[\\/:*?"<>|\u0000-\u001f]+/g, "-")
+      .replace(/\s+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "")
+      .slice(0, 60);
+    const stamp = new Date().toISOString().slice(0, 10);
+    return `${cleaned || "document"}-${stamp}.pdf`;
   }
   ipcMain.handle("vault:whatsapp-share", async (event, payload, token) => {
     trusted(event);
@@ -588,6 +600,7 @@ async function start() {
       const text =
         typeof payload?.text === "string" ? payload.text.slice(0, 1000) : "";
       let pdfPath = null;
+      let downloadPath = null;
       let pasted = false;
       let copied = false;
       if (payload?.job) {
@@ -607,12 +620,11 @@ async function start() {
           const { electronPrintOptions } = await import(
             pathToFileURL(path.join(serviceRoot, "print-options.mjs")).href
           );
-          const safeTitle = job.title.replace(
-            /[\\/:*?"<>|\u0000-\u001f]/g,
-            "-",
+          const fileName = safeDownloadName(
+            job.fileBase || job.title || "radefy-document",
           );
-          const fileName = `radefy-${safeTitle.slice(0, 40)}-${Date.now()}.pdf`;
-          pdfPath = path.join(app.getPath("temp"), fileName);
+          downloadPath = path.join(app.getPath("downloads"), fileName);
+          pdfPath = downloadPath;
           await withPrintWindow(
             BrowserWindow,
             job.html,
@@ -621,18 +633,12 @@ async function start() {
               const bytes = await contents.printToPDF(
                 electronPrintOptions(job.options, job.kind, true),
               );
-              await fs.promises.writeFile(pdfPath, bytes);
+              await fs.promises.writeFile(downloadPath, bytes);
               return { saved: true };
             },
           );
           try {
-            await fs.promises.copyFile(
-              pdfPath,
-              path.join(app.getPath("downloads"), fileName),
-            );
-          } catch {}
-          try {
-            copied = await copyPdfToClipboard(pdfPath);
+            copied = await copyPdfToClipboard(downloadPath);
           } catch {
             copied = false;
           }
@@ -645,7 +651,13 @@ async function start() {
       if (copied) pasted = pasteClipboardIntoChat();
       return {
         ok: true,
-        result: { opened: true, pdfPath, copied, pasted },
+        result: {
+          opened: true,
+          pdfPath,
+          downloadPath,
+          copied,
+          pasted,
+        },
       };
     } catch (error) {
       return { ok: false, error: error.message };

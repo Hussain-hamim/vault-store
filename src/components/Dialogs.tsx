@@ -3375,6 +3375,7 @@ export function InvoiceDialog({
                     total: af(doc.total, 2),
                   }),
                   document: printDoc,
+                  fileBase: `${doc.party_name || "invoice"}-${doc.number}`,
                   t,
                 });
                 setNotice(result.message);
@@ -4159,14 +4160,6 @@ export function PartyDetailDialog({
               </strong>
             </div>
             <div className="inline-actions">
-              {user.role === "Owner" && !current.walk_in && (
-                <button
-                  className="button"
-                  onClick={() => open("openingBalance", current)}
-                >
-                  {t("partyDetail.enterOpening")}
-                </button>
-              )}
               {(current.balance || 0) > 0 &&
                 user.permissions.includes("finance") && (
                   <button
@@ -4388,6 +4381,7 @@ export function PartyDetailDialog({
                             balance: af(detail.party.balance, 2),
                           }),
                           document: doc,
+                          fileBase: `${detail.party.name}-ledger`,
                           t,
                         });
                         done?.(result.message);
@@ -4403,14 +4397,6 @@ export function PartyDetailDialog({
               </div>
             )}
           </div>
-          <p className="subtle ledger-hint">
-            {t(
-              ledgerView === "resale"
-                ? "resale.ledgerHint"
-                : "partyDetail.ledgerHint",
-            )}
-          </p>
-          <p className="subtle ledger-hint">{t("people.paymentDeleteHint")}</p>
           {!detail ? (
             <p className="muted">{t("partyDetail.loadingLedger")}</p>
           ) : (
@@ -4419,11 +4405,19 @@ export function PartyDetailDialog({
                 <table className="data-table ledger-table">
                   <thead>
                     <tr>
-                      <th>{t("common.date")}</th>
-                      <th>{t("ledger.reference")}</th>
-                      <th className="numeric">{t("partyDetail.debit")}</th>
-                      <th className="numeric">{t("partyDetail.credit")}</th>
-                      <th className="numeric">{t("partyDetail.balance")}</th>
+                      <th className="ledger-col-date">{t("common.date")}</th>
+                      <th className="ledger-col-ref">
+                        {t("ledger.reference")}
+                      </th>
+                      <th className="numeric ledger-col-debit">
+                        {t("partyDetail.debit")}
+                      </th>
+                      <th className="numeric ledger-col-credit">
+                        {t("partyDetail.credit")}
+                      </th>
+                      <th className="numeric ledger-col-balance">
+                        {t("partyDetail.balance")}
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -4449,19 +4443,19 @@ export function PartyDetailDialog({
                           ) : null}
                         </td>
                         <td
-                          className={`money ${e.debit ? (kind === "customer" && ledgerView !== "resale" ? "text-red" : "text-green") : "muted"}`}
+                          className={`money ledger-col-debit ${e.debit ? (kind === "customer" && ledgerView !== "resale" ? "text-red" : "text-green") : "muted"}`}
                         >
-                          {e.debit ? af(e.debit) : "—"}
+                          <strong>{e.debit ? af(e.debit) : "—"}</strong>
                         </td>
                         <td
-                          className={`money ${e.credit ? (kind === "customer" && ledgerView !== "resale" ? "text-green" : "text-red") : "muted"}`}
+                          className={`money ledger-col-credit ${e.credit ? (kind === "customer" && ledgerView !== "resale" ? "text-green" : "text-red") : "muted"}`}
                         >
-                          {e.credit ? af(e.credit) : "—"}
+                          <strong>{e.credit ? af(e.credit) : "—"}</strong>
                         </td>
                         <td
-                          className={`money ${e.running > 0 ? "text-red" : "text-green"}`}
+                          className={`money ledger-col-balance ${e.running > 0 ? "text-red" : "text-green"}`}
                         >
-                          {af(e.running)}
+                          <strong>{af(e.running)}</strong>
                         </td>
                       </tr>
                     ))}

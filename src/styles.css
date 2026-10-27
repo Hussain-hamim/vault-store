@@ -1519,14 +1519,30 @@ html[dir="rtl"] .period-picker select {
   line-height: 1.7;
 }
 .text-green {
-  color: var(--paint-fg-6c9d7f, #6c9d7f);
+  color: var(--paint-fg-1f7a4d, #1f7a4d);
 }
 .text-red {
-  color: var(--paint-fg-c87d87, #c87d87);
+  color: var(--paint-fg-c0392b, #c0392b);
 }
 .money {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+.data-table td.text-red,
+.ledger-table td.text-red,
+.data-table td.text-red strong,
+.ledger-table td.text-red strong {
+  color: var(--paint-fg-c0392b, #c0392b) !important;
+}
+.data-table td.text-green,
+.ledger-table td.text-green,
+.data-table td.text-green strong,
+.ledger-table td.text-green strong {
+  color: var(--paint-fg-1f7a4d, #1f7a4d) !important;
+}
+.ledger-table td.money strong {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 .page-content {
   width: var(--content-wide);
@@ -2186,6 +2202,7 @@ html[dir="rtl"] .period-picker select {
 }
 .ledger-table {
   width: 100%;
+  table-layout: fixed;
   border-collapse: separate;
   border-spacing: 0;
 }
@@ -2193,22 +2210,34 @@ html[dir="rtl"] .period-picker select {
 .ledger-table td {
   padding: 10px 12px;
   border-bottom: 1px solid var(--paint-border-e2e4da, #e2e4da);
-  vertical-align: top;
+  vertical-align: middle;
 }
 .ledger-table thead th {
   background: var(--paint-bg-f4f6f2, #f4f6f2);
   font-size: 11px;
   font-weight: 700;
+  color: var(--paint-fg-505059, #505059);
   position: sticky;
   top: 0;
   z-index: 1;
 }
 .ledger-col-date {
   white-space: nowrap;
-  width: 7.5rem;
+  width: 7.25rem;
+}
+.ledger-col-ref {
+  width: auto;
+  min-width: 0;
 }
 .ledger-col-ref strong {
   font-weight: 650;
+}
+.ledger-col-debit,
+.ledger-col-credit,
+.ledger-col-balance {
+  width: 6.75rem;
+  text-align: end;
+  white-space: nowrap;
 }
 .phone-field {
   display: grid;
@@ -8048,21 +8077,11 @@ html[dir="rtl"] .main-chart {
 }
 /* Ledger money columns: LTR digits must still line up under RTL headers */
 html[dir="rtl"] .data-table th.numeric,
-html[dir="rtl"] .data-table td.money {
+html[dir="rtl"] .data-table td.money,
+html[dir="rtl"] .ledger-col-debit,
+html[dir="rtl"] .ledger-col-credit,
+html[dir="rtl"] .ledger-col-balance {
   text-align: end;
-}
-html[dir="rtl"] .contact-ledger .data-table {
-  table-layout: fixed;
-}
-html[dir="rtl"] .contact-ledger .data-table th:first-child,
-html[dir="rtl"] .contact-ledger .data-table td:first-child {
-  width: 42%;
-}
-html[dir="rtl"] .contact-ledger .data-table th.numeric,
-html[dir="rtl"] .contact-ledger .data-table td.money {
-  width: 19.3%;
-  text-align: end;
-  vertical-align: middle;
 }
 html[dir="rtl"] .panel-heading h3 > span {
   letter-spacing: 0;

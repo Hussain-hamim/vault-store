@@ -125,6 +125,7 @@ declare global {
       ) => Promise<{
         opened?: boolean;
         pdfPath?: string | null;
+        downloadPath?: string | null;
         copied?: boolean;
         pasted?: boolean;
       }>;

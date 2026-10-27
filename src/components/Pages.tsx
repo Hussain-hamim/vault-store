@@ -1582,6 +1582,7 @@ export function PeoplePage({
                             balance: af(detail.party.balance, 2),
                           }),
                           document: doc,
+                          fileBase: `${detail.party.name}-ledger`,
                           t,
                         });
                         toast(result.message);
@@ -1622,14 +1623,6 @@ export function PeoplePage({
                     </strong>
                   </div>
                   <div className="inline-actions">
-                    {user.role === "Owner" && !detail.party.walk_in && (
-                      <button
-                        className="button"
-                        onClick={() => open("openingBalance", detail.party)}
-                      >
-                        {t("people.enterOpeningBalance")}
-                      </button>
-                    )}
                     {detail.party.balance > 0 &&
                       user.permissions.includes("finance") && (
                         <button
@@ -1644,71 +1637,83 @@ export function PeoplePage({
                       )}
                   </div>
                 </div>
-                <p className="subtle ledger-hint">{t("ledger.hint")}</p>
-                <p className="subtle ledger-hint">{t("people.paymentDeleteHint")}</p>
-                <table className="data-table ledger-table">
-                  <thead>
-                    <tr>
-                      <th>{t("common.date")}</th>
-                      <th>{t("ledger.reference")}</th>
-                      <th className="numeric">{t("ledger.debit")}</th>
-                      <th className="numeric">{t("ledger.credit")}</th>
-                      <th className="numeric">{t("ledger.balance")}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {ledgerRows.map((e: any) => (
-                      <tr
-                        key={e.id}
-                        onClick={() =>
-                          open("invoice", {
-                            id: e.document_id,
-                            kind: e.kind,
-                          })
-                        }
-                      >
-                        <td className="ledger-col-date">
-                          <bdi dir="ltr">{e.date}</bdi>
-                        </td>
-                        <td className="ledger-col-ref">
-                          <strong>{e.label}</strong>
-                          {e.number ? (
-                            <small className="block muted">
-                              <bdi dir="ltr">{e.number}</bdi>
-                            </small>
-                          ) : null}
-                          {["payment", "receipt"].includes(e.kind) &&
-                            e.paid_foreign != null && (
-                              <small className="block ledger-foreign-payment">
-                                <bdi dir="ltr">
-                                  {foreignMoney(e.paid_foreign, e.currency)} →{" "}
-                                  {af(
-                                    afnFromAed(e.paid_foreign, e.fx_rate),
-                                    2,
-                                  )}
-                                </bdi>
-                              </small>
-                            )}
-                        </td>
-                        <td
-                          className={`money ${e.debit ? (kind === "customer" ? "text-red" : "text-green") : "muted"}`}
-                        >
-                          {e.debit ? af(e.debit) : EM_DASH}
-                        </td>
-                        <td
-                          className={`money ${e.credit ? (kind === "customer" ? "text-green" : "text-red") : "muted"}`}
-                        >
-                          {e.credit ? af(e.credit) : EM_DASH}
-                        </td>
-                        <td
-                          className={`money ${e.running > 0 ? "text-red" : "text-green"}`}
-                        >
-                          {af(e.running)}
-                        </td>
+                <div className="table-wrap">
+                  <table className="data-table ledger-table">
+                    <thead>
+                      <tr>
+                        <th className="ledger-col-date">{t("common.date")}</th>
+                        <th className="ledger-col-ref">
+                          {t("ledger.reference")}
+                        </th>
+                        <th className="numeric ledger-col-debit">
+                          {t("ledger.debit")}
+                        </th>
+                        <th className="numeric ledger-col-credit">
+                          {t("ledger.credit")}
+                        </th>
+                        <th className="numeric ledger-col-balance">
+                          {t("ledger.balance")}
+                        </th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {ledgerRows.map((e: any) => (
+                        <tr
+                          key={e.id}
+                          onClick={() =>
+                            open("invoice", {
+                              id: e.document_id,
+                              kind: e.kind,
+                            })
+                          }
+                        >
+                          <td className="ledger-col-date">
+                            <bdi dir="ltr">{e.date}</bdi>
+                          </td>
+                          <td className="ledger-col-ref">
+                            <strong>{e.label}</strong>
+                            {e.number ? (
+                              <small className="block muted">
+                                <bdi dir="ltr">{e.number}</bdi>
+                              </small>
+                            ) : null}
+                            {["payment", "receipt"].includes(e.kind) &&
+                              e.paid_foreign != null && (
+                                <small className="block ledger-foreign-payment">
+                                  <bdi dir="ltr">
+                                    {foreignMoney(e.paid_foreign, e.currency)} →{" "}
+                                    {af(
+                                      afnFromAed(e.paid_foreign, e.fx_rate),
+                                      2,
+                                    )}
+                                  </bdi>
+                                </small>
+                              )}
+                          </td>
+                          <td
+                            className={`money ledger-col-debit ${e.debit ? (kind === "customer" ? "text-red" : "text-green") : "muted"}`}
+                          >
+                            <strong>
+                              {e.debit ? af(e.debit) : EM_DASH}
+                            </strong>
+                          </td>
+                          <td
+                            className={`money ledger-col-credit ${e.credit ? (kind === "customer" ? "text-green" : "text-red") : "muted"}`}
+                          >
+                            <strong>
+                              {e.credit ? af(e.credit) : EM_DASH}
+                            </strong>
+                          </td>
+                          <td
+                            className={`money ledger-col-balance ${e.running > 0 ? "text-red" : "text-green"}`}
+                          >
+                            <strong>{af(e.running)}</strong>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
                 {!detail.entries.length && (
                   <p className="muted">{t("people.noLedgerActivity")}</p>
                 )}
