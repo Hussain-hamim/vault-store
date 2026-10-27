@@ -5402,9 +5402,12 @@ input[data-numeric] {
 }
 .sale-customer-row {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) minmax(128px, 0.4fr);
+  grid-template-columns: auto minmax(0, 1fr) minmax(120px, 0.7fr) minmax(128px, 0.4fr);
   gap: 10px;
   align-items: end;
+}
+.sale-customer-row:has(.party-picker) {
+  grid-template-columns: auto minmax(0, 1.4fr) minmax(128px, 0.4fr);
 }
 .sale-customer-modes {
   display: inline-flex;
@@ -5441,6 +5444,7 @@ input[data-numeric] {
   align-items: start;
 }
 .sale-customer-name,
+.sale-customer-phone,
 .sale-customer-date {
   display: flex;
   flex-direction: column;
@@ -5448,6 +5452,7 @@ input[data-numeric] {
   min-width: 0;
 }
 .sale-customer-name > span,
+.sale-customer-phone > span,
 .sale-customer-date > span {
   font-size: 10px;
   font-weight: 650;
@@ -5456,6 +5461,7 @@ input[data-numeric] {
   color: var(--paint-fg-7a8460, #7a8460);
 }
 .sale-customer-name input,
+.sale-customer-phone input,
 .sale-customer-date input,
 .sale-customer-name select {
   width: 100%;
@@ -6800,6 +6806,13 @@ html[dir="rtl"] .sale-customer-name select {
   grid-template-columns:
     minmax(140px, 1.4fr) minmax(90px, 0.7fr) minmax(120px, 1fr)
     minmax(90px, 0.75fr) minmax(80px, 0.6fr) 40px;
+}
+.docs-sale .docs-list-cols,
+.docs-sale .docs-row {
+  grid-template-columns:
+    minmax(120px, 1.2fr) minmax(80px, 0.65fr) minmax(110px, 1fr)
+    minmax(80px, 0.65fr) minmax(80px, 0.65fr) minmax(80px, 0.65fr)
+    minmax(70px, 0.55fr) minmax(80px, 0.85fr);
 }
 .docs-sale .docs-row {
   border-left-color: var(--paint-border-7a9448, #7a9448);

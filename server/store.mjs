@@ -1407,13 +1407,29 @@ export class Store {
   }
   getDocument(did) {
     const doc = this.one(
-      "SELECT d.*,p.name party_name,u.name user_name,COALESCE((SELECT SUM(total) FROM documents r WHERE r.original_id=d.id),0) returned FROM documents d LEFT JOIN parties p ON p.id=d.party_id LEFT JOIN users u ON u.id=d.user_id WHERE d.id=?",
+      "SELECT d.*,p.name party_name,p.phone party_phone,u.name user_name,COALESCE((SELECT SUM(total) FROM documents r WHERE r.original_id=d.id),0) returned FROM documents d LEFT JOIN parties p ON p.id=d.party_id LEFT JOIN users u ON u.id=d.user_id WHERE d.id=?",
       did,
     );
     if (!doc) throw new Error("Document not found.");
     doc.currency_country = this.currencies().find(
       (c) => c.code === doc.currency,
     )?.country;
+    if (doc.party_id) {
+      try {
+        const party = this.partyBalance(doc.party_id);
+        const invoiceDue = Math.max(
+          0,
+          doc.total - (doc.paid || 0) - (doc.returned || 0),
+        );
+        doc.party_balance = party.balance || 0;
+        if (doc.kind === "sale") {
+          doc.previous_balance = Math.max(0, doc.party_balance - invoiceDue);
+          doc.new_balance = doc.party_balance;
+        }
+      } catch {
+        doc.party_balance = 0;
+      }
+    }
     doc.lines = this.all(
       "SELECT l.*,COALESCE(s.name,p.name) name,COALESCE(s.sku,p.sku) sku,COALESCE(s.brand,p.brand) brand,COALESCE(s.model,p.model) model,COALESCE(s.attributes,p.attributes) attributes,COALESCE(s.image,p.image) image,p.category,COALESCE((SELECT SUM(quantity) FROM document_lines r WHERE r.original_line_id=l.id),0) returned_quantity FROM document_lines l JOIN products p ON p.id=l.product_id LEFT JOIN document_product_snapshots s ON s.line_id=l.id WHERE document_id=?",
       did,
@@ -2742,8 +2758,17 @@ export class Store {
       clauses.push("d.date<=?");
       params.push(d.to);
     }
+    const account =
+      d.kind === "sale"
+        ? "receivables"
+        : d.kind === "purchase"
+          ? "payables"
+          : null;
     const rows = this.all(
-      `SELECT d.*,p.name party_name,COALESCE((SELECT SUM(total) FROM documents r WHERE r.original_id=d.id),0) returned FROM documents d LEFT JOIN parties p ON p.id=d.party_id WHERE ${clauses.join(" AND ")} ORDER BY d.created_at DESC,d.id DESC LIMIT ?`,
+      account
+        ? `SELECT d.*,p.name party_name,p.phone party_phone,COALESCE((SELECT SUM(total) FROM documents r WHERE r.original_id=d.id),0) returned,COALESCE((SELECT SUM(${d.kind === "sale" ? "debit-credit" : "credit-debit"}) FROM party_totals j WHERE j.party_id=p.id AND j.account=?),0) party_balance FROM documents d LEFT JOIN parties p ON p.id=d.party_id WHERE ${clauses.join(" AND ")} ORDER BY d.created_at DESC,d.id DESC LIMIT ?`
+        : `SELECT d.*,p.name party_name,p.phone party_phone,COALESCE((SELECT SUM(total) FROM documents r WHERE r.original_id=d.id),0) returned FROM documents d LEFT JOIN parties p ON p.id=d.party_id WHERE ${clauses.join(" AND ")} ORDER BY d.created_at DESC,d.id DESC LIMIT ?`,
+      ...(account ? [account] : []),
       ...params,
       d.limit + 1,
     );

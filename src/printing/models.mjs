@@ -42,7 +42,7 @@ export function invoicePrintModel(
             ? "invoice.supplier"
             : "invoice.customer",
         ),
-        value: doc.party_name || "—",
+        value: [doc.party_name, doc.party_phone].filter(Boolean).join(" · ") || "—",
       },
       { label: t("invoice.recordedBy"), value: doc.user_name || "—" },
       ...([
@@ -71,11 +71,29 @@ export function invoicePrintModel(
             },
           ]
         : []),
-      ...(purchase && doc.fx_rate
+      ...((purchase ||
+        (["sale", "sale_return"].includes(doc.kind) &&
+          doc.currency &&
+          doc.currency !== "AFN")) &&
+      doc.fx_rate
         ? [
             {
               label: t("currencies.exchangeRate"),
               value: rate(doc.fx_rate),
+              numeric: true,
+            },
+          ]
+        : []),
+      ...(doc.kind === "sale" && doc.previous_balance != null
+        ? [
+            {
+              label: t("sales.previousBalance"),
+              value: money(doc.previous_balance, 2),
+              numeric: true,
+            },
+            {
+              label: t("sales.newBalance"),
+              value: money(doc.new_balance ?? doc.party_balance ?? 0, 2),
               numeric: true,
             },
           ]

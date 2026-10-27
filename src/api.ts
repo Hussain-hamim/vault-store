@@ -271,6 +271,11 @@ export function afnFromAed(aedMinor = 0, rateScaled = 0) {
   if (!aedMinor || !rateScaled) return 0;
   return Math.round((aedMinor * rateScaled) / 10_000);
 }
+/** Convert AFN minor units to foreign minor units using AFN-per-unit rate (×10_000). */
+export function foreignFromAfn(afnMinor = 0, rateScaled = 0) {
+  if (!afnMinor || !rateScaled) return 0;
+  return Math.round((afnMinor * 10_000) / rateScaled);
+}
 export function moneyInput(amount = 0) {
   return (amount / 100).toFixed(2);
 }

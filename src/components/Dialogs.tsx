@@ -30,6 +30,7 @@ import {
   toMoney,
   toFxRate,
   afnFromAed,
+  foreignFromAfn,
   fxRateLabel,
   fxRateInput,
   moneyInput,
@@ -133,6 +134,7 @@ export function TradeForm({
       documentId ? "existing" : "new",
     ),
     [customerName, setCustomerName] = useState(""),
+    [customerPhone, setCustomerPhone] = useState(""),
     [printAfter, setPrintAfter] = useState(false);
   const key = useRef(requestKey());
   const barcodeRef = useRef<HTMLInputElement>(null);
@@ -260,17 +262,25 @@ export function TradeForm({
               ? ({
                   id: doc.party_id,
                   name: doc.party_name || "",
-                  phone: "",
+                  phone: doc.party_phone || "",
                   email: "",
                   address: "",
-                  balance: 0,
+                  balance: doc.previous_balance ?? 0,
                   walk_in: 0,
                   kind: purchase ? "supplier" : "customer",
                 } as Party)
               : null,
           );
+          if (doc.party_id) {
+            api<{ party: Party }>("partyDetail", { id: doc.party_id })
+              .then((d) => {
+                if (d?.party) chooseParty(d.party);
+              })
+              .catch(() => {});
+          }
           setCustomerMode("existing");
           setCustomerName(doc.party_name || "");
+          setCustomerPhone(doc.party_phone || "");
           const hasForeignPayment = doc.paid_foreign != null;
           setPaymentInForeign(hasForeignPayment);
           setPaid(moneyInput(hasForeignPayment ? doc.paid_foreign : doc.paid));
@@ -487,6 +497,24 @@ export function TradeForm({
   const paymentHint = paymentInForeign
     ? t("currencies.paymentPreview", { amount: af(payment, 2) })
     : t("sales.amountPaidHint");
+  const saleFxScaled =
+    !purchase && paymentInForeign && currency !== "AFN" && fxRate.trim()
+      ? (() => {
+          try {
+            return toFxRate(fxRate);
+          } catch {
+            return 0;
+          }
+        })()
+      : 0;
+  const totalForeign = saleFxScaled
+    ? foreignFromAfn(total, saleFxScaled)
+    : 0;
+  const previousBalance =
+    !purchase && customerMode === "existing" && selectedParty && !selectedParty.walk_in
+      ? selectedParty.balance || 0
+      : 0;
+  const projectedBalance = previousBalance + total - payment;
   async function resolveSalePartyId() {
     if (purchase) {
       if (!party) throw new Error(t("sales.errChooseSupplier"));
@@ -497,6 +525,7 @@ export function TradeForm({
       return party;
     }
     const name = customerName.trim();
+    const phone = customerPhone.trim();
     if (name.length < 2) throw new Error(t("sales.errCustomerName"));
     const found = await api<{ rows: Party[] }>("parties", {
       kind: "customer",
@@ -507,19 +536,34 @@ export function TradeForm({
       (p) => !p.walk_in && p.name.toLowerCase() === name.toLowerCase(),
     );
     if (match) {
+      if (phone && !match.phone) {
+        try {
+          await api("partyUpdate", {
+            id: match.id,
+            name: match.name,
+            phone,
+            email: match.email || "",
+            address: match.address || "",
+          });
+          match.phone = phone;
+        } catch {
+          /* keep sale moving if phone update is denied */
+        }
+      }
       chooseParty(match);
       return match.id;
     }
     const created = await api<{ id: string }>("partyCreate", {
       kind: "customer",
       name,
+      phone,
       request_key: requestKey(),
     });
     chooseParty({
       id: created.id,
       kind: "customer",
       name,
-      phone: "",
+      phone,
       email: "",
       address: "",
       balance: 0,
@@ -735,19 +779,33 @@ export function TradeForm({
                             </button>
                           </div>
                           {customerMode === "new" ? (
-                            <label className="sale-customer-name">
-                              <span>{t("sales.customer")}</span>
-                              <input
-                                value={customerName}
-                                onChange={(e) =>
-                                  setCustomerName(e.target.value)
-                                }
-                                placeholder={t("sales.customerPh")}
-                                minLength={2}
-                                required
-                                autoComplete="off"
-                              />
-                            </label>
+                            <>
+                              <label className="sale-customer-name">
+                                <span>{t("sales.customer")}</span>
+                                <input
+                                  value={customerName}
+                                  onChange={(e) =>
+                                    setCustomerName(e.target.value)
+                                  }
+                                  placeholder={t("sales.customerPh")}
+                                  minLength={2}
+                                  required
+                                  autoComplete="off"
+                                />
+                              </label>
+                              <label className="sale-customer-phone">
+                                <span>{t("party.phone")}</span>
+                                <input
+                                  value={customerPhone}
+                                  onChange={(e) =>
+                                    setCustomerPhone(e.target.value)
+                                  }
+                                  placeholder={t("party.phonePh")}
+                                  inputMode="tel"
+                                  autoComplete="tel"
+                                />
+                              </label>
+                            </>
                           ) : (
                             <label className="sale-customer-name">
                               <span>{t("sales.customer")}</span>
@@ -1087,7 +1145,32 @@ export function TradeForm({
                               </>
                             ) : (
                               <>
-                                <Field label={t("sales.unitPrice")}>
+                                <Field
+                                  label={
+                                    saleFxScaled
+                                      ? t("sales.unitPriceFx", {
+                                          code: currency,
+                                        })
+                                      : t("sales.unitPrice")
+                                  }
+                                  hint={
+                                    saleFxScaled
+                                      ? (() => {
+                                          try {
+                                            return foreignMoney(
+                                              foreignFromAfn(
+                                                toMoney(l.price || "0"),
+                                                saleFxScaled,
+                                              ),
+                                              currency,
+                                            );
+                                          } catch {
+                                            return "";
+                                          }
+                                        })()
+                                      : undefined
+                                  }
+                                >
                                   <NumericInput
                                     min="0"
                                     step="0.01"
@@ -1182,13 +1265,80 @@ export function TradeForm({
                           </strong>
                         </div>
                       )}
+                      {!purchase &&
+                        customerMode === "existing" &&
+                        selectedParty &&
+                        !selectedParty.walk_in && (
+                          <>
+                            <div>
+                              <span>{t("sales.previousBalance")}</span>
+                              <strong
+                                className={
+                                  previousBalance > 0 ? "text-red" : undefined
+                                }
+                              >
+                                {af(previousBalance, 2)}
+                              </strong>
+                            </div>
+                            <div>
+                              <span>{t("sales.thisInvoice")}</span>
+                              <strong>{af(total, 2)}</strong>
+                            </div>
+                            <div>
+                              <span>{t("sales.newBalance")}</span>
+                              <strong
+                                className={
+                                  projectedBalance > 0 ? "text-red" : "text-green"
+                                }
+                              >
+                                {af(Math.max(0, projectedBalance), 2)}
+                              </strong>
+                            </div>
+                          </>
+                        )}
                       <div>
                         <span>{t("sales.invoiceTotal")}</span>
-                        <strong>{af(total, 2)}</strong>
+                        <strong>
+                          {af(total, 2)}
+                          {saleFxScaled ? (
+                            <>
+                              {" · "}
+                              <bdi dir="ltr">
+                                {foreignMoney(totalForeign, currency)}
+                              </bdi>
+                            </>
+                          ) : null}
+                        </strong>
                       </div>
+                      {saleFxScaled ? (
+                        <div>
+                          <span>{t("currencies.exchangeRate")}</span>
+                          <strong>
+                            <bdi dir="ltr">
+                              {fxRateLabel(saleFxScaled, currency)}
+                            </bdi>
+                          </strong>
+                        </div>
+                      ) : null}
                       <div>
                         <span>{t("sales.balanceRemaining")}</span>
-                        <strong>{af(Math.max(0, total - payment), 2)}</strong>
+                        <strong>
+                          {af(Math.max(0, total - payment), 2)}
+                          {saleFxScaled ? (
+                            <>
+                              {" · "}
+                              <bdi dir="ltr">
+                                {foreignMoney(
+                                  foreignFromAfn(
+                                    Math.max(0, total - payment),
+                                    saleFxScaled,
+                                  ),
+                                  currency,
+                                )}
+                              </bdi>
+                            </>
+                          ) : null}
+                        </strong>
                       </div>
                       <Field
                         label={
@@ -2441,6 +2591,11 @@ export function InvoiceDialog({
                     : t("invoice.customer")}
                 </span>
                 <strong>{doc.party_name || "—"}</strong>
+                {doc.party_phone ? (
+                  <small className="block muted">
+                    <bdi dir="ltr">{doc.party_phone}</bdi>
+                  </small>
+                ) : null}
               </div>
               <div>
                 <span>{t("invoice.recordedBy")}</span>
@@ -2450,8 +2605,12 @@ export function InvoiceDialog({
                 <span>{t("invoice.dueDate")}</span>
                 <strong>{doc.due_date || "—"}</strong>
               </div>
-              {["purchase", "purchase_return"].includes(doc.kind) &&
-                !!doc.fx_rate && (
+              {["purchase", "purchase_return", "sale", "sale_return"].includes(
+                doc.kind,
+              ) &&
+                !!doc.fx_rate &&
+                doc.currency &&
+                doc.currency !== "AFN" && (
                   <div>
                     <span>{t("currencies.exchangeRate")}</span>
                     <strong>
@@ -2661,6 +2820,22 @@ export function InvoiceDialog({
                     )}
                   </strong>
                 </div>
+              )}
+              {doc.kind === "sale" && doc.previous_balance != null && (
+                <>
+                  <div>
+                    <span>{t("sales.previousBalance")}</span>
+                    <strong className="money">
+                      {af(doc.previous_balance, 2)}
+                    </strong>
+                  </div>
+                  <div>
+                    <span>{t("sales.newBalance")}</span>
+                    <strong className="money text-red">
+                      {af(doc.new_balance ?? doc.party_balance ?? 0, 2)}
+                    </strong>
+                  </div>
+                </>
               )}
             </div>
             {doc.note && <p className="invoice-note">{doc.note}</p>}

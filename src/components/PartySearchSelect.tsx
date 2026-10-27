@@ -105,7 +105,10 @@ export function PartySearchSelect({
     }
   }
 
-  const display = open ? q : selected?.name || "";
+  const closedLabel = selected
+    ? [selected.name, selected.phone].filter(Boolean).join(" · ")
+    : "";
+  const display = open ? q : closedLabel;
 
   return (
     <div

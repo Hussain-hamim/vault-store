@@ -801,6 +801,7 @@ export function DocumentsPage({
             <span>{partyLabel}</span>
             <span>{t("common.total")}</span>
             {kind !== "expense" && <span>{t("common.outstanding")}</span>}
+            {kind === "sale" && <span>{t("sales.newBalance")}</span>}
             <span>{t("common.status")}</span>
             <span aria-hidden="true" />
           </div>
@@ -850,6 +851,11 @@ export function DocumentsPage({
                           ? d.category || t("expenses.title")
                           : d.party_name || EM_DASH}
                       </span>
+                      {kind !== "expense" && d.party_phone ? (
+                        <small>
+                          <bdi dir="ltr">{d.party_phone}</bdi>
+                        </small>
+                      ) : null}
                     </div>
                     <div className="docs-row-meta docs-row-money">
                       <strong>{af(d.total)}</strong>
@@ -858,6 +864,19 @@ export function DocumentsPage({
                           {t("documents.paidAmount", { amount: af(d.paid) })}
                         </small>
                       )}
+                      {kind === "sale" &&
+                      d.currency &&
+                      d.currency !== "AFN" &&
+                      d.fx_rate ? (
+                        <small>
+                          <bdi dir="ltr">
+                            {d.currency} ·{" "}
+                            {(d.fx_rate / 10000).toLocaleString("en-US", {
+                              maximumFractionDigits: 4,
+                            })}
+                          </bdi>
+                        </small>
+                      ) : null}
                     </div>
                     {kind !== "expense" && (
                       <div className="docs-row-meta docs-row-money">
@@ -867,6 +886,17 @@ export function DocumentsPage({
                           }
                         >
                           {af(outstanding)}
+                        </strong>
+                      </div>
+                    )}
+                    {kind === "sale" && (
+                      <div className="docs-row-meta docs-row-money">
+                        <strong
+                          className={
+                            (d.party_balance || 0) > 0 ? "text-red" : "text-green"
+                          }
+                        >
+                          {af(d.party_balance || 0)}
                         </strong>
                       </div>
                     )}
