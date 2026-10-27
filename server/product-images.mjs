@@ -25,6 +25,7 @@ const categoryStudio = {
   Computers: "/assets/laptop.png",
   Mobiles: "/assets/phone.png",
   Tablets: "/assets/tablet.png",
+  Cameras: "/assets/webcam.jpg",
   Storage: "/assets/storage.png",
 };
 const accessoryStudio = {
@@ -47,6 +48,19 @@ const accessoryStudio = {
   charger: "/assets/adapter.png",
   poweradapter: "/assets/adapter.png",
 };
+const cameraStudio = {
+  dslr: "/assets/webcam.jpg",
+  mirrorless: "/assets/webcam.jpg",
+  compact: "/assets/webcam.jpg",
+  actioncamera: "/assets/webcam.jpg",
+  action: "/assets/webcam.jpg",
+  instant: "/assets/webcam.jpg",
+  film: "/assets/webcam.jpg",
+  cctv: "/assets/webcam.jpg",
+  webcam: "/assets/webcam.jpg",
+  drone: "/assets/webcam.jpg",
+  lens: "/assets/webcam.jpg",
+};
 function studioEntry(src, product, label) {
   return {
     src,
@@ -67,6 +81,12 @@ export function automaticProductPhoto(product = {}) {
     const src = accessoryStudio[type] || "/assets/headphones.png";
     const label = String(product.attributes?.Type || "Accessories").trim();
     return studioEntry(src, product, label || "Accessories");
+  }
+  if (product.category === "Cameras") {
+    const type = normalizeImageText(product.attributes?.Type);
+    const src = cameraStudio[type] || categoryStudio.Cameras;
+    const label = String(product.attributes?.Type || "Cameras").trim();
+    return studioEntry(src, product, label || "Cameras");
   }
   const src = categoryStudio[product.category] || "";
   if (!src) return { src: "", kind: "missing", photo: null };

@@ -50,7 +50,12 @@ export async function shareViaWhatsApp({
       { phone: parsePhone(phone).e164, text: text || "", job },
       getToken(),
     );
-    if (result?.pdfPath) return { message: t("whatsapp.openedWithPdf") };
+    if (result?.pdfPath) {
+      if (result.pasted) return { message: t("whatsapp.openedWithPdf") };
+      if (result.copied)
+        return { message: t("whatsapp.openedWithPdfManual") };
+      return { message: t("whatsapp.openedWithPdfManual") };
+    }
     return { message: t("whatsapp.opened") };
   }
 

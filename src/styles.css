@@ -7157,6 +7157,14 @@ html[dir="rtl"] .sale-customer-name select {
   border-color: var(--paint-border-d4b090, #d4b090);
   border-left-color: var(--paint-border-b57a4a, #b57a4a);
 }
+.inventory-row.cat-cameras {
+  border-left-color: var(--paint-border-7a6bb5, #7a6bb5);
+  background: linear-gradient(90deg, var(--paint-bg-f6f4fb, #f6f4fb) 0%, var(--paint-bg-fff, #fff) 42%);
+}
+.inventory-row.cat-cameras:hover {
+  border-color: var(--paint-border-b5add4, #b5add4);
+  border-left-color: var(--paint-border-7a6bb5, #7a6bb5);
+}
 .inventory-row.cat-default {
   border-left-color: var(--paint-border-9ba76e, #9ba76e);
   background: linear-gradient(90deg, var(--paint-bg-f6f8f0, #f6f8f0) 0%, var(--paint-bg-fff, #fff) 42%);
@@ -7272,6 +7280,10 @@ html[dir="rtl"] .sale-customer-name select {
   border-color: var(--paint-border-e2c8b0, #e2c8b0);
   background: var(--paint-bg-fffaf6, #fffaf6);
 }
+.cat-cameras .inventory-spec {
+  border-color: var(--paint-border-d5cee8, #d5cee8);
+  background: var(--paint-bg-faf8fd, #faf8fd);
+}
 .inventory-chip {
   display: inline-flex;
   align-items: center;
@@ -7309,6 +7321,11 @@ html[dir="rtl"] .sale-customer-name select {
   background: var(--paint-bg-f6ebe2, #f6ebe2);
   color: var(--paint-fg-8a552e, #8a552e);
   border-color: var(--paint-border-e2c8b0, #e2c8b0);
+}
+.cat-cameras .category-chip {
+  background: var(--paint-bg-eeeaf8, #eeeaf8);
+  color: var(--paint-fg-55488a, #55488a);
+  border-color: var(--paint-border-d5cee8, #d5cee8);
 }
 .cat-default .category-chip {
   background: var(--paint-bg-eef2e0, #eef2e0);

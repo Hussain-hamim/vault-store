@@ -42,12 +42,16 @@ import { Modal, Field as BaseField, NumericInput, ErrorMessage } from "./ui";
 import { ProductPhotoPicker, type PhotoValue } from "./ProductPhotoPicker";
 import { CurrencyPicker } from "./CurrencyPicker";
 import {
-  PRODUCT_CATEGORIES,
   brandChoices,
   accessoryChoices,
+  cameraTypeChoices,
+  categoryChoices,
   categoryLabel,
+  editableSpecKeys,
+  isBuiltinCategory,
   specFieldLabel,
 } from "./product-fields";
+import { trackedCategory } from "../../shared/product-categories.mjs";
 import { generateProductBarcode } from "../barcode/generate.mjs";
 import { canEncodeCode128 } from "../barcode/code128.mjs";
 import { barcodeLabelDocument } from "../printing/barcode-label.mjs";
@@ -115,6 +119,7 @@ type Draft = {
   intent: string;
 };
 const fields = [
+  "Generation",
   "CPU",
   "RAM",
   "Storage",
@@ -125,6 +130,15 @@ const fields = [
   "Interface",
   "Compatibility",
   "Wattage",
+  "Type",
+  "Sensor",
+  "Resolution",
+  "Lens",
+  "Mount",
+  "ISO",
+  "Video",
+  "Shutter",
+  "Battery",
 ];
 function signature(e: Pick<Entry, "data" | "photo">) {
   return JSON.stringify([
@@ -137,6 +151,7 @@ function empty(common?: Values): Entry {
   const data: Values = {
     name: "",
     category: common?.category || "Computers",
+    categoryOther: common?.categoryOther || "",
     brand: common?.brand || "Apple",
     brandOther: common?.brandOther || "",
     model: "",
@@ -144,6 +159,8 @@ function empty(common?: Values): Entry {
     barcode: generateProductBarcode(),
     accessory: "Keyboard",
     accessoryOther: "",
+    cameraType: "Mirrorless",
+    cameraTypeOther: "",
     currency: common?.currency || "AED",
     cost: "",
     cargo: "",
@@ -166,11 +183,13 @@ function existing(p: Product): Entry {
     ...e.data,
     name: p.name,
     category: p.category,
+    categoryOther: "",
     brand: p.brand,
     model: p.model,
     sku: p.sku,
     barcode: p.barcode || "",
     accessory: p.attributes?.Type || "Keyboard",
+    cameraType: p.attributes?.Type || "Mirrorless",
     currency: p.currency || "AED",
     cost:
       (p.cost_foreign ?? p.cost_aed)
@@ -222,9 +241,26 @@ export function ProductForm({
     [next, setNext] = useState<number | null>(null),
     [showDrafts, setShowDrafts] = useState(false);
   const [pending, setPending] = useState<null | (() => void)>(null);
+  const [customCategories, setCustomCategories] = useState<string[]>([]);
   const d = entry.data,
     editing = !!entry.original,
     dirty = signature(entry) !== entry.baseline;
+  const resolvedCategory =
+    d.category === "Other" ? d.categoryOther.trim() : d.category;
+  useEffect(() => {
+    let active = true;
+    api<string[]>("productCategories")
+      .then((rows) => {
+        if (active)
+          setCustomCategories(
+            rows.filter((c) => !isBuiltinCategory(c) && c !== "Other"),
+          );
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
   function value(name: string, value: string) {
     setEntry((e) => ({ ...e, data: { ...e.data, [name]: value } }));
     setNotice("");
@@ -314,10 +350,17 @@ export function ProductForm({
   function payload() {
     const brand = d.brand === "Other" ? d.brandOther.trim() : d.brand.trim();
     if (!brand) throw new Error(t("productForm.errBrand"));
+    const category =
+      d.category === "Other" ? d.categoryOther.trim() : d.category.trim();
+    if (!category) throw new Error(t("productForm.errCategory"));
     const accessory =
       d.accessory === "Other" ? d.accessoryOther.trim() : d.accessory;
-    if (d.category === "Accessories" && !accessory)
+    if (category === "Accessories" && !accessory)
       throw new Error(t("productForm.errAccessory"));
+    const cameraType =
+      d.cameraType === "Other" ? d.cameraTypeOther.trim() : d.cameraType;
+    if (category === "Cameras" && !cameraType)
+      throw new Error(t("productForm.errCameraType"));
     const purchase = intent === "purchase";
     const cost = purchase
       ? (entry.original?.cost_foreign ?? entry.original?.cost_aed ?? 0)
@@ -336,21 +379,13 @@ export function ProductForm({
         : 0;
     if (!purchase && (!cost || !rate))
       throw new Error(t("currencies.costRateRequired"));
-    const attrs =
-      d.category === "Computers"
-        ? ["CPU", "RAM", "Storage", "GPU", "Display", "Color"]
-        : ["Mobiles", "Tablets"].includes(d.category)
-          ? ["RAM", "Storage", "Color", "Connectivity"]
-          : d.category === "Storage"
-            ? ["Storage", "Interface"]
-            : ["Compatibility", "Wattage", "Color"];
+    const attrs = editableSpecKeys(category);
     const attributes = Object.fromEntries(
       attrs.filter((k) => d[k]).map((k) => [k, d[k]]),
     );
-    if (d.category === "Accessories") attributes.Type = accessory;
-    const serialized = ["Computers", "Mobiles", "Tablets"].includes(
-      d.category,
-    );
+    if (category === "Accessories") attributes.Type = accessory;
+    if (category === "Cameras") attributes.Type = cameraType;
+    const serialized = trackedCategory(category);
     const openingQty = purchase ? 0 : Number(d.opening_quantity) || 0;
     return {
       id: entry.original?.id,
@@ -359,7 +394,7 @@ export function ProductForm({
       model: d.model,
       sku: d.sku,
       barcode: d.barcode,
-      category: d.category,
+      category,
       serialized,
       units: undefined,
       price: toMoney(d.price),
@@ -584,14 +619,7 @@ export function ProductForm({
       setError(e.message);
     }
   }
-  const attrs =
-    d.category === "Computers"
-      ? ["CPU", "RAM", "Storage", "GPU", "Display", "Color"]
-      : ["Mobiles", "Tablets"].includes(d.category)
-        ? ["RAM", "Storage", "Color", "Connectivity"]
-        : d.category === "Storage"
-          ? ["Storage", "Interface"]
-          : ["Compatibility", "Wattage", "Color"];
+  const attrs = editableSpecKeys(resolvedCategory || d.category);
   let costAF = "";
   try {
     costAF =
@@ -669,12 +697,18 @@ export function ProductForm({
             <ProductPhotoPicker
               key={epoch}
               product={{
-                category: d.category,
+                category: resolvedCategory || d.category,
                 brand: d.brand === "Other" ? d.brandOther : d.brand,
                 model: d.model,
                 attributes: {
                   Type:
-                    d.accessory === "Other" ? d.accessoryOther : d.accessory,
+                    (resolvedCategory || d.category) === "Cameras"
+                      ? d.cameraType === "Other"
+                        ? d.cameraTypeOther
+                        : d.cameraType
+                      : d.accessory === "Other"
+                        ? d.accessoryOther
+                        : d.accessory,
                 },
               }}
               existingImage={entry.photo.image}
@@ -695,13 +729,21 @@ export function ProductForm({
                         value={d.category}
                         onChange={(e) => value("category", e.target.value)}
                       >
-                        {PRODUCT_CATEGORIES.map((c) => (
-                          <option key={c} value={c}>
-                            {categoryLabel(t, c)}
-                          </option>
-                        ))}
+                        {categoryChoices(d.category, customCategories).map(
+                          (c) => (
+                            <option key={c} value={c}>
+                              {categoryLabel(t, c)}
+                            </option>
+                          ),
+                        )}
                       </select>
                     </Field>
+                    {d.category === "Other" &&
+                      text(
+                        "categoryOther",
+                        t("productForm.customCategory"),
+                        true,
+                      )}
                     <Field
                       label={t("productForm.companyBrand")}
                       icon={BuildingsIcon}
@@ -759,7 +801,7 @@ export function ProductForm({
                       </div>
                       <p className="entry-field-hint">{t("barcode.hint")}</p>
                     </Field>
-                    {d.category === "Accessories" && (
+                    {resolvedCategory === "Accessories" && (
                       <Field label={t("product.accessoryType")}>
                         <select
                           name="accessory"
@@ -772,11 +814,31 @@ export function ProductForm({
                         </select>
                       </Field>
                     )}
-                    {d.category === "Accessories" &&
+                    {resolvedCategory === "Accessories" &&
                       d.accessory === "Other" &&
                       text(
                         "accessoryOther",
                         t("productForm.customAccessory"),
+                        true,
+                      )}
+                    {resolvedCategory === "Cameras" && (
+                      <Field label={t("product.cameraType")}>
+                        <select
+                          name="cameraType"
+                          value={d.cameraType}
+                          onChange={(e) => value("cameraType", e.target.value)}
+                        >
+                          {cameraTypeChoices(d.cameraType).map((a) => (
+                            <option key={a}>{a}</option>
+                          ))}
+                        </select>
+                      </Field>
+                    )}
+                    {resolvedCategory === "Cameras" &&
+                      d.cameraType === "Other" &&
+                      text(
+                        "cameraTypeOther",
+                        t("productForm.customCameraType"),
                         true,
                       )}
                   </div>
@@ -1105,7 +1167,42 @@ function SpecInput({
       ? ["4 GB", "8 GB", "16 GB", "32 GB", "64 GB", "128 GB"]
       : name === "Storage"
         ? ["128 GB", "256 GB", "512 GB", "1 TB", "2 TB", "4 TB"]
-        : [];
+        : name === "Generation"
+          ? [
+              "11th Gen",
+              "12th Gen",
+              "13th Gen",
+              "14th Gen",
+              "M1",
+              "M2",
+              "M3",
+              "M4",
+              "Ryzen 5000",
+              "Ryzen 7000",
+            ]
+          : name === "Sensor"
+            ? [
+                "Full-frame",
+                "APS-C",
+                "Micro Four Thirds",
+                "1-inch",
+                "1/2.3-inch",
+              ]
+            : name === "Resolution"
+              ? ["12 MP", "20 MP", "24 MP", "33 MP", "45 MP", "61 MP"]
+              : name === "Mount"
+                ? [
+                    "Canon RF",
+                    "Canon EF",
+                    "Sony E",
+                    "Nikon Z",
+                    "Fujifilm X",
+                    "Micro Four Thirds",
+                    "Fixed",
+                  ]
+                : name === "Video"
+                  ? ["1080p", "4K 30fps", "4K 60fps", "8K"]
+                  : [];
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
   const listId = useId();

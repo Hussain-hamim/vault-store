@@ -1,4 +1,5 @@
 import { serializeCSV } from "./printing/csv.mjs";
+import { specOrder as categorySpecOrder } from "../shared/product-categories.mjs";
 export type User = {
   id: string;
   name: string;
@@ -49,13 +50,7 @@ export type Party = {
 
 /** Ordered attribute keys by product category for bills / inventory. */
 export function specOrder(category?: string) {
-  if (category === "Computers")
-    return ["CPU", "RAM", "Storage", "GPU", "Display", "Color"];
-  if (category === "Mobiles" || category === "Tablets")
-    return ["RAM", "Storage", "Color", "Connectivity"];
-  if (category === "Storage") return ["Storage", "Interface"];
-  if (category === "Accessories") return ["Type"];
-  return [] as string[];
+  return categorySpecOrder(category);
 }
 
 export function productSpecEntries(product: {
@@ -127,7 +122,12 @@ declare global {
           job?: unknown;
         },
         token: string,
-      ) => Promise<{ opened?: boolean; pdfPath?: string | null }>;
+      ) => Promise<{
+        opened?: boolean;
+        pdfPath?: string | null;
+        copied?: boolean;
+        pasted?: boolean;
+      }>;
       pickFolder: () => Promise<string | null>;
       pickBackup: () => Promise<string | null>;
       restore: (path: string, token: string) => Promise<any>;

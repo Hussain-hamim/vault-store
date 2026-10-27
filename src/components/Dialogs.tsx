@@ -68,6 +68,7 @@ type DialogProps = {
 export {
   PRODUCT_BRANDS,
   PRODUCT_CATEGORIES,
+  BUILTIN_PRODUCT_CATEGORIES,
   categoryLabel,
   specFieldLabel,
 } from "./product-fields";

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  CameraIcon,
   DesktopTowerIcon,
   DeviceMobileIcon,
   DeviceTabletIcon,
@@ -24,6 +25,7 @@ const icons: Record<string, typeof PackageIcon> = {
   Computers: DesktopTowerIcon,
   Mobiles: DeviceMobileIcon,
   Tablets: DeviceTabletIcon,
+  Cameras: CameraIcon,
   Storage: HardDriveIcon,
 };
 // Bounded, in-flight-deduplicated cache. Blobs are fetched only when a thumbnail is near view.

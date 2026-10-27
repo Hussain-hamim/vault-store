@@ -33,7 +33,13 @@ import { ProductName, Badge, Empty, Modal } from "./ui";
 
 type PeriodId = "thisMonth" | "last7" | "today";
 type CategoryId =
-  "all" | "Computers" | "Mobiles" | "Tablets" | "Storage" | "Accessories";
+  | "all"
+  | "Computers"
+  | "Mobiles"
+  | "Tablets"
+  | "Cameras"
+  | "Storage"
+  | "Accessories";
 
 const DEFAULT_WIDGETS = [
   "stock",
@@ -71,6 +77,7 @@ const CATEGORY_TABS: CategoryId[] = [
   "Computers",
   "Mobiles",
   "Tablets",
+  "Cameras",
   "Storage",
 ];
 
@@ -79,6 +86,7 @@ const CATEGORY_I18N: Record<CategoryId, string> = {
   Computers: "inventory.computers",
   Mobiles: "inventory.mobiles",
   Tablets: "inventory.tablets",
+  Cameras: "inventory.cameras",
   Storage: "inventory.storage",
   Accessories: "inventory.accessories",
 };
@@ -87,6 +95,7 @@ const API_CATEGORY_NAMES: Record<string, string> = {
   Computers: "inventory.computers",
   Mobiles: "inventory.mobiles",
   Tablets: "inventory.tablets",
+  Cameras: "inventory.cameras",
   Storage: "inventory.storage",
   Accessories: "inventory.accessories",
 };

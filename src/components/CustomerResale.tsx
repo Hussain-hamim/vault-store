@@ -6,12 +6,13 @@ import {
 } from "./DeviceInventory";
 import {
   PRODUCT_BRANDS,
-  PRODUCT_CATEGORIES,
+  BUILTIN_PRODUCT_CATEGORIES,
   categoryLabel,
   specFieldLabel,
-} from "./Dialogs";
+} from "./product-fields";
 import { PartySearchSelect } from "./PartySearchSelect";
 import { specOrder } from "../api";
+import { trackedCategory } from "../../shared/product-categories.mjs";
 import { useEffect, useRef, useState } from "react";
 import {
   PlusIcon,
@@ -482,16 +483,14 @@ export function ResaleReceiveDialog({
               brand: line.brand === "Other" ? line.customBrand : line.brand,
               model: line.model,
               category: line.category,
-              serialized: ["Computers", "Mobiles", "Tablets"].includes(
-                line.category,
-              ),
+              serialized: trackedCategory(line.category),
               price: toMoney(line.sellingPrice),
               condition: line.condition,
               attributes,
             },
             quantity: qty,
             owner_unit_amount: toMoney(line.ownerAmount),
-            units: ["Computers", "Mobiles", "Tablets"].includes(line.category)
+            units: trackedCategory(line.category)
               ? Array.from({ length: qty }, (_, i) => line.units[i] || {})
               : undefined,
           };
@@ -595,9 +594,7 @@ export function ResaleReceiveDialog({
           </section>
           <div className="resale-intake-lines">
             {lines.map((line, index) => {
-              const serialized = ["Computers", "Mobiles", "Tablets"].includes(
-                line.category,
-              );
+              const serialized = trackedCategory(line.category);
               return (
                 <section
                   className="resale-intake-section resale-intake-line"
@@ -644,11 +641,11 @@ export function ResaleReceiveDialog({
                             accessoryType: "",
                             specs: {},
                             units: [],
-                            showSpecs: e.target.value === "Accessories",
+                            showSpecs: !!specOrder(e.target.value).length,
                           })
                         }
                       >
-                        {PRODUCT_CATEGORIES.map((c) => (
+                        {BUILTIN_PRODUCT_CATEGORIES.map((c) => (
                           <option key={c} value={c}>
                             {categoryLabel(t, c)}
                           </option>
@@ -790,7 +787,9 @@ export function ResaleReceiveDialog({
                           key={line.key + k}
                           label={
                             k === "Type"
-                              ? t("product.accessoryType")
+                              ? line.category === "Cameras"
+                                ? t("product.cameraType")
+                                : t("product.accessoryType")
                               : specFieldLabel(t, k)
                           }
                         >

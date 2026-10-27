@@ -15,6 +15,10 @@ import {
   DEFAULT_CURRENCIES,
   SUPPORTED_FLAG_COUNTRIES,
 } from "../shared/currencies.mjs";
+import {
+  BUILTIN_PRODUCT_CATEGORIES,
+  isBuiltinCategory,
+} from "../shared/product-categories.mjs";
 import { notifications } from "./notifications.mjs";
 import {
   receiveConsignment,
@@ -193,13 +197,7 @@ const productSchema = z
     model: text.min(1),
     sku: text.min(1),
     barcode: text.default(""),
-    category: z.enum([
-      "Computers",
-      "Mobiles",
-      "Tablets",
-      "Storage",
-      "Accessories",
-    ]),
+    category: text.min(2).max(80),
     price: money,
     minimum: money.default(0),
     reorder_level: z.number().int().min(0).max(1_000_000).default(5),
@@ -777,6 +775,36 @@ export class Store {
   currencies() {
     return this.setting("currencies") || DEFAULT_CURRENCIES;
   }
+  customProductCategories() {
+    const rows = this.setting("product_categories");
+    return Array.isArray(rows)
+      ? rows.filter((c) => typeof c === "string" && c.trim())
+      : [];
+  }
+  productCategories() {
+    const seen = new Set();
+    const rows = [];
+    for (const c of [
+      ...BUILTIN_PRODUCT_CATEGORIES,
+      ...this.customProductCategories(),
+      ...this.all(
+        "SELECT DISTINCT category FROM products WHERE active=1 AND category<>'' ORDER BY category COLLATE NOCASE",
+      ).map((r) => r.category),
+    ]) {
+      if (!c || seen.has(c)) continue;
+      seen.add(c);
+      rows.push(c);
+    }
+    return rows;
+  }
+  rememberProductCategory(category) {
+    const name = String(category || "").trim();
+    if (!name || isBuiltinCategory(name)) return;
+    const rows = this.customProductCategories();
+    if (rows.some((c) => c.toLowerCase() === name.toLowerCase())) return;
+    if (rows.length >= 100) return;
+    this.saveSetting("product_categories", [...rows, name]);
+  }
   validateCurrency(currency, rate) {
     if (!this.currencies().some((c) => c.code === currency))
       throw new Error("Choose a saved currency.");
@@ -871,6 +899,7 @@ export class Store {
           request_key: `product-opening-${pid}`,
         });
       }
+      this.rememberProductCategory(d.category);
       this.audit(user, "Create product", pid, { name: d.name });
       return { id: pid };
     });
@@ -3248,6 +3277,7 @@ export class Store {
             existing.id,
           );
           this.saveForeign("products", existing.id, d);
+          this.rememberProductCategory(d.category);
           if (
             !existing.serialized &&
             trackedCategory(d.category) &&
@@ -3872,6 +3902,8 @@ export class Store {
       }
       case "currencies":
         return this.currencies();
+      case "productCategories":
+        return this.productCategories();
       case "currencyCreate": {
         if (
           !user.permissions.some((p) =>

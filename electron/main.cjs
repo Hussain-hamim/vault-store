@@ -519,54 +519,137 @@ async function start() {
       throw new Error("Unknown support destination.");
     await shell.openExternal(url);
   });
+  async function copyPdfToClipboard(filePath) {
+    const { execFile } = require("node:child_process");
+    const { promisify } = require("node:util");
+    const run = promisify(execFile);
+    if (process.platform === "win32") {
+      const escaped = String(filePath).replace(/'/g, "''");
+      await run(
+        "powershell.exe",
+        [
+          "-NoProfile",
+          "-NonInteractive",
+          "-Command",
+          `Set-Clipboard -Path '${escaped}'`,
+        ],
+        { windowsHide: true, timeout: 15000 },
+      );
+      return true;
+    }
+    if (process.platform === "darwin") {
+      const escaped = String(filePath).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+      await run(
+        "osascript",
+        ["-e", `set the clipboard to (POSIX file "${escaped}")`],
+        { timeout: 15000 },
+      );
+      return true;
+    }
+    return false;
+  }
+  function pasteClipboardIntoChat() {
+    const { execFile } = require("node:child_process");
+    if (process.platform === "win32") {
+      const script = [
+        "Add-Type -AssemblyName System.Windows.Forms",
+        "Start-Sleep -Milliseconds 2000",
+        "[System.Windows.Forms.SendKeys]::SendWait('^v')",
+        "Start-Sleep -Milliseconds 500",
+        "[System.Windows.Forms.SendKeys]::SendWait('{ENTER}')",
+      ].join("; ");
+      execFile(
+        "powershell.exe",
+        ["-NoProfile", "-NonInteractive", "-Command", script],
+        { windowsHide: true },
+        () => {},
+      );
+      return true;
+    }
+    if (process.platform === "darwin") {
+      const script = [
+        "delay 2.0",
+        'tell application "System Events" to keystroke "v" using command down',
+        "delay 0.5",
+        'tell application "System Events" to keystroke return',
+      ].join("\n");
+      execFile("osascript", ["-e", script], () => {});
+      return true;
+    }
+    return false;
+  }
   ipcMain.handle("vault:whatsapp-share", async (event, payload, token) => {
     trusted(event);
-    licensing.assertActive();
-    const phone = String(payload?.phone || "").replace(/\D+/g, "");
-    if (!/^[1-9]\d{6,14}$/.test(phone))
-      throw new Error("Enter a valid WhatsApp phone number.");
-    const text = typeof payload?.text === "string" ? payload.text.slice(0, 1000) : "";
-    let pdfPath = null;
-    if (payload?.job) {
-      if (printBusy)
-        throw new Error(
-          "Another print job is open. Finish it before starting another.",
-        );
-      printBusy = true;
-      try {
-        const { validatePrintJob, withPrintWindow } = require("./printing.cjs");
-        const job = validatePrintJob(payload.job);
-        const user = await db.request("me", {}, token);
-        if (job.kind === "invoice")
-          await db.request("document", { id: job.source.id }, token);
-        else if (!user.permissions.includes(job.source.permission))
-          throw new Error("Permission required: " + job.source.permission);
-        const { electronPrintOptions } = await import(
-          pathToFileURL(path.join(serviceRoot, "print-options.mjs")).href
-        );
-        const safeTitle = job.title.replace(/[\\/:*?"<>|\u0000-\u001f]/g, "-");
-        pdfPath = path.join(
-          app.getPath("temp"),
-          `radefy-${safeTitle.slice(0, 40)}-${Date.now()}.pdf`,
-        );
-        await withPrintWindow(BrowserWindow, job.html, mainWindow, async (contents) => {
-          const bytes = await contents.printToPDF(
-            electronPrintOptions(job.options, job.kind, true),
+    try {
+      licensing.assertActive();
+      const phone = String(payload?.phone || "").replace(/\D+/g, "");
+      if (!/^[1-9]\d{6,14}$/.test(phone))
+        throw new Error("Enter a valid WhatsApp phone number.");
+      const text =
+        typeof payload?.text === "string" ? payload.text.slice(0, 1000) : "";
+      let pdfPath = null;
+      let pasted = false;
+      let copied = false;
+      if (payload?.job) {
+        if (printBusy)
+          throw new Error(
+            "Another print job is open. Finish it before starting another.",
           );
-          await fs.promises.writeFile(pdfPath, bytes);
-          return { saved: true };
-        });
-        shell.showItemInFolder(pdfPath);
-      } finally {
-        printBusy = false;
+        printBusy = true;
+        try {
+          const { validatePrintJob, withPrintWindow } = require("./printing.cjs");
+          const job = validatePrintJob(payload.job);
+          const user = await db.request("me", {}, token);
+          if (job.kind === "invoice")
+            await db.request("document", { id: job.source.id }, token);
+          else if (!user.permissions.includes(job.source.permission))
+            throw new Error("Permission required: " + job.source.permission);
+          const { electronPrintOptions } = await import(
+            pathToFileURL(path.join(serviceRoot, "print-options.mjs")).href
+          );
+          const safeTitle = job.title.replace(
+            /[\\/:*?"<>|\u0000-\u001f]/g,
+            "-",
+          );
+          const fileName = `radefy-${safeTitle.slice(0, 40)}-${Date.now()}.pdf`;
+          pdfPath = path.join(app.getPath("temp"), fileName);
+          await withPrintWindow(
+            BrowserWindow,
+            job.html,
+            mainWindow,
+            async (contents) => {
+              const bytes = await contents.printToPDF(
+                electronPrintOptions(job.options, job.kind, true),
+              );
+              await fs.promises.writeFile(pdfPath, bytes);
+              return { saved: true };
+            },
+          );
+          try {
+            await fs.promises.copyFile(
+              pdfPath,
+              path.join(app.getPath("downloads"), fileName),
+            );
+          } catch {}
+          try {
+            copied = await copyPdfToClipboard(pdfPath);
+          } catch {
+            copied = false;
+          }
+        } finally {
+          printBusy = false;
+        }
       }
+      const query = text ? `?text=${encodeURIComponent(text)}` : "";
+      await shell.openExternal(`https://wa.me/${phone}${query}`);
+      if (copied) pasted = pasteClipboardIntoChat();
+      return {
+        ok: true,
+        result: { opened: true, pdfPath, copied, pasted },
+      };
+    } catch (error) {
+      return { ok: false, error: error.message };
     }
-    const url =
-      "https://wa.me/" +
-      phone +
-      (text ? `?text=${encodeURIComponent(text)}` : "");
-    await shell.openExternal(url);
-    return { ok: true, result: { opened: true, pdfPath } };
   });
   ipcMain.handle("vault:folder", async (event) => {
     trusted(event);

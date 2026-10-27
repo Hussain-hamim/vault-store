@@ -118,6 +118,7 @@ const INVENTORY_CATEGORIES = [
   ["Computers", "computers"],
   ["Mobiles", "mobiles"],
   ["Tablets", "tablets"],
+  ["Cameras", "cameras"],
   ["Storage", "storage"],
   ["Accessories", "accessories"],
 ] as const;
@@ -197,6 +198,7 @@ export function ProductsPage({
       Computers: "cat-computers",
       Mobiles: "cat-mobiles",
       Tablets: "cat-tablets",
+      Cameras: "cat-cameras",
       Storage: "cat-storage",
       Accessories: "cat-accessories",
     })[c] || "cat-default";

@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-export const trackedCategory = (category) =>
-  ["Computers", "Mobiles", "Tablets"].includes(category);
+export { trackedCategory } from "../shared/product-categories.mjs";
 export const unitSchema = z.object({
   id: z.string().optional(),
   serial: z.string().trim().max(120).default(""),
