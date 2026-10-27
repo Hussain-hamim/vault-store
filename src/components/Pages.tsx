@@ -2613,13 +2613,21 @@ export function SettingsPage({
     [localError, setLocalError] = useState(""),
     [busy, setBusy] = useState(false),
     [audit, setAudit] = useState<any[]>([]),
-    [logo, setLogo] = useState(""),
+    [logoLeft, setLogoLeft] = useState(""),
+    [logoRight, setLogoRight] = useState(""),
     [language, setLanguage] = useState<Locale>(locale);
   useEffect(() => {
-    setLogo(data?.store?.logo || "");
+    setLogoLeft(data?.store?.logo_left || data?.store?.logo || "");
+    setLogoRight(data?.store?.logo_right || "");
     const lang = data?.store?.language;
     if (lang === "en" || lang === "ps" || lang === "prs") setLanguage(lang);
-  }, [data?.store?.logo, data?.store?.language, refresh]);
+  }, [
+    data?.store?.logo,
+    data?.store?.logo_left,
+    data?.store?.logo_right,
+    data?.store?.language,
+    refresh,
+  ]);
   async function save(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setBusy(true);
@@ -2628,11 +2636,22 @@ export function SettingsPage({
       const f = new FormData(e.currentTarget);
       await api("saveSettings", {
         name: f.get("name"),
+        name_ps: f.get("name_ps"),
         phone: f.get("phone"),
         address: f.get("address"),
+        address_ps: f.get("address_ps"),
         email: f.get("email"),
+        services: f.get("services"),
+        owner1_name: f.get("owner1_name"),
+        owner1_phone: f.get("owner1_phone"),
+        owner1_whatsapp: f.get("owner1_whatsapp"),
+        owner2_name: f.get("owner2_name"),
+        owner2_phone: f.get("owner2_phone"),
+        owner2_whatsapp: f.get("owner2_whatsapp"),
         bill_footer: f.get("bill_footer"),
-        logo,
+        logo: logoLeft,
+        logo_left: logoLeft,
+        logo_right: logoRight,
         language,
       });
       setLocale(language);
@@ -2643,7 +2662,10 @@ export function SettingsPage({
       setBusy(false);
     }
   }
-  function onLogoFile(file: File | null) {
+  function onLogoFile(
+    file: File | null,
+    setLogo: (value: string) => void,
+  ) {
     if (!file) return;
     if (!/^image\/(png|jpeg|jpg|webp|gif)$/i.test(file.type)) {
       setLocalError(t("settings.logoFileType"));
@@ -2816,46 +2838,113 @@ export function SettingsPage({
               </Field>
               <h3>{t("settings.billDesign")}</h3>
               <p className="muted">{t("settings.billDesignHint")}</p>
-              <Field label={t("settings.businessName")}>
-                <input
-                  name="name"
-                  defaultValue={data.store.name}
-                  required
-                  minLength={2}
+              <div className="form-grid">
+                <Field label={t("settings.businessName")}>
+                  <input
+                    name="name"
+                    defaultValue={data.store.name}
+                    required
+                    minLength={2}
+                  />
+                </Field>
+                <Field label={t("settings.businessNamePs")}>
+                  <input
+                    name="name_ps"
+                    dir="rtl"
+                    defaultValue={data.store.name_ps || ""}
+                  />
+                </Field>
+              </div>
+              <div className="form-grid">
+                {(
+                  [
+                    ["left", logoLeft, setLogoLeft],
+                    ["right", logoRight, setLogoRight],
+                  ] as const
+                ).map(([side, value, setValue]) => (
+                  <Field
+                    key={side}
+                    label={
+                      side === "left"
+                        ? t("settings.logoLeft")
+                        : t("settings.logoRight")
+                    }
+                  >
+                    <div className="bill-logo-preview">
+                      {value ? (
+                        <img src={value} alt="" />
+                      ) : (
+                        <span className="muted">{t("settings.noLogo")}</span>
+                      )}
+                    </div>
+                    <div className="bill-logo-actions">
+                      <label className="button">
+                        {t("settings.chooseImage")}
+                        <input
+                          type="file"
+                          accept="image/png,image/jpeg,image/webp,image/gif"
+                          hidden
+                          onChange={(e) => {
+                            onLogoFile(e.target.files?.[0] || null, setValue);
+                            e.target.value = "";
+                          }}
+                        />
+                      </label>
+                      {value ? (
+                        <button
+                          type="button"
+                          className="button"
+                          onClick={() => setValue("")}
+                        >
+                          {t("settings.removeLogo")}
+                        </button>
+                      ) : null}
+                    </div>
+                  </Field>
+                ))}
+              </div>
+              <Field
+                label={t("settings.services")}
+                hint={t("settings.servicesHint")}
+              >
+                <textarea
+                  name="services"
+                  defaultValue={data.store.services || ""}
+                  rows={2}
+                  placeholder={t("settings.servicesPh")}
                 />
               </Field>
-              <Field label={t("settings.logo")}>
-                <div className="bill-logo-preview">
-                  {logo ? (
-                    <img src={logo} alt="" />
-                  ) : (
-                    <span className="muted">{t("settings.noLogo")}</span>
-                  )}
-                </div>
-                <div className="bill-logo-actions">
-                  <label className="button">
-                    {t("settings.chooseImage")}
+              <h3>{t("settings.billOwners")}</h3>
+              <p className="muted">{t("settings.billOwnersHint")}</p>
+              {(
+                [
+                  ["owner1", "1"],
+                  ["owner2", "2"],
+                ] as const
+              ).map(([prefix, n]) => (
+                <div className="form-grid" key={prefix}>
+                  <Field label={t("settings.ownerName", { n })}>
                     <input
-                      type="file"
-                      accept="image/png,image/jpeg,image/webp,image/gif"
-                      hidden
-                      onChange={(e) => {
-                        onLogoFile(e.target.files?.[0] || null);
-                        e.target.value = "";
-                      }}
+                      name={`${prefix}_name`}
+                      defaultValue={data.store[`${prefix}_name`] || ""}
                     />
-                  </label>
-                  {logo ? (
-                    <button
-                      type="button"
-                      className="button"
-                      onClick={() => setLogo("")}
-                    >
-                      {t("settings.removeLogo")}
-                    </button>
-                  ) : null}
+                  </Field>
+                  <Field label={t("settings.ownerPhone", { n })}>
+                    <input
+                      name={`${prefix}_phone`}
+                      dir="ltr"
+                      defaultValue={data.store[`${prefix}_phone`] || ""}
+                    />
+                  </Field>
+                  <Field label={t("settings.ownerWhatsapp", { n })}>
+                    <input
+                      name={`${prefix}_whatsapp`}
+                      dir="ltr"
+                      defaultValue={data.store[`${prefix}_whatsapp`] || ""}
+                    />
+                  </Field>
                 </div>
-              </Field>
+              ))}
               <div className="form-grid">
                 <Field label={t("common.phone")}>
                   <input name="phone" defaultValue={data.store.phone || ""} />
@@ -2872,6 +2961,17 @@ export function SettingsPage({
                 <textarea
                   name="address"
                   defaultValue={data.store.address || ""}
+                  rows={2}
+                />
+              </Field>
+              <Field
+                label={t("settings.addressPs")}
+                hint={t("settings.addressPsHint")}
+              >
+                <textarea
+                  name="address_ps"
+                  dir="rtl"
+                  defaultValue={data.store.address_ps || ""}
                   rows={2}
                 />
               </Field>

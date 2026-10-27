@@ -23,6 +23,7 @@ export function invoicePrintModel(
   };
   return {
     kind: "invoice",
+    billStyle: doc.kind === "sale" ? "saleShop" : "standard",
     companyCredit: {
       label: t("company.builtBy"),
       whatsapp: brand.support.whatsapp,
@@ -34,6 +35,7 @@ export function invoicePrintModel(
     reference: doc.number,
     subtitle: doc.date,
     purchase,
+    signatureLabel: doc.kind === "sale" ? t("invoice.customerSignature") : "",
     emptyLabel: t("reports.noRows"),
     metadata: [
       {

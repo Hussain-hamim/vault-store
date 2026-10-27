@@ -25,18 +25,32 @@ export type PrintSection = {
 };
 export type PrintDocument = {
   kind: "invoice" | "report" | "label";
+  /** Sale invoices use the shop bill chrome; others keep the standard header. */
+  billStyle?: "saleShop" | "standard";
   companyCredit?: { label: string; whatsapp: string };
   title: string;
   reference?: string;
   subtitle?: string;
   locale: "en" | "ps" | "prs";
   source: PrintSource;
+  signatureLabel?: string;
   store?: {
     name?: string;
+    name_ps?: string;
     address?: string;
+    address_ps?: string;
     phone?: string;
     email?: string;
     logo?: string;
+    logo_left?: string;
+    logo_right?: string;
+    services?: string;
+    owner1_name?: string;
+    owner1_phone?: string;
+    owner1_whatsapp?: string;
+    owner2_name?: string;
+    owner2_phone?: string;
+    owner2_whatsapp?: string;
     bill_footer?: string;
   };
   metadata?: { label: string; value: string | number; numeric?: boolean }[];

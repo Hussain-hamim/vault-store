@@ -423,6 +423,13 @@ export class Store {
       this.one("SELECT value FROM settings WHERE key=?", key)?.value || "null",
     );
   }
+  /** Store profile for UI/print, with legacy single-logo migrated to logo_left. */
+  storeBill() {
+    const store = { ...(this.setting("store") || {}) };
+    if (!store.logo_left && store.logo) store.logo_left = store.logo;
+    if (!store.logo && store.logo_left) store.logo = store.logo_left;
+    return store;
+  }
   saveSetting(key, value) {
     this.run(
       "INSERT INTO settings VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
@@ -3111,7 +3118,7 @@ export class Store {
           this.one(
             "SELECT username FROM users WHERE role='Owner' AND active=1 ORDER BY created_at,id LIMIT 1",
           )?.username || "",
-        store: this.setting("store"),
+        store: this.storeBill(),
         permissions: PERMISSIONS,
         roles: ROLES,
       };
@@ -3998,38 +4005,61 @@ export class Store {
       }
       case "settings":
         return {
-          store: this.setting("store"),
+          store: this.storeBill(),
           closedThrough: this.setting("closedThrough"),
         };
       case "saveSettings": {
+        const logoField = z
+          .string()
+          .max(900_000)
+          .default("")
+          .refine(
+            (v) =>
+              !v || /^data:image\/(png|jpeg|jpg|webp|gif);base64,/i.test(v),
+            "Logo must be a PNG, JPG, WEBP or GIF image.",
+          );
         const d = z
           .object({
             name: text.min(2),
+            name_ps: text.default(""),
             phone: text.default(""),
             address: text.default(""),
+            address_ps: text.default(""),
             email: text.default(""),
-            logo: z
-              .string()
-              .max(900_000)
-              .default("")
-              .refine(
-                (v) =>
-                  !v || /^data:image\/(png|jpeg|jpg|webp|gif);base64,/i.test(v),
-                "Logo must be a PNG, JPG, WEBP or GIF image.",
-              ),
+            logo: logoField,
+            logo_left: logoField,
+            logo_right: logoField,
+            services: text.default(""),
+            owner1_name: text.default(""),
+            owner1_phone: text.default(""),
+            owner1_whatsapp: text.default(""),
+            owner2_name: text.default(""),
+            owner2_phone: text.default(""),
+            owner2_whatsapp: text.default(""),
             bill_footer: text.default(""),
             language: z.enum(["en", "ps", "prs"]).default("en"),
           })
           .parse(args);
-        this.saveSetting("store", { ...this.setting("store"), ...d });
+        const prev = this.setting("store") || {};
+        const next = { ...prev, ...d };
+        // Keep legacy `logo` in sync with left logo; migrate old single logo once.
+        if (!next.logo_left && next.logo) next.logo_left = next.logo;
+        if (next.logo_left && !next.logo) next.logo = next.logo_left;
+        this.saveSetting("store", next);
         this.audit(user, "Update store settings", "store", {
           name: d.name,
+          name_ps: d.name_ps,
           phone: d.phone,
           address: d.address,
+          address_ps: d.address_ps,
           email: d.email,
+          services: d.services,
+          owner1_name: d.owner1_name,
+          owner2_name: d.owner2_name,
           bill_footer: d.bill_footer,
           language: d.language,
-          logo: d.logo ? "[logo updated]" : "",
+          logo_left: d.logo_left || d.logo ? "[logo updated]" : "",
+          logo_right: d.logo_right ? "[logo updated]" : "",
         });
         return { ok: true };
       }

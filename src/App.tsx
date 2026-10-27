@@ -394,11 +394,14 @@ export function App() {
     try {
       if (status?.store && user?.permissions.includes("settings")) {
         await api("saveSettings", {
+          ...status.store,
           name: status.store.name,
           phone: status.store.phone || "",
           address: status.store.address || "",
           email: status.store.email || "",
-          logo: status.store.logo || "",
+          logo: status.store.logo_left || status.store.logo || "",
+          logo_left: status.store.logo_left || status.store.logo || "",
+          logo_right: status.store.logo_right || "",
           bill_footer: status.store.bill_footer || "",
           language: next,
         });

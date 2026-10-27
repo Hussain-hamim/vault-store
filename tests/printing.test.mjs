@@ -114,10 +114,67 @@ test("every theme/layout/paper uses one escaped standalone renderer and preserve
         }
       }
 });
+test("sale bills use the shop chrome; purchase bills keep the standard header", () => {
+  const sale = invoicePrintModel(
+    invoice,
+    {
+      name: "Radefy TechMart",
+      name_ps: "رادیفي ټیکمارټ",
+      logo_left: "data:image/png;base64,YWJj",
+      logo_right: "data:image/png;base64,ZGVm",
+      services: "Laptops · Mobiles · CCTV",
+      owner1_name: "Ahmad",
+      owner1_phone: "+93 70 000 0001",
+      owner1_whatsapp: "+93 70 000 0002",
+      owner2_name: "Omar",
+      owner2_phone: "+93 70 000 0003",
+      bill_footer: "Thank you for shopping",
+      address_ps: "کابل، افغانستان",
+    },
+    context,
+  );
+  assert.equal(sale.billStyle, "saleShop");
+  const saleHtml = renderPrintDocument(sale, { paper: "A4" });
+  assert.match(saleHtml, /sale-shop-header/);
+  assert.match(saleHtml, /sale-shop-bill/);
+  assert.match(saleHtml, /Radefy TechMart/);
+  assert.match(saleHtml, /رادیفي ټیکمارټ/);
+  assert.match(saleHtml, /Laptops · Mobiles · CCTV/);
+  assert.match(saleHtml, /Ahmad/);
+  assert.match(saleHtml, /Omar/);
+  assert.match(saleHtml, /\+93 70 000 0001/);
+  assert.match(saleHtml, /Thank you for shopping/);
+  assert.match(saleHtml, /sale-signature/);
+  assert.match(saleHtml, /invoice\.customerSignature/);
+  assert.match(saleHtml, /کابل، افغانستان/);
+  assert.match(saleHtml, /data:image\/png;base64,YWJj/);
+  assert.match(saleHtml, /data:image\/png;base64,ZGVm/);
+  assert.doesNotMatch(saleHtml, /class="document-header"/);
+
+  const purchase = invoicePrintModel(
+    { ...invoice, kind: "purchase", number: "PUR-001" },
+    {
+      name: "Radefy TechMart",
+      name_ps: "رادیفي ټیکمارټ",
+      logo: "data:image/png;base64,YWJj",
+      services: "Should not show",
+      bill_footer: "Purchase footer",
+    },
+    context,
+  );
+  assert.equal(purchase.billStyle, "standard");
+  const purchaseHtml = renderPrintDocument(purchase, { paper: "A4" });
+  assert.match(purchaseHtml, /class="document-header"/);
+  assert.doesNotMatch(purchaseHtml, /<header class="sale-shop-header"/);
+  assert.doesNotMatch(purchaseHtml, /Should not show/);
+  assert.doesNotMatch(purchaseHtml, /class="sale-signature"/);
+  assert.match(purchaseHtml, /Purchase footer/);
+});
 test("logo/spec/footer switches, Arabic locales and offline assets survive preview and export", () => {
   const doc = model();
   doc.locale = "prs";
   doc.store.logo = "data:image/png;base64,YWJj";
+  doc.store.logo_left = "data:image/png;base64,YWJj";
   const full = renderPrintDocument(
     doc,
     {},
@@ -127,7 +184,7 @@ test("logo/spec/footer switches, Arabic locales and offline assets survive previ
   assert.match(full, /font-src data:/);
   assert.match(full, /font-family:Printarabic/);
   assert.match(full, /<bdi dir="ltr">AF/);
-  assert.match(full, /<img class="logo"/);
+  assert.match(full, /<img src="data:image\/png;base64,YWJj"/);
   const short = renderPrintDocument(doc, {
     showSpecs: false,
     showFooter: false,

@@ -2839,23 +2839,94 @@ export function InvoiceDialog({
             {["consignment_receipt", "consignment_return"].includes(
               doc.kind,
             ) && <p className="help-note">{t("resale.custodyNote")}</p>}
-            <div className="invoice-top">
-              <div>
-                {store?.logo ? (
-                  <img className="invoice-logo" src={store.logo} alt="" />
+            {doc.kind === "sale" ? (
+              <div className="sale-shop-preview">
+                <div className="sale-shop-preview-brand">
+                  {(store?.logo_left || store?.logo) && (
+                    <img
+                      className="invoice-logo"
+                      src={store.logo_left || store.logo}
+                      alt=""
+                    />
+                  )}
+                  <div className="sale-shop-preview-titles">
+                    <h2>{store?.name}</h2>
+                    {store?.name_ps ? (
+                      <h3 className="sale-shop-preview-ps" dir="rtl" lang="ps">
+                        {store.name_ps}
+                      </h3>
+                    ) : null}
+                  </div>
+                  {store?.logo_right ? (
+                    <img
+                      className="invoice-logo"
+                      src={store.logo_right}
+                      alt=""
+                    />
+                  ) : (
+                    <span className="sale-shop-preview-spacer" aria-hidden="true" />
+                  )}
+                </div>
+                {store?.services ? (
+                  <p className="sale-shop-preview-services">{store.services}</p>
                 ) : null}
-                <h2>{store?.name}</h2>
-                {store?.address ? <p>{store.address}</p> : null}
-                <p>
-                  {[store?.phone, store?.email].filter(Boolean).join(" · ")}
-                </p>
+                <div className="sale-shop-preview-owners">
+                  {(
+                    [
+                      [
+                        store?.owner1_name,
+                        store?.owner1_phone,
+                        store?.owner1_whatsapp,
+                      ],
+                      [
+                        store?.owner2_name,
+                        store?.owner2_phone,
+                        store?.owner2_whatsapp,
+                      ],
+                    ] as const
+                  )
+                    .filter(([name]) => !!name)
+                    .map(([name, phone, whatsapp], i) => {
+                      const contacts = [phone, whatsapp]
+                        .filter(Boolean)
+                        .join(" · ");
+                      return (
+                        <div key={i}>
+                          <strong>{name}</strong>
+                          {contacts ? (
+                            <small>
+                              <bdi dir="ltr">{contacts}</bdi>
+                            </small>
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                </div>
+                <div className="sale-shop-preview-doc">
+                  <Badge tone="gray">{kindTitle.toUpperCase()}</Badge>
+                  <h3>{doc.number}</h3>
+                  <p>{doc.date}</p>
+                </div>
               </div>
-              <div>
-                <Badge tone="gray">{kindTitle.toUpperCase()}</Badge>
-                <h3>{doc.number}</h3>
-                <p>{doc.date}</p>
+            ) : (
+              <div className="invoice-top">
+                <div>
+                  {store?.logo ? (
+                    <img className="invoice-logo" src={store.logo} alt="" />
+                  ) : null}
+                  <h2>{store?.name}</h2>
+                  {store?.address ? <p>{store.address}</p> : null}
+                  <p>
+                    {[store?.phone, store?.email].filter(Boolean).join(" · ")}
+                  </p>
+                </div>
+                <div>
+                  <Badge tone="gray">{kindTitle.toUpperCase()}</Badge>
+                  <h3>{doc.number}</h3>
+                  <p>{doc.date}</p>
+                </div>
               </div>
-            </div>
+            )}
             <div className="invoice-meta">
               <div>
                 <span>
@@ -3104,6 +3175,19 @@ export function InvoiceDialog({
             {store?.bill_footer ? (
               <p className="invoice-note">{store.bill_footer}</p>
             ) : null}
+            {doc.kind === "sale" && (
+              <>
+                <div className="sale-shop-preview-signature">
+                  <span>{t("invoice.customerSignature")}</span>
+                  <i />
+                </div>
+                {store?.address_ps ? (
+                  <p className="sale-shop-preview-address" dir="rtl" lang="ps">
+                    {store.address_ps}
+                  </p>
+                ) : null}
+              </>
+            )}
             <p className="subtle">{t("invoice.afnNote")}</p>
           </div>
           {returning && (
