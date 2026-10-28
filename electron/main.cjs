@@ -35,62 +35,39 @@ let accounts;
 let recoveryRequested = process.argv.includes("--radefy-recovery");
 const backupMode = process.argv.includes("--backup-mode");
 const { Accounts, profileId } = require("./accounts.cjs");
+const {
+  readProfileRows,
+  resolveStartupDirectory,
+  sanitizeProfiles,
+  isEphemeralDirectory,
+  defaultStoreDirectory,
+} = require("./profiles.cjs");
 const profileRegistryFile = path.join(
   app.getPath("appData"),
   "Radefy TechMart profiles.json",
 );
-function readProfiles() {
-  try {
-    const rows = JSON.parse(fs.readFileSync(profileRegistryFile, "utf8"));
-    return Array.isArray(rows)
-      ? rows.filter(
-          (p) =>
-            p &&
-            typeof p.directory === "string" &&
-            p.id === profileId(p.directory),
-        )
-      : [];
-  } catch {
-    return [];
-  }
-}
 const lastProfileFile = profileRegistryFile + ".selected";
-let lastProfileId;
-try {
-  lastProfileId = fs.readFileSync(lastProfileFile, "utf8");
-} catch {}
+const readProfiles = () => readProfileRows(profileRegistryFile);
 const selectedProfileId = process.argv
   .find((a) => a.startsWith("--radefy-profile="))
   ?.split("=")[1];
-const selectedProfile = readProfiles().find(
-  (p) =>
-    !p.hidden &&
-    p.id ===
-      (selectedProfileId ||
-        (!backupMode &&
-        !process.env.RADEFY_USER_DATA &&
-        !process.env.REDIFY_USER_DATA
-          ? lastProfileId
-          : undefined)),
-);
 let reloadingWorker = false;
 const uiOrigin = "http://127.0.0.1:4173";
 const { brand, userDataPath } = require("./brand.cjs");
-// Pin the original profile before setting the new display name: upgrades retain data and sessions.
-app.setPath(
-  "userData",
-  userDataPath(
-    app.getPath("appData"),
-    (backupMode
-      ? process.argv
-          .find((a) => a.startsWith("--backup-user-data="))
-          ?.slice("--backup-user-data=".length)
-      : undefined) ||
-      selectedProfile?.directory ||
-      process.env.RADEFY_USER_DATA ||
-      process.env.REDIFY_USER_DATA,
-  ),
-);
+// Pin Vault Store (or a validated remembered shop). Never reopen Temp smoke profiles after upgrade.
+const startupDirectory = resolveStartupDirectory({
+  appData: app.getPath("appData"),
+  registryFile: profileRegistryFile,
+  lastProfileFile,
+  selectedProfileId,
+  envDirectory: process.env.RADEFY_USER_DATA || process.env.REDIFY_USER_DATA,
+  backupDirectory: backupMode
+    ? process.argv
+        .find((a) => a.startsWith("--backup-user-data="))
+        ?.slice("--backup-user-data=".length)
+    : undefined,
+});
+app.setPath("userData", userDataPath(app.getPath("appData"), startupDirectory));
 app.setName(brand.name);
 if (!backupMode && !app.requestSingleInstanceLock()) {
   app.quit();
@@ -334,15 +311,18 @@ async function start() {
     return;
   }
   accounts = new Accounts(app.getPath("userData"), safeStorage);
-  const profiles = readProfiles();
+  let profiles = sanitizeProfiles(readProfiles(), {
+    appData: app.getPath("appData"),
+    currentDirectory: app.getPath("userData"),
+  });
   // Discover established profiles without copying their databases or activation files.
   const directories = new Set([
     ...profiles.map((p) => p.directory),
     app.getPath("userData"),
-    path.join(app.getPath("appData"), "Vault Store"),
-    path.join(app.getPath("appData"), "Radefy TechMart Activation Test"),
+    defaultStoreDirectory(app.getPath("appData")),
   ]);
   for (const directory of directories) {
+    if (isEphemeralDirectory(directory)) continue;
     if (
       profiles.some((p) => p.directory === directory && p.hidden) &&
       directory !== app.getPath("userData")
@@ -368,15 +348,20 @@ async function start() {
           status.store?.storeName ||
           path.basename(directory),
         username: status.ownerUsername || "",
+        hidden: false,
       };
       const index = profiles.findIndex((p) => p.id === entry.id);
       if (index < 0) profiles.push(entry);
-      else profiles[index] = entry;
+      else profiles[index] = { ...profiles[index], ...entry };
     } catch {
     } finally {
       if (worker && worker !== db) await worker.close();
     }
   }
+  profiles = sanitizeProfiles(profiles, {
+    appData: app.getPath("appData"),
+    currentDirectory: app.getPath("userData"),
+  });
   fs.writeFileSync(profileRegistryFile + ".tmp", JSON.stringify(profiles), {
     mode: 0o600,
   });
