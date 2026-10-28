@@ -280,21 +280,6 @@ export function ProductsPage({
   }
   return (
     <div className="page-content inventory-page">
-      <PageIntro
-        compact
-        eyebrow={t("inventory.eyebrow")}
-        title={t("inventory.title")}
-        description={t("inventory.description")}
-        action={
-          <button
-            className="button button-dark"
-            onClick={() => open("product")}
-          >
-            <PlusIcon size={16} />
-            {t("inventory.addProduct")}
-          </button>
-        }
-      />
       <section
         className={`panel inventory-list${showCost ? " with-cost" : ""}`}
       >
@@ -304,6 +289,7 @@ export function ProductsPage({
               value={q}
               onChange={setQ}
               placeholder={t("inventory.searchPh")}
+              autoFocus
             />
             <div className="toolbar-right">
               <FilterSelect
@@ -382,6 +368,13 @@ export function ProductsPage({
                   toast(t("inventory.exported"));
                 }}
               />
+              <button
+                className="button button-dark"
+                onClick={() => open("product")}
+              >
+                <PlusIcon size={16} />
+                {t("inventory.addProduct")}
+              </button>
             </div>
           </div>
           <div className="inventory-list-cols" role="row">
@@ -630,50 +623,13 @@ export function DocumentsPage({
   }
   return (
     <div className={`page-content docs-page docs-${kind}`}>
-      <PageIntro
-        compact
-        eyebrow={label}
-        title={
-          kind === "sale"
-            ? t("documents.saleHistory")
-            : kind === "purchase"
-              ? t("documents.purchaseHistory")
-              : t("documents.expenseHistory")
-        }
-        description={
-          kind === "sale"
-            ? t("documents.saleHistory")
-            : kind === "purchase"
-              ? t("documents.purchaseHistory")
-              : t("expenses.description")
-        }
-        action={
-          <div className="inline-actions">
-            {kind === "expense" && (
-              <button
-                className="button"
-                onClick={() => open("expenseAccounts")}
-              >
-                {t("expenseAccounts.title")}
-              </button>
-            )}
-            <button className="button button-dark" onClick={() => open(kind)}>
-              <PlusIcon size={16} />
-              {kind === "sale"
-                ? t("documents.newSale")
-                : kind === "purchase"
-                  ? t("documents.receivePurchase")
-                  : t("documents.recordExpense")}
-            </button>
-          </div>
-        }
-      />
       <section className="panel docs-list">
         <div className="docs-list-sticky">
           <div className="list-toolbar">
             <Search
               value={q}
               onChange={setQ}
+              autoFocus
               placeholder={
                 kind === "expense"
                   ? t("documents.searchExpense")
@@ -704,6 +660,12 @@ export function DocumentsPage({
                       </option>
                     ))}
                   </FilterSelect>
+                  <button
+                    className="button"
+                    onClick={() => open("expenseAccounts")}
+                  >
+                    {t("expenseAccounts.title")}
+                  </button>
                 </>
               )}
               <ReportPrintButton
@@ -791,6 +753,17 @@ export function DocumentsPage({
                   toast(t("documents.exported"));
                 }}
               />
+              <button
+                className="button button-dark"
+                onClick={() => open(kind)}
+              >
+                <PlusIcon size={16} />
+                {kind === "sale"
+                  ? t("documents.newSale")
+                  : kind === "purchase"
+                    ? t("documents.receivePurchase")
+                    : t("documents.recordExpense")}
+              </button>
             </div>
           </div>
           <div className="docs-list-cols" role="row">
@@ -1207,44 +1180,6 @@ export function PeoplePage({
   }
   return (
     <div className={`page-content people-page people-${kind}`}>
-      <PageIntro
-        compact
-        eyebrow={
-          kind === "customer"
-            ? t("people.customersEyebrow")
-            : t("people.suppliersEyebrow")
-        }
-        title={
-          kind === "customer"
-            ? t("people.customersTitle")
-            : t("people.suppliersTitle")
-        }
-        description={
-          kind === "customer"
-            ? t("people.customersDesc")
-            : t("people.suppliersDesc")
-        }
-        action={
-          <div className="inline-actions">
-            {kind === "customer" &&
-              user.permissions.includes("finance") &&
-              user.permissions.includes("view_costs") && (
-                <button
-                  className="button"
-                  onClick={() => open("customerResale")}
-                >
-                  {t("resale.title")}
-                </button>
-              )}
-            <button className="button button-dark" onClick={() => open(kind)}>
-              <PlusIcon size={16} />
-              {kind === "customer"
-                ? t("people.addCustomer")
-                : t("people.addSupplier")}
-            </button>
-          </div>
-        }
-      />
       <div className="metrics-row people-metrics">
         <Metric
           label={
@@ -1275,6 +1210,7 @@ export function PeoplePage({
               <Search
                 value={q}
                 onChange={setQ}
+                autoFocus
                 placeholder={
                   kind === "customer"
                     ? t("people.searchCustomers")
@@ -1305,6 +1241,25 @@ export function PeoplePage({
                     toast(t("people.contactsExported"));
                   }}
                 />
+                {kind === "customer" &&
+                  user.permissions.includes("finance") &&
+                  user.permissions.includes("view_costs") && (
+                    <button
+                      className="button"
+                      onClick={() => open("customerResale")}
+                    >
+                      {t("resale.title")}
+                    </button>
+                  )}
+                <button
+                  className="button button-dark"
+                  onClick={() => open(kind)}
+                >
+                  <PlusIcon size={16} />
+                  {kind === "customer"
+                    ? t("people.addCustomer")
+                    : t("people.addSupplier")}
+                </button>
               </div>
             </div>
             <div className="people-list-cols" role="row">

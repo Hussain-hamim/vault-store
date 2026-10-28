@@ -109,10 +109,17 @@ export function Modal({
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const previous = document.activeElement as HTMLElement;
-    const first = ref.current?.querySelector<HTMLElement>(
-      "input,select,button",
-    );
-    first?.focus();
+    const focusField = () => {
+      const root = ref.current?.querySelector(".modal-content") || ref.current;
+      const first =
+        root?.querySelector<HTMLElement>(
+          'input:not([type=hidden]):not([type=file]):not([type=button]):not([type=submit]):not([type=checkbox]):not([type=radio]):not([disabled]), textarea:not([disabled]), select:not([disabled])',
+        ) ||
+        root?.querySelector<HTMLElement>("button:not([disabled])");
+      first?.focus();
+    };
+    // Defer so nested forms (photo pickers, async defaults) finish mounting.
+    const focusId = window.requestAnimationFrame(focusField);
     const key = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         const backdrops = document.querySelectorAll(".modal-backdrop");
@@ -142,6 +149,7 @@ export function Modal({
     document.addEventListener("keydown", key);
     document.body.style.overflow = "hidden";
     return () => {
+      window.cancelAnimationFrame(focusId);
       document.removeEventListener("keydown", key);
       const backdrop = ref.current?.parentElement;
       document.body.style.overflow = Array.from(
@@ -237,6 +245,7 @@ export function Search({
   onFocus,
   onBlur,
   onClick,
+  autoFocus = false,
 }: {
   value: string;
   onChange: (s: string) => void;
@@ -244,6 +253,7 @@ export function Search({
   onFocus?: () => void;
   onBlur?: () => void;
   onClick?: () => void;
+  autoFocus?: boolean;
 }) {
   const t = useT();
   const ph = placeholder ?? t("ui.searchProducts");
@@ -254,6 +264,7 @@ export function Search({
         aria-label={ph}
         placeholder={ph}
         value={value}
+        autoFocus={autoFocus}
         onChange={(e) => onChange(e.target.value)}
         onFocus={onFocus}
         onBlur={onBlur}

@@ -2106,6 +2106,7 @@ export function PartyForm({
               name="name"
               required
               minLength={2}
+              autoFocus
               value={draft.name}
               onChange={(e) => patch("name", e.target.value)}
             />
@@ -4608,6 +4609,7 @@ export function UserForm({ close, done, user }: DialogProps & { user?: User }) {
               disabled={!!user}
               minLength={2}
               required
+              autoFocus={!user}
             />
           </Field>
           <div className="form-grid">

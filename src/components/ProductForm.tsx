@@ -299,6 +299,12 @@ export function ProductForm({
   useEffect(() => {
     void listDrafts();
   }, [intent]);
+  useEffect(() => {
+    const id = window.requestAnimationFrame(() =>
+      form.current?.querySelector<HTMLInputElement>("[name=name]")?.focus(),
+    );
+    return () => window.cancelAnimationFrame(id);
+  }, []);
   function load(e: Entry, index = -1) {
     setEntry(e);
     setCursor(index);
