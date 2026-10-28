@@ -780,14 +780,14 @@ export function App() {
                   documentId={saleEditId}
                   seedProduct={saleSeed}
                   close={() => {
-                    setSaleTab("history");
+                    setSaleTab("bill");
                     setSaleEditId(undefined);
                     setSaleSeed(undefined);
                     setBillEpoch((v) => v + 1);
                   }}
                   done={(s, result: any) => {
                     toast(s, { reload: true });
-                    setSaleTab("history");
+                    setSaleTab("bill");
                     setSaleEditId(undefined);
                     setSaleSeed(undefined);
                     setBillEpoch((v) => v + 1);
@@ -863,13 +863,13 @@ export function App() {
                   inline
                   documentId={purchaseEditId}
                   close={() => {
-                    setPurchaseTab("history");
+                    setPurchaseTab("bill");
                     setPurchaseEditId(undefined);
                     setPurchaseEpoch((v) => v + 1);
                   }}
                   done={(s, result: any) => {
                     toast(s, { reload: true });
-                    setPurchaseTab("history");
+                    setPurchaseTab("bill");
                     setPurchaseEditId(undefined);
                     setPurchaseEpoch((v) => v + 1);
                     if (result?.print === true && result?.id)
