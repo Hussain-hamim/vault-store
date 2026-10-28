@@ -222,7 +222,6 @@ export function invoicePrintModel(
     ]
       .filter(Boolean)
       .join("\n"),
-    endNote: t("invoice.afnNote"),
   };
 }
 /** One report definition supplies the screen, PDF/print, and numeric CSV rows. */

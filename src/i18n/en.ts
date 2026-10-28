@@ -247,6 +247,7 @@ export const en: MessageTree = {
     rateValue: "1 {code} = {rate} AF",
     ratePlaceholder: "Enter AF conversion rate",
     manage: "Purchase currencies",
+    loadFailed: "Could not load the currency list. Showing defaults only.",
     baseHint:
       "Choose or add purchase currencies here. Inventory, balances and reports stay in AFN.",
     returnQuantity:
@@ -480,6 +481,7 @@ export const en: MessageTree = {
     remember: "Remember these choices on this computer",
     preview: "Print preview",
     previewError: "The print preview could not load. Close it and try again.",
+    cancelled: "Print or Save PDF was cancelled. Nothing was sent to the printer.",
     savePdf: "Save PDF",
     downloadHtml: "Download printable file",
     printPdf: "Print / save PDF",
@@ -631,6 +633,8 @@ export const en: MessageTree = {
     createStore: "Create your store",
     signIn: "Sign in",
     dataStays: "Your data stays on this computer.",
+    rememberedLoadFailed:
+      "Saved accounts on this computer could not be loaded. You can still sign in.",
   },
   topbar: {
     searchHere: "Search here",
@@ -746,6 +750,8 @@ export const en: MessageTree = {
     errChooseSupplier: "Choose a supplier.",
     errChooseCustomer: "Choose a customer.",
     errCustomerName: "Enter the customer name (at least 2 characters).",
+    phoneUpdateFailed:
+      "Sale can continue, but the customer phone number could not be saved.",
     errFxRate: "Enter the AED→AFN exchange rate used for this Dubai purchase.",
     errAfnCost: "{name}: AFN cost must equal AED × exchange rate.",
     errProductGone: "Product {name} is no longer in the catalog.",
@@ -989,7 +995,8 @@ export const en: MessageTree = {
       "Enter the national number for +{dial} ({n} digits). A leading 0 is OK.",
     invalidLength: "Phone number for +{dial} must be {n} digits.",
   },
-  customerHistory: { "title": "Sales history", "start": "Start date", "end": "End date", "allDates": "All dates", "date": "Date", "invoice": "Invoice", "products": "Products / quantity", "total": "Sales total", "returned": "Returns", "paid": "Paid / allocated", "remaining": "Remaining on invoices", "currentBalance": "Current customer balance", "scope": "Includes all sales in the selected dates. Payments, returns and remaining balances are current; the customer balance includes all account activity. Print/PDF includes every filtered invoice.", "empty": "No sales in this period.", "more": "Load more"},
+  customerHistory: { "title": "Invoices", "start": "Start date", "end": "End date", "allDates": "All dates", "date": "Date", "invoice": "Invoice", "products": "Products / quantity", "total": "Sales total", "returned": "Returns", "paid": "Paid / allocated", "remaining": "Remaining on invoices", "currentBalance": "Current customer balance", "scope": "Includes all sales in the selected dates. Payments, returns and remaining balances are current; the customer balance includes all account activity. Print/PDF includes every filtered invoice.", "empty": "No sales in this period.", "more": "Load more"},
+  supplierHistory: { "title": "Invoices", "start": "Start date", "end": "End date", "allDates": "All dates", "date": "Date", "invoice": "Invoice", "products": "Products / quantity", "total": "Purchase total", "returned": "Returns", "paid": "Paid / allocated", "remaining": "Remaining on invoices", "currentBalance": "Current supplier balance", "scope": "Includes all purchases in the selected dates. Payments, returns and remaining balances are current; the supplier balance includes all account activity. Print/PDF includes every filtered invoice.", "empty": "No purchases in this period.", "more": "Load more"},
   pagination: {
     loadMore: "Load more",
     showingN: "Showing {n}",
@@ -1502,6 +1509,9 @@ export const en: MessageTree = {
     billFooterPh: "Thank you for shopping with us.",
     saveBill: "Save bill design",
     saved: "Store settings saved.",
+    saveFailed: "Could not save store settings. Your changes were not stored.",
+    languageSaveFailed:
+      "Language updated on this screen, but could not be saved for the store.",
     taxNote:
       "Tax is disabled. Business dates use Asia/Kabul. All application data is stored on this computer.",
     team: "Your team",

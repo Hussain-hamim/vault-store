@@ -22,20 +22,25 @@ type Row = {
   }[];
 };
 type Result = {
-  party: { name: string; phone: string; balance: number };
+  party: { name: string; phone: string; balance: number; kind?: string };
   rows: Row[];
   totals: { total: number; paid: number; returned: number; remaining: number };
 };
+
+/** Sale or purchase invoice list for a customer/supplier detail panel. */
 export function CustomerSalesHistory({
   id,
+  kind = "customer",
   refresh,
   onOpenInvoice,
 }: {
   id: string;
+  kind?: "customer" | "supplier";
   refresh: number;
   onOpenInvoice: (id: string) => void;
 }) {
   const { t, locale } = useI18n();
+  const catalog = kind === "supplier" ? "supplierHistory" : "customerHistory";
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
   const [data, setData] = useState<Result | null>(null);
@@ -46,7 +51,7 @@ export function CustomerSalesHistory({
     setData(null);
     setError("");
     setCount(10);
-    api<Result>("customerSalesHistory", {
+    api<Result>("partyInvoiceHistory", {
       id,
       start: start || undefined,
       end: end || undefined,
@@ -69,7 +74,7 @@ export function CustomerSalesHistory({
     "returned",
     "paid",
     "remaining",
-  ].map((key, i) => ({ label: t("customerHistory." + key), numeric: i >= 3 }));
+  ].map((key, i) => ({ label: t(`${catalog}.${key}`), numeric: i >= 3 }));
   const cells = (row: Row) => [
     row.date,
     row.number,
@@ -91,43 +96,44 @@ export function CustomerSalesHistory({
   const summary = data
     ? [
         {
-          label: t("customerHistory.currentBalance"),
+          label: t(`${catalog}.currentBalance`),
           value: af(data.party.balance, 2),
           tone: "negative",
         },
         ...(["total", "returned", "paid", "remaining"] as const).map((key) => ({
-          label: t("customerHistory." + key),
+          label: t(`${catalog}.${key}`),
           value: af(data.totals[key], 2),
         })),
       ]
     : [];
   const report = (): PrintDocument => ({
     kind: "report",
-    preferenceGroup: "customer-ledger",
+    preferenceGroup:
+      kind === "supplier" ? "supplier-ledger" : "customer-ledger",
     locale,
-    title: t("customerHistory.title"),
+    title: t(`${catalog}.title`),
     subtitle: [data?.party.name, data?.party.phone].filter(Boolean).join(" · "),
     source: { type: "report", permission: "people" },
     metadata: [
       {
-        label: t("customerHistory.start"),
-        value: start || t("customerHistory.allDates"),
+        label: t(`${catalog}.start`),
+        value: start || t(`${catalog}.allDates`),
       },
       {
-        label: t("customerHistory.end"),
-        value: end || t("customerHistory.allDates"),
+        label: t(`${catalog}.end`),
+        value: end || t(`${catalog}.allDates`),
       },
     ],
-    note: t("customerHistory.scope"),
+    note: t(`${catalog}.scope`),
     summary,
     sections: [{ columns, rows: (data?.rows || []).map(cells) }],
-    emptyLabel: t("customerHistory.empty"),
+    emptyLabel: t(`${catalog}.empty`),
   });
   return (
     <section className="customer-sales-history" role="tabpanel">
       <div className="customer-history-toolbar">
         <label>
-          {t("customerHistory.start")}{" "}
+          {t(`${catalog}.start`)}{" "}
           <input
             type="date"
             value={start}
@@ -135,7 +141,7 @@ export function CustomerSalesHistory({
           />
         </label>
         <label>
-          {t("customerHistory.end")}{" "}
+          {t(`${catalog}.end`)}{" "}
           <input
             type="date"
             value={end}
@@ -150,7 +156,7 @@ export function CustomerSalesHistory({
               setEnd("");
             }}
           >
-            {t("customerHistory.allDates")}
+            {t(`${catalog}.allDates`)}
           </button>
         )}
         {data && (
@@ -249,10 +255,10 @@ export function CustomerSalesHistory({
               </tbody>
             </table>
           </div>
-          {!data.rows.length && <p>{t("customerHistory.empty")}</p>}
+          {!data.rows.length && <p>{t(`${catalog}.empty`)}</p>}
           {count < data.rows.length && (
             <button className="button" onClick={() => setCount((n) => n + 10)}>
-              {t("customerHistory.more")}
+              {t(`${catalog}.more`)}
             </button>
           )}
         </>

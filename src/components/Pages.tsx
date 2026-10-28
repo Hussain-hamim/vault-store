@@ -41,6 +41,7 @@ import type { PrintDocument } from "../printing/types";
 import { partyLedgerPrintDocument } from "../printing/party-ledger.mjs";
 
 import { CompanyPage, HelpContent } from "./CompanyPages";
+import { CustomerSalesHistory } from "./CustomerSalesHistory";
 import { expenseAccountName } from "../expense-accounts";
 
 const EM_DASH = "—";
@@ -1063,7 +1064,8 @@ export function PeoplePage({
     [confirmDelete, setConfirmDelete] = useState<string | false>(false),
     [busy, setBusy] = useState(false),
     [ledgerAfter, setLedgerAfter] = useState(""),
-    [ledgerHistory, setLedgerHistory] = useState<string[]>([]);
+    [ledgerHistory, setLedgerHistory] = useState<string[]>([]),
+    [detailTab, setDetailTab] = useState<"ledger" | "invoices">("ledger");
   const searchQ = useDebouncedValue(q, 200);
   const canManage = user.permissions.includes("people");
   useEffect(() => {
@@ -1134,6 +1136,7 @@ export function PeoplePage({
     setSelected(id);
     setLedgerAfter("");
     setLedgerHistory([]);
+    setDetailTab("ledger");
     setConfirmDelete(false);
     setDetailActionError("");
   }
@@ -1577,105 +1580,151 @@ export function PeoplePage({
                       )}
                   </div>
                 </div>
-                <div className="table-wrap">
-                  <table className="data-table ledger-table">
-                    <thead>
-                      <tr>
-                        <th className="ledger-col-date">{t("common.date")}</th>
-                        <th className="ledger-col-ref">
-                          {t("ledger.reference")}
-                        </th>
-                        <th className="numeric ledger-col-debit">
-                          {t("ledger.debit")}
-                        </th>
-                        <th className="numeric ledger-col-credit">
-                          {t("ledger.credit")}
-                        </th>
-                        <th className="numeric ledger-col-balance">
-                          {t("ledger.balance")}
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {ledgerRows.map((e: any) => (
-                        <tr
-                          key={e.id}
-                          onClick={() =>
-                            open("invoice", {
-                              id: e.document_id,
-                              kind: e.kind,
-                            })
-                          }
-                        >
-                          <td className="ledger-col-date">
-                            <bdi dir="ltr">{e.date}</bdi>
-                          </td>
-                          <td className="ledger-col-ref">
-                            <strong>{e.label}</strong>
-                            {e.number ? (
-                              <small className="block muted">
-                                <bdi dir="ltr">{e.number}</bdi>
-                              </small>
-                            ) : null}
-                            {["payment", "receipt"].includes(e.kind) &&
-                              e.paid_foreign != null && (
-                                <small className="block ledger-foreign-payment">
-                                  <bdi dir="ltr">
-                                    {foreignMoney(e.paid_foreign, e.currency)} →{" "}
-                                    {af(
-                                      afnFromAed(e.paid_foreign, e.fx_rate),
-                                      2,
-                                    )}
-                                  </bdi>
-                                </small>
-                              )}
-                          </td>
-                          <td
-                            className={`money ledger-col-debit ${e.debit ? (kind === "customer" ? "text-red" : "text-green") : "muted"}`}
-                          >
-                            <strong>{e.debit ? af(e.debit) : EM_DASH}</strong>
-                          </td>
-                          <td
-                            className={`money ledger-col-credit ${e.credit ? (kind === "customer" ? "text-green" : "text-red") : "muted"}`}
-                          >
-                            <strong>{e.credit ? af(e.credit) : EM_DASH}</strong>
-                          </td>
-                          <td
-                            className={`money ledger-col-balance ${e.running > 0 ? "text-red" : "text-green"}`}
-                          >
-                            <strong>{af(e.running)}</strong>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div
+                  className="owner-ledger-tabs customer-detail-tabs"
+                  role="tablist"
+                >
+                  <button
+                    className="button"
+                    role="tab"
+                    aria-selected={detailTab === "ledger"}
+                    onClick={() => setDetailTab("ledger")}
+                  >
+                    {t("partyDetail.ledgerTitle")}
+                  </button>
+                  <button
+                    className="button"
+                    role="tab"
+                    aria-selected={detailTab === "invoices"}
+                    onClick={() => setDetailTab("invoices")}
+                  >
+                    {t(
+                      kind === "customer"
+                        ? "customerHistory.title"
+                        : "supplierHistory.title",
+                    )}
+                  </button>
                 </div>
-                {!detail.entries.length && (
-                  <p className="muted">{t("people.noLedgerActivity")}</p>
+                {detailTab === "invoices" ? (
+                  <CustomerSalesHistory
+                    id={detail.party.id}
+                    kind={kind}
+                    refresh={refresh}
+                    onOpenInvoice={(id) => open("invoice", { id })}
+                  />
+                ) : (
+                  <>
+                    <div className="table-wrap">
+                      <table className="data-table ledger-table">
+                        <thead>
+                          <tr>
+                            <th className="ledger-col-date">
+                              {t("common.date")}
+                            </th>
+                            <th className="ledger-col-ref">
+                              {t("ledger.reference")}
+                            </th>
+                            <th className="numeric ledger-col-debit">
+                              {t("ledger.debit")}
+                            </th>
+                            <th className="numeric ledger-col-credit">
+                              {t("ledger.credit")}
+                            </th>
+                            <th className="numeric ledger-col-balance">
+                              {t("ledger.balance")}
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {ledgerRows.map((e: any) => (
+                            <tr
+                              key={e.id}
+                              onClick={() =>
+                                open("invoice", {
+                                  id: e.document_id,
+                                  kind: e.kind,
+                                })
+                              }
+                            >
+                              <td className="ledger-col-date">
+                                <bdi dir="ltr">{e.date}</bdi>
+                              </td>
+                              <td className="ledger-col-ref">
+                                <strong>{e.label}</strong>
+                                {e.number ? (
+                                  <small className="block muted">
+                                    <bdi dir="ltr">{e.number}</bdi>
+                                  </small>
+                                ) : null}
+                                {["payment", "receipt"].includes(e.kind) &&
+                                  e.paid_foreign != null && (
+                                    <small className="block ledger-foreign-payment">
+                                      <bdi dir="ltr">
+                                        {foreignMoney(
+                                          e.paid_foreign,
+                                          e.currency,
+                                        )}{" "}
+                                        →{" "}
+                                        {af(
+                                          afnFromAed(e.paid_foreign, e.fx_rate),
+                                          2,
+                                        )}
+                                      </bdi>
+                                    </small>
+                                  )}
+                              </td>
+                              <td
+                                className={`money ledger-col-debit ${e.debit ? (kind === "customer" ? "text-red" : "text-green") : "muted"}`}
+                              >
+                                <strong>
+                                  {e.debit ? af(e.debit) : EM_DASH}
+                                </strong>
+                              </td>
+                              <td
+                                className={`money ledger-col-credit ${e.credit ? (kind === "customer" ? "text-green" : "text-red") : "muted"}`}
+                              >
+                                <strong>
+                                  {e.credit ? af(e.credit) : EM_DASH}
+                                </strong>
+                              </td>
+                              <td
+                                className={`money ledger-col-balance ${e.running > 0 ? "text-red" : "text-green"}`}
+                              >
+                                <strong>{af(e.running)}</strong>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    {!detail.entries.length && (
+                      <p className="muted">{t("people.noLedgerActivity")}</p>
+                    )}
+                    <div className="pagination ledger-pagination">
+                      <span>{t("ui.perPage", { n: 25 })}</span>
+                      <button
+                        className="button"
+                        disabled={!ledgerHistory.length}
+                        onClick={() => {
+                          setLedgerAfter(ledgerHistory.at(-1) || "");
+                          setLedgerHistory((h) => h.slice(0, -1));
+                        }}
+                      >
+                        {t("ui.newer")}
+                      </button>
+                      <button
+                        className="button"
+                        disabled={!detail.next}
+                        onClick={() => {
+                          setLedgerHistory((h) => [...h, ledgerAfter]);
+                          setLedgerAfter(detail.next || "");
+                        }}
+                      >
+                        {t("ui.older")}
+                      </button>
+                    </div>
+                  </>
                 )}
-                <div className="pagination ledger-pagination">
-                  <span>{t("ui.perPage", { n: 25 })}</span>
-                  <button
-                    className="button"
-                    disabled={!ledgerHistory.length}
-                    onClick={() => {
-                      setLedgerAfter(ledgerHistory.at(-1) || "");
-                      setLedgerHistory((h) => h.slice(0, -1));
-                    }}
-                  >
-                    {t("ui.newer")}
-                  </button>
-                  <button
-                    className="button"
-                    disabled={!detail.next}
-                    onClick={() => {
-                      setLedgerHistory((h) => [...h, ledgerAfter]);
-                      setLedgerAfter(detail.next || "");
-                    }}
-                  >
-                    {t("ui.older")}
-                  </button>
-                </div>
               </div>
             ) : (
               <Loading />
@@ -2561,11 +2610,14 @@ export function SettingsPage({
     [logoRight, setLogoRight] = useState(""),
     [watermark, setWatermark] = useState(""),
     [language, setLanguage] = useState<Locale>(locale);
+  // Sync from the loaded store only — never from refresh alone, or Save remounts
+  // the form with stale values and looks like it undid the edit.
   useEffect(() => {
-    setLogoLeft(data?.store?.logo_left || data?.store?.logo || "");
-    setLogoRight(data?.store?.logo_right || "");
-    setWatermark(data?.store?.watermark || "");
-    const lang = data?.store?.language;
+    if (!data?.store) return;
+    setLogoLeft(data.store.logo_left || data.store.logo || "");
+    setLogoRight(data.store.logo_right || "");
+    setWatermark(data.store.watermark || "");
+    const lang = data.store.language;
     if (lang === "en" || lang === "ps" || lang === "prs") setLanguage(lang);
   }, [
     data?.store?.logo,
@@ -2573,8 +2625,44 @@ export function SettingsPage({
     data?.store?.logo_right,
     data?.store?.watermark,
     data?.store?.language,
-    refresh,
+    data?.store?.name,
+    data?.store?.name_ps,
+    data?.store?.phone,
+    data?.store?.email,
+    data?.store?.address,
+    data?.store?.address_ps,
+    data?.store?.services,
+    data?.store?.bill_footer,
+    data?.store?.owner1_name,
+    data?.store?.owner1_phone,
+    data?.store?.owner2_name,
+    data?.store?.owner2_phone,
   ]);
+  const [formEpoch, setFormEpoch] = useState(0);
+  const storeFingerprint = data?.store
+    ? [
+        data.store.name,
+        data.store.name_ps,
+        data.store.phone,
+        data.store.email,
+        data.store.address,
+        data.store.address_ps,
+        data.store.services,
+        data.store.bill_footer,
+        data.store.owner1_name,
+        data.store.owner1_phone,
+        data.store.owner2_name,
+        data.store.owner2_phone,
+        data.store.language,
+        data.store.logo_left || data.store.logo || "",
+        data.store.logo_right || "",
+        data.store.watermark || "",
+      ].join("\u0001")
+    : "";
+  useEffect(() => {
+    if (!storeFingerprint) return;
+    setFormEpoch((n) => n + 1);
+  }, [storeFingerprint]);
   async function save(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setBusy(true);
@@ -2602,8 +2690,8 @@ export function SettingsPage({
       });
       setLocale(language);
       toast(t("settings.saved"), { reload: true });
-    } catch (e: any) {
-      setLocalError(e.message);
+    } catch (err: any) {
+      setLocalError(err.message || t("settings.saveFailed"));
     } finally {
       setBusy(false);
     }
@@ -2762,14 +2850,17 @@ export function SettingsPage({
             />
           )}
           {tab === "store" && data && (
-            <form className="settings-form" onSubmit={save} key={refresh}>
+            <form
+              className="settings-form"
+              onSubmit={save}
+              key={formEpoch}
+            >
               <Field label={t("language.label")} hint={t("language.hint")}>
                 <select
                   value={language}
                   onChange={(e) => {
                     const next = e.target.value as Locale;
                     setLanguage(next);
-                    setLocale(next);
                   }}
                 >
                   {LOCALES.map((l) => (

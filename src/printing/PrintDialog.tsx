@@ -167,7 +167,7 @@ export function PrintDialog({
     persist();
     try {
       if (window.vault?.renderPrint && mode !== "html") {
-        await sendPrintJob({
+        const result = await sendPrintJob({
           html,
           title: doc.reference || doc.title,
           options,
@@ -175,6 +175,10 @@ export function PrintDialog({
           kind: doc.kind,
           mode,
         });
+        if (result?.cancelled) {
+          setError(t("printing.cancelled"));
+          return;
+        }
       } else if (mode === "html") {
         const url = URL.createObjectURL(
           new Blob([html], { type: "text/html;charset=utf-8" }),

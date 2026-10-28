@@ -7,11 +7,29 @@ const {
   session,
   shell,
   safeStorage,
+  nativeImage,
 } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
 const { pathToFileURL } = require("node:url");
 let db, mainWindow, licensing, recovery;
+/** Packaged and dev icon path — prefer .ico on Windows so the window is not the Electron default. */
+function resolveAppIcon() {
+  const names =
+    process.platform === "win32"
+      ? ["build/icon.ico", "build/icon.png"]
+      : process.platform === "darwin"
+        ? ["build/icon.icns", "build/icon.png"]
+        : ["build/icon.png"];
+  const roots = [app.getAppPath(), path.join(__dirname, "..")];
+  for (const root of roots) {
+    for (const name of names) {
+      const candidate = path.join(root, name);
+      if (fs.existsSync(candidate)) return candidate;
+    }
+  }
+  return undefined;
+}
 let serviceRoot;
 let accounts;
 let recoveryRequested = process.argv.includes("--radefy-recovery");
@@ -668,13 +686,14 @@ async function start() {
       callback(permission === "media");
     },
   );
+  const appIcon = resolveAppIcon();
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 980,
     minWidth: 900,
     minHeight: 650,
     backgroundColor: "#f3f6fa",
-    icon: path.join(app.getAppPath(), "build/icon.png"),
+    ...(appIcon ? { icon: appIcon } : {}),
     title: brand.name,
     show: false,
     webPreferences: {
@@ -685,6 +704,14 @@ async function start() {
       webSecurity: true,
     },
   });
+  if (appIcon && process.platform === "win32") {
+    try {
+      const image = nativeImage.createFromPath(appIcon);
+      if (!image.isEmpty()) mainWindow.setIcon(image);
+    } catch {
+      /* window still opens; installer embeds the exe icon separately */
+    }
+  }
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   mainWindow.webContents.on("will-navigate", (event, url) => {
     if (
@@ -699,10 +726,9 @@ async function start() {
     applicationName: brand.name,
     applicationVersion: app.getVersion(),
     copyright: "Developed by " + brand.company,
-    iconPath: path.join(app.getAppPath(), "build/icon.png"),
+    ...(appIcon ? { iconPath: appIcon } : {}),
   });
-  if (process.platform === "darwin")
-    app.dock?.setIcon(path.join(app.getAppPath(), "build/icon.png"));
+  if (process.platform === "darwin" && appIcon) app.dock?.setIcon(appIcon);
   Menu.setApplicationMenu(
     Menu.buildFromTemplate([
       {

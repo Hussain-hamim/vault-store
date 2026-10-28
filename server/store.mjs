@@ -3224,6 +3224,7 @@ export class Store {
       partyDelete: "people",
       partyDetail: "people",
       customerSalesHistory: "people",
+      partyInvoiceHistory: "people",
       payment: "finance",
       paymentDelete: "finance",
       expense: "finance",
@@ -3725,36 +3726,67 @@ export class Store {
         return this.updateParty(user, args);
       case "partyDelete":
         return this.deleteParty(user, args);
-      case "customerSalesHistory": {
-        const d = z.object({ id: z.string(), start: date.optional(), end: date.optional() }).parse(args);
-        if (d.start && d.end && d.start > d.end) throw new Error("Start date must be before end date.");
+      case "customerSalesHistory":
+      case "partyInvoiceHistory": {
+        const d = z
+          .object({ id: z.string(), start: date.optional(), end: date.optional() })
+          .parse(args);
+        if (d.start && d.end && d.start > d.end)
+          throw new Error("Start date must be before end date.");
         const party = this.partyBalance(d.id);
-        if (party.kind !== "customer") throw new Error("Customer required.");
-        const conditions = ["d.party_id=?", "d.kind='sale'", "d.category!='Opening balance'"];
+        if (command === "customerSalesHistory" && party.kind !== "customer")
+          throw new Error("Customer required.");
+        if (!["customer", "supplier"].includes(party.kind))
+          throw new Error("Customer or supplier required.");
+        const docKind = party.kind === "customer" ? "sale" : "purchase";
+        const returnKind =
+          party.kind === "customer" ? "sale_return" : "purchase_return";
+        const conditions = [
+          "d.party_id=?",
+          `d.kind='${docKind}'`,
+          "d.category!='Opening balance'",
+        ];
         const params = [d.id];
-        if (d.start) { conditions.push("d.date>=?"); params.push(d.start); }
-        if (d.end) { conditions.push("d.date<=?"); params.push(d.end); }
-        const rows = this.all(`SELECT d.id,d.number,d.date,d.total,d.paid,
-          COALESCE((SELECT SUM(r.total) FROM documents r WHERE r.original_id=d.id AND r.kind='sale_return'),0) returned
-          FROM documents d WHERE ${conditions.join(" AND ")} ORDER BY d.date DESC,d.created_at DESC,d.id DESC`, ...params);
-        const lines = this.all(`SELECT l.document_id,l.quantity,COALESCE(s.name,p.name) name,
+        if (d.start) {
+          conditions.push("d.date>=?");
+          params.push(d.start);
+        }
+        if (d.end) {
+          conditions.push("d.date<=?");
+          params.push(d.end);
+        }
+        const rows = this.all(
+          `SELECT d.id,d.number,d.date,d.total,d.paid,
+          COALESCE((SELECT SUM(r.total) FROM documents r WHERE r.original_id=d.id AND r.kind='${returnKind}'),0) returned
+          FROM documents d WHERE ${conditions.join(" AND ")} ORDER BY d.date DESC,d.created_at DESC,d.id DESC`,
+          ...params,
+        );
+        const lines = this.all(
+          `SELECT l.document_id,l.quantity,COALESCE(s.name,p.name) name,
           COALESCE(s.brand,p.brand) brand,COALESCE(s.model,p.model) model,COALESCE(s.sku,p.sku) sku
           FROM document_lines l JOIN documents d ON d.id=l.document_id
           JOIN products p ON p.id=l.product_id LEFT JOIN document_product_snapshots s ON s.line_id=l.id
-          WHERE ${conditions.join(" AND ")} ORDER BY l.rowid`, ...params);
+          WHERE ${conditions.join(" AND ")} ORDER BY l.rowid`,
+          ...params,
+        );
         const byDocument = new Map();
         for (const line of lines) {
-          if (!byDocument.has(line.document_id)) byDocument.set(line.document_id, []);
+          if (!byDocument.has(line.document_id))
+            byDocument.set(line.document_id, []);
           byDocument.get(line.document_id).push(line);
         }
         for (const row of rows) {
           row.remaining = Math.max(0, row.total - row.returned - row.paid);
           row.lines = byDocument.get(row.id) || [];
         }
-        const totals = rows.reduce((sum, row) => {
-          for (const field of ["total", "paid", "returned", "remaining"]) sum[field] += row[field];
-          return sum;
-        }, { total: 0, paid: 0, returned: 0, remaining: 0 });
+        const totals = rows.reduce(
+          (sum, row) => {
+            for (const field of ["total", "paid", "returned", "remaining"])
+              sum[field] += row[field];
+            return sum;
+          },
+          { total: 0, paid: 0, returned: 0, remaining: 0 },
+        );
         return { party, rows, totals };
       }
       case "partyDetail": {

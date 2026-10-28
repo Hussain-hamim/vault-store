@@ -394,15 +394,22 @@ export function App() {
     setSearch("");
   }, []);
   async function changeLanguage(next: Locale) {
+    const previous = locale;
     setLocale(next);
     try {
       if (status?.store && user?.permissions.includes("settings")) {
         await api("saveSettings", {
-          ...status.store,
           name: status.store.name,
+          name_ps: status.store.name_ps || "",
           phone: status.store.phone || "",
           address: status.store.address || "",
+          address_ps: status.store.address_ps || "",
           email: status.store.email || "",
+          services: status.store.services || "",
+          owner1_name: status.store.owner1_name || "",
+          owner1_phone: status.store.owner1_phone || "",
+          owner2_name: status.store.owner2_name || "",
+          owner2_phone: status.store.owner2_phone || "",
           logo: status.store.logo_left || status.store.logo || "",
           logo_left: status.store.logo_left || status.store.logo || "",
           logo_right: status.store.logo_right || "",
@@ -414,8 +421,9 @@ export function App() {
           s ? { ...s, store: { ...s.store, language: next } } : s,
         );
       }
-    } catch {
-      /* local preference still applied */
+    } catch (error: any) {
+      setLocale(previous);
+      toast(error?.message || t("settings.languageSaveFailed"));
     }
   }
   const pickGlobalHit = useCallback(
@@ -1169,6 +1177,10 @@ function Auth({
   const { t, dir } = useI18n();
   const [remembered, setRemembered] = useState<any>(null);
   const [selectedUsername, setSelectedUsername] = useState(ownerUsername || "");
+  const [recover, setRecover] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState(""),
+    [busy, setBusy] = useState(false);
   useEffect(() => {
     window.vault
       ?.accounts?.("list")
@@ -1176,12 +1188,10 @@ function Auth({
         setRemembered(saved);
         if (saved.recovery) setRecover(true);
       })
-      .catch(() => {});
-  }, []);
-  const [recover, setRecover] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState(""),
-    [busy, setBusy] = useState(false);
+      .catch((e) => {
+        setError(e?.message || t("auth.rememberedLoadFailed"));
+      });
+  }, [t]);
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const f = new FormData(e.currentTarget);

@@ -557,8 +557,11 @@ export function TradeForm({
             address: match.address || "",
           });
           match.phone = phone;
-        } catch {
-          /* keep sale moving if phone update is denied */
+        } catch (error: any) {
+          // Sale continues, but the phone change was not stored.
+          setError(
+            error?.message || t("sales.phoneUpdateFailed"),
+          );
         }
       }
       chooseParty(match);
@@ -3208,7 +3211,6 @@ export function InvoiceDialog({
                 ) : null}
               </>
             )}
-            <p className="subtle">{t("invoice.afnNote")}</p>
           </div>
           {returning && (
             <form className="return-form" onSubmit={postReturn}>
@@ -4357,12 +4359,57 @@ export function PartyDetailDialog({
               )}
             </div>
           )}
-          {kind === "customer" && <div className="owner-ledger-tabs customer-detail-tabs" role="tablist">
-            <button className="button" role="tab" aria-selected={detailTab === "ledger" && ledgerView === "trade"} onClick={() => { setDetailTab("ledger"); setLedgerView("trade"); setLedgerAfter(""); setLedgerHistory([]); }}>{t("partyDetail.ledgerTitle")}</button>
-            <button className="button" role="tab" aria-selected={detailTab === "sales"} onClick={() => setDetailTab("sales")}>{t("customerHistory.title")}</button>
-            {canResale && <button className="button" role="tab" aria-selected={detailTab === "ledger" && ledgerView === "resale"} onClick={() => { setDetailTab("ledger"); setLedgerView("resale"); setLedgerAfter(""); setLedgerHistory([]); }}>{t("resale.ownerLedger")}</button>}
-          </div>}
-          {detailTab === "sales" ? <CustomerSalesHistory id={current.id} refresh={refresh} onOpenInvoice={(id) => open("invoice", { id })} /> : <>
+          <div className="owner-ledger-tabs customer-detail-tabs" role="tablist">
+            <button
+              className="button"
+              role="tab"
+              aria-selected={detailTab === "ledger" && ledgerView === "trade"}
+              onClick={() => {
+                setDetailTab("ledger");
+                setLedgerView("trade");
+                setLedgerAfter("");
+                setLedgerHistory([]);
+              }}
+            >
+              {t("partyDetail.ledgerTitle")}
+            </button>
+            <button
+              className="button"
+              role="tab"
+              aria-selected={detailTab === "sales"}
+              onClick={() => setDetailTab("sales")}
+            >
+              {t(
+                kind === "customer"
+                  ? "customerHistory.title"
+                  : "supplierHistory.title",
+              )}
+            </button>
+            {canResale && (
+              <button
+                className="button"
+                role="tab"
+                aria-selected={detailTab === "ledger" && ledgerView === "resale"}
+                onClick={() => {
+                  setDetailTab("ledger");
+                  setLedgerView("resale");
+                  setLedgerAfter("");
+                  setLedgerHistory([]);
+                }}
+              >
+                {t("resale.ownerLedger")}
+              </button>
+            )}
+          </div>
+          {detailTab === "sales" ? (
+            <CustomerSalesHistory
+              id={current.id}
+              kind={kind}
+              refresh={refresh}
+              onOpenInvoice={(id) => open("invoice", { id })}
+            />
+          ) : (
+            <>
           <div className="panel-heading party-ledger-heading">
             <h3>
               {t(
@@ -4502,7 +4549,8 @@ export function PartyDetailDialog({
               </div>
             </>
           )}
-          </>}
+            </>
+          )}
         </div>
       </div>
       <div className="modal-actions">

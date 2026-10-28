@@ -76,7 +76,8 @@
       "package.json",
       "node_modules/zod/**/*",
       "shared/**/*",
-      "build/icon.png"
+      "build/icon.png",
+      "build/icon.ico"
     ],
     "asarUnpack": [
       "server/**/*",
@@ -101,7 +102,7 @@
       "target": [
         "nsis"
       ],
-      "signAndEditExecutable": false,
+      "signExecutable": false,
       "icon": "build/icon.ico"
     },
     "nsis": {

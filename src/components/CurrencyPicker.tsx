@@ -114,9 +114,14 @@ export function CurrencyPicker({
     const refresh = () =>
       api<Currency[]>("currencies")
         .then((data) => {
-          if (active) setRows(data);
+          if (!active) return;
+          setRows(data);
+          setError("");
         })
-        .catch(() => {});
+        .catch((e) => {
+          if (!active) return;
+          setError(e.message || t("currencies.loadFailed"));
+        });
     refresh();
     window.addEventListener("currencies-changed", refresh);
     return () => {
