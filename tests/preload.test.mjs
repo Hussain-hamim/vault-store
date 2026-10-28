@@ -24,6 +24,7 @@ test("desktop preload unwraps successful commands and keeps the public API narro
   const api = bridge({ ok: true, result: { setup: true } });
   assert.equal((await api.request("status", {})).setup, true);
   assert.equal(api.send, undefined);
+  assert.equal(api["share" + "Whats" + "App"], undefined);
   assert.equal(Object.isFrozen(api), true);
 });
 test("desktop validation errors stay readable without Electron protocol details", async () => {
@@ -47,20 +48,4 @@ test("desktop print bridge returns save results and readable print errors", asyn
     failure.renderPrint({}, "test-session"),
     (e) => e.message === "Invalid print job.",
   );
-});
-
-test("WhatsApp errors retain their code for translated attachment/permission failures", async () => {
-  const api = bridge({
-    ok: false,
-    error: "WHATSAPP_ATTACH_FAILED",
-    code: "WHATSAPP_ATTACH_FAILED",
-  });
-  await assert.rejects(api.shareWhatsApp({}, "session"), {
-    code: "WHATSAPP_ATTACH_FAILED",
-  });
-  const success = bridge({
-    ok: true,
-    result: { submitted: true, pdfPath: "/test.pdf" },
-  });
-  assert.equal((await success.shareWhatsApp({}, "session")).submitted, true);
 });

@@ -350,11 +350,10 @@ export const en: MessageTree = {
     contactTitle: "Contact Radefy Systems",
     contactBody: "Reach the team behind Radefy TechMart.",
     contactPending:
-      "Official website, email and WhatsApp details will appear here once provided by Radefy Systems.",
+      "Official website and email details will appear here once provided by Radefy Systems.",
     contactError: "Could not open this contact. Please try again.",
     website: "Website",
     email: "Email",
-    whatsapp: "WhatsApp",
     quickHelp: "Get things done faster",
     shortcutsBody:
       "Search actions and see the keyboard shortcuts available for your account.",
@@ -990,45 +989,7 @@ export const en: MessageTree = {
       "Enter the national number for +{dial} ({n} digits). A leading 0 is OK.",
     invalidLength: "Phone number for +{dial} must be {n} digits.",
   },
-  customerHistory: { "share": "WhatsApp report", "shareText": "Hello {name}, here is your sales history from {start} to {end}.","title": "Sales history", "start": "Start date", "end": "End date", "allDates": "All dates", "date": "Date", "invoice": "Invoice", "products": "Products / quantity", "total": "Sales total", "returned": "Returns", "paid": "Paid / allocated", "remaining": "Remaining on invoices", "currentBalance": "Current customer balance", "scope": "Includes all sales in the selected dates. Payments, returns and remaining balances are current; the customer balance includes all account activity. Print/PDF includes every filtered invoice.", "empty": "No sales in this period.", "more": "Load more"},
-  whatsapp: {
-
-    chooseFormat: "Send document as",
-    image: "Image (PNG)",
-    cancelShare: "Cancel",
-    canceled: "Sharing canceled.",
-    fileSubmitted: "File submitted in WhatsApp.",
-    imageTooLarge: "This document is too long for one image. Choose PDF to include every row.",
-
-    sendInvoice: "WhatsApp invoice",
-    sendLedger: "WhatsApp ledger",
-    needPhone:
-      "Add a valid phone number with country code for this customer first.",
-    opened: "WhatsApp opened for this customer.",
-    openedWithPdf:
-      "PDF submitted to WhatsApp. Check its delivery status in the customer’s chat.",
-    openedWithPdfManual:
-      "PDF saved to Downloads. Attach that file using WhatsApp’s File or Document option.",
-    notInstalled:
-      "Could not open WhatsApp Desktop. Install it and sign in, then try again. Your PDF is in Downloads.",
-    automationDenied:
-      "Allow this app in macOS Privacy & Security → Accessibility and Automation → System Events, then retry. Your PDF is in Downloads.",
-    chatNotReady:
-      "Could not confirm the customer’s chat. Sign in to WhatsApp Desktop, close any open dialogs and try again. No PDF was sent.",
-    attachFailed:
-      "WhatsApp did not show the expected PDF attachment. No message was sent. Your PDF is in Downloads; you can attach it manually.",
-    sendUnconfirmed:
-      "Could not confirm the send result. Check the customer’s WhatsApp chat before retrying to avoid sending twice. Your PDF is in Downloads.",
-    busy: "A WhatsApp share is already running. Wait for it to finish.",
-    pdfFailed:
-      "Could not prepare the PDF for WhatsApp. Try Save PDF, then send again.",
-    needDesktop:
-      "Sending invoice/ledger PDFs needs the Radefy TechMart desktop app with WhatsApp Desktop installed.",
-    invoiceText:
-      "Hello {name}, here is invoice {number}. Total: {total}. Please find the file attached.",
-    ledgerText:
-      "Hello {name}, here is your account ledger. Outstanding balance: {balance}. Please find the file attached.",
-  },
+  customerHistory: { "title": "Sales history", "start": "Start date", "end": "End date", "allDates": "All dates", "date": "Date", "invoice": "Invoice", "products": "Products / quantity", "total": "Sales total", "returned": "Returns", "paid": "Paid / allocated", "remaining": "Remaining on invoices", "currentBalance": "Current customer balance", "scope": "Includes all sales in the selected dates. Payments, returns and remaining balances are current; the customer balance includes all account activity. Print/PDF includes every filtered invoice.", "empty": "No sales in this period.", "more": "Load more"},
   pagination: {
     loadMore: "Load more",
     showingN: "Showing {n}",
@@ -1531,10 +1492,9 @@ export const en: MessageTree = {
     servicesHint: "Shown under the store name on sale bills.",
     servicesPh: "Laptop sales · Mobile repair · CCTV installation",
     billOwners: "Store owners on the bill",
-    billOwnersHint: "Up to two owners with phone and WhatsApp on sale invoices.",
+    billOwnersHint: "Up to two owners with phone numbers on sale invoices.",
     ownerName: "Owner {n} name",
     ownerPhone: "Owner {n} phone",
-    ownerWhatsapp: "Owner {n} WhatsApp",
     addressPs: "Address (Pashto)",
     addressPsHint: "Printed at the bottom of sale invoices.",
     billFooter: "Bill note",

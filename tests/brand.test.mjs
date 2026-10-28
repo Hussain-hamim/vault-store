@@ -90,19 +90,16 @@ test("support links accept configured contacts and reject unsafe destinations", 
     [
       "https://www.radefysystems.com/",
       "mailto:hello@radefysystems.com",
-      "https://wa.me/93771707272",
     ],
   );
   assert.deepEqual(
     supportLinks({
       website: "https://example.com/support",
       email: "help@example.com",
-      whatsapp: "+93 700 123 456",
     }).map((a) => a.url),
     [
       "https://example.com/support",
       "mailto:help@example.com",
-      "https://wa.me/93700123456",
     ],
   );
   for (const website of [
@@ -115,7 +112,6 @@ test("support links accept configured contacts and reject unsafe destinations", 
   assert.deepEqual(
     supportLinks({
       email: "x@example.com\r\nBcc:other@example.com",
-      whatsapp: "javascript:123",
     }),
     [],
   );

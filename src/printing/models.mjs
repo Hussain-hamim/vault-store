@@ -1,5 +1,3 @@
-import brand from "../../shared/brand.json" with { type: "json" };
-
 export function invoiceWhen(doc) {
   const stamp = doc?.created_at;
   if (!stamp) return doc?.date || "";
@@ -46,7 +44,6 @@ export function invoicePrintModel(
     billStyle: doc.kind === "sale" ? "saleShop" : "standard",
     companyCredit: {
       label: t("company.builtBy"),
-      whatsapp: brand.support.whatsapp,
     },
     locale,
     store,

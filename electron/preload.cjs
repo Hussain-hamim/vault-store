@@ -25,19 +25,6 @@ contextBridge.exposeInMainWorld(
       return reply.result;
     },
     openExternal: (url) => ipcRenderer.invoke("vault:open-support", url),
-    shareWhatsApp: async (payload, token) => {
-      const reply = await ipcRenderer.invoke(
-        "vault:whatsapp-share",
-        payload,
-        token,
-      );
-      if (!reply.ok) {
-        const error = new Error(reply.error);
-        error.code = reply.code;
-        throw error;
-      }
-      return reply.result;
-    },
     pickFolder: () => ipcRenderer.invoke("vault:folder"),
     pickBackup: () => ipcRenderer.invoke("vault:backup-file"),
     restore: (file, token) => ipcRenderer.invoke("vault:restore", file, token),

@@ -7,7 +7,6 @@ const {
   session,
   shell,
   safeStorage,
-  systemPreferences,
 } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
@@ -497,20 +496,6 @@ async function start() {
     }
   });
   let printBusy = false;
-  function isCustomerWhatsAppUrl(url) {
-    try {
-      const parsed = new URL(url);
-      if (parsed.protocol !== "https:" || parsed.hostname !== "wa.me")
-        return false;
-      if (!/^[1-9]\d{6,14}$/.test(parsed.pathname.replace(/^\//, "")))
-        return false;
-      for (const key of parsed.searchParams.keys())
-        if (key !== "text") return false;
-      return true;
-    } catch {
-      return false;
-    }
-  }
   ipcMain.handle("vault:open-support", async (event, url) => {
     trusted(event);
     const { supportLinks } = await import(
@@ -523,155 +508,11 @@ async function start() {
       typeof url !== "string" ||
       !(
         supportLinks(brand.support).some((link) => link.url === url) ||
-        productPhotoCreditUrls().includes(url) ||
-        isCustomerWhatsAppUrl(url)
+        productPhotoCreditUrls().includes(url)
       )
     )
       throw new Error("Unknown support destination.");
     await shell.openExternal(url);
-  });
-  function safeDownloadName(base) {
-    const cleaned = String(base || "document")
-      .normalize("NFKC")
-      .replace(/[\\/:*?"<>|\u0000-\u001f]+/g, "-")
-      .replace(/\s+/g, "-")
-      .replace(/-+/g, "-")
-      .replace(/^-|-$/g, "")
-      .slice(0, 60);
-    const stamp = new Date().toISOString().slice(0, 10);
-    return `${cleaned || "document"}-${stamp}.pdf`;
-  }
-  const {
-    createWhatsAppSender,
-    saveSharePdf,
-  } = require("./whatsapp-share.cjs");
-  const sendWhatsAppPdf = createWhatsAppSender({
-    app,
-    shell,
-    checkPermissions: async () => {
-      if (
-        process.platform === "darwin" &&
-        !systemPreferences.isTrustedAccessibilityClient(false)
-      ) {
-        const error = new Error("WHATSAPP_AUTOMATION_DENIED");
-        error.code = "WHATSAPP_AUTOMATION_DENIED";
-        throw error;
-      }
-    },
-  });
-  let whatsAppBusy = false;
-  ipcMain.handle("vault:whatsapp-share", async (event, payload, token) => {
-    trusted(event);
-    if (whatsAppBusy)
-      return { ok: false, error: "WHATSAPP_BUSY", code: "WHATSAPP_BUSY" };
-    whatsAppBusy = true;
-    try {
-      licensing.assertActive();
-      const phone = String(payload?.phone || "").replace(/\D+/g, "");
-      if (!/^[1-9]\d{6,14}$/.test(phone))
-        throw new Error("Enter a valid WhatsApp phone number.");
-      const text =
-        typeof payload?.text === "string" ? payload.text.slice(0, 1000) : "";
-      let format = "pdf";
-      let pdfPath = null;
-      let downloadPath = null;
-      let shareResult = {};
-      if (payload?.job) {
-        if (printBusy)
-          throw new Error(
-            "Another print job is open. Finish it before starting another.",
-          );
-        printBusy = true;
-        try {
-          const {
-            validatePrintJob,
-            withPrintWindow,
-          } = require("./printing.cjs");
-          const job = validatePrintJob(payload.job);
-          const labels = payload.formatLabels;
-          if (labels) {
-            const label = (key, fallback) =>
-              typeof labels[key] === "string"
-                ? labels[key].slice(0, 200)
-                : fallback;
-            const choice = await dialog.showMessageBox(mainWindow, {
-              type: "question",
-              title: "WhatsApp",
-              message: label("title", "Send invoice as"),
-              buttons: [
-                "PDF",
-                label("image", "Image (PNG)"),
-                label("cancel", "Cancel"),
-              ],
-              defaultId: 0,
-              cancelId: 2,
-              noLink: true,
-            });
-            if (choice.response === 2)
-              return { ok: true, result: { canceled: true } };
-            format = choice.response === 1 ? "image" : "pdf";
-          }
-
-          const user = await db.request("me", {}, token);
-          if (job.kind === "invoice")
-            await db.request("document", { id: job.source.id }, token);
-          else if (!user.permissions.includes(job.source.permission))
-            throw new Error("Permission required: " + job.source.permission);
-          const { electronPrintOptions } = await import(
-            pathToFileURL(path.join(serviceRoot, "print-options.mjs")).href
-          );
-          const fileName = safeDownloadName(
-            job.fileBase || job.title || "radefy-document",
-          ).replace(/\.pdf$/, format === "image" ? ".png" : ".pdf");
-          await withPrintWindow(
-            BrowserWindow,
-            job.html,
-            mainWindow,
-            async (contents) => {
-              const bytes =
-                format === "image"
-                  ? await require("./whatsapp-image.cjs").renderShareImage(
-                      contents,
-                      BrowserWindow,
-                    )
-                  : await contents.printToPDF(
-                      electronPrintOptions(job.options, job.kind, true),
-                    );
-              downloadPath = await saveSharePdf(
-                app.getPath("downloads"),
-                fileName,
-                bytes,
-              );
-              pdfPath = downloadPath;
-              return { saved: true };
-            },
-          );
-        } finally {
-          printBusy = false;
-        }
-      }
-
-      if (pdfPath) {
-        // Desktop protocol only — wa.me opens a browser first and breaks PDF paste.
-        shareResult = await sendWhatsAppPdf({ phone, pdfPath, text, format });
-      } else {
-        const query = text ? `?text=${encodeURIComponent(text)}` : "";
-        await shell.openExternal(`https://wa.me/${phone}${query}`);
-      }
-      return {
-        ok: true,
-        result: {
-          opened: true,
-          pdfPath,
-          downloadPath,
-          ...shareResult,
-        },
-      };
-    } catch (error) {
-      return { ok: false, error: error.message, code: error.code };
-    } finally {
-      whatsAppBusy = false;
-    }
   });
   ipcMain.handle("vault:folder", async (event) => {
     trusted(event);

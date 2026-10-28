@@ -16,12 +16,5 @@ export function supportLinks(config = {}) {
       url: "mailto:" + encodeURIComponent(config.email).replace("%40", "@"),
       value: config.email,
     });
-  const number = String(config.whatsapp || "").replace(/[\s()+-]/g, "");
-  if (/^[1-9]\d{6,14}$/.test(number))
-    result.push({
-      id: "whatsapp",
-      url: "https://wa.me/" + number,
-      value: config.whatsapp,
-    });
   return result;
 }

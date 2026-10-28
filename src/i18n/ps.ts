@@ -343,11 +343,10 @@ export const ps: MessageTree = {
     contactTitle: "له Radefy Systems سره اړیکه",
     contactBody: "د Radefy TechMart له جوړوونکي ټیم سره اړیکه ونیسئ.",
     contactPending:
-      "د Radefy Systems رسمي وېبپاڼه، برېښنالیک او واټساپ به له ترلاسه کېدو وروسته دلته ښکاره شي.",
+      "د Radefy Systems رسمي وېبپاڼه او برېښنالیک به له ترلاسه کېدو وروسته دلته ښکاره شي.",
     contactError: "اړیکه پرانیستل نه شوه. بیا هڅه وکړئ.",
     website: "وېبپاڼه",
     email: "برېښنالیک",
-    whatsapp: "واټساپ",
     quickHelp: "کارونه په چټکۍ ترسره کړئ",
     shortcutsBody: "کارونه ولټوئ او د خپل حساب لپاره شته لنډلارې وګورئ.",
     supportDetails:
@@ -978,43 +977,7 @@ export const ps: MessageTree = {
       "د +{dial} لپاره ملي شمېره ولیکئ ({n} عددونه). په پیل کې ۰ هم سم دی.",
     invalidLength: "د +{dial} تلیفون شمېره باید {n} عددونه وي.",
   },
-  customerHistory: { "share": "راپور په واتساپ لېږل", "shareText": "سلام {name}، دا له {start} څخه تر {end} پورې ستاسو د پلور تاریخچه ده.","title": "د پلور تاریخچه", "start": "د پیل نېټه", "end": "د پای نېټه", "allDates": "ټولې نېټې", "date": "نېټه", "invoice": "بل", "products": "توکي / شمېر", "total": "د پلور ټول مبلغ", "returned": "بېرته ورکړل شوي", "paid": "ورکړل شوي / تخصیص شوي", "remaining": "د بلونو پاتې پیسې", "currentBalance": "د پېرودونکي اوسنی پاتې حساب", "scope": "د ټاکلو نېټو ټول پلورونه ښيي. تادیات، بېرته ورکړې او پاتې پیسې اوسني دي؛ د پېرودونکي حساب ټول فعالیتونه رانغاړي. چاپ او PDF ټول چاڼ شوي بلونه لري.", "empty": "په دې موده کې پلور نشته.", "more": "نور ښکاره کړئ"},
-  whatsapp: {
-
-    chooseFormat: "سند په کومه بڼه ولېږل شي؟",
-    image: "انځور (PNG)",
-    cancelShare: "لغوه",
-    canceled: "لېږل لغوه شول.",
-    fileSubmitted: "فایل په واتساپ کې ولېږل شو.",
-    imageTooLarge: "دا سند د یوه انځور لپاره ډېر اوږد دی. د ټولو قطارونو لپاره PDF غوره کړئ.",
-
-    sendInvoice: "واتساپ بل",
-    sendLedger: "واتساپ دفتر",
-    needPhone: "لومړی د دې پیرودونکي لپاره سم تلیفون له هیواد کوډ سره ولیکئ.",
-    opened: "واتساپ د دې پیرودونکي لپاره پرانیستل شو.",
-    openedWithPdf:
-      "PDF واتساپ ته وسپارل شو. د رسېدو حالت یې د پیرودونکي په خبرو کې وګورئ.",
-    openedWithPdfManual:
-      "PDF په Downloads کې خوندي شو. په واتساپ کې یې د File یا Document له لارې ضمیمه کړئ.",
-    notInstalled:
-      "واتساپ ډیسکټاپ پرانیستل نه شو. نصب یې کړئ، خپل حساب ته ننوځئ او بیا هڅه وکړئ. PDF په Downloads کې دی.",
-    automationDenied:
-      "په macOS کې دې اپ ته د Privacy & Security → Accessibility او Automation → System Events اجازه ورکړئ، بیا هڅه وکړئ. PDF په Downloads کې دی.",
-    chatNotReady:
-      "د پیرودونکي خبرې تایید نه شوې. واتساپ ډیسکټاپ ته ننوځئ، پرانیستې کړکۍ وتړئ او بیا هڅه وکړئ. PDF نه دی لېږل شوی.",
-    attachFailed:
-      "واتساپ د PDF ضمیمه ونه ښوده. پیغام نه دی لېږل شوی. PDF په Downloads کې دی؛ په خپله یې ضمیمه کولای شئ.",
-    sendUnconfirmed:
-      "د لېږلو پایله تایید نه شوه. له بیا هڅې مخکې د پیرودونکي خبرې وګورئ، څو دوه ځله ونه لېږل شي. PDF په Downloads کې دی.",
-    busy: "واتساپ ته لېږل روان دي. تر پای ته رسېدو یې انتظار وکړئ.",
-    pdfFailed: "د واتساپ لپاره PDF چمتو نه شو. Save PDF وکړئ او بیا هڅه وکړئ.",
-    needDesktop:
-      "د بل/دفتر PDF لیږلو لپاره Radefy TechMart ډیسکټاپ او واتساپ ډیسکټاپ اړین دي.",
-    invoiceText:
-      "سلام {name}، دا ستاسو بل {number} دی. مجموعه: {total}. مهرباني وکړئ ضمیمه شوی فایل وګورئ.",
-    ledgerText:
-      "سلام {name}، دا ستاسو حساب دفتر دی. پاتې بیلانس: {balance}. مهرباني وکړئ ضمیمه شوی فایل وګورئ.",
-  },
+  customerHistory: { "title": "د پلور تاریخچه", "start": "د پیل نېټه", "end": "د پای نېټه", "allDates": "ټولې نېټې", "date": "نېټه", "invoice": "بل", "products": "توکي / شمېر", "total": "د پلور ټول مبلغ", "returned": "بېرته ورکړل شوي", "paid": "ورکړل شوي / تخصیص شوي", "remaining": "د بلونو پاتې پیسې", "currentBalance": "د پېرودونکي اوسنی پاتې حساب", "scope": "د ټاکلو نېټو ټول پلورونه ښيي. تادیات، بېرته ورکړې او پاتې پیسې اوسني دي؛ د پېرودونکي حساب ټول فعالیتونه رانغاړي. چاپ او PDF ټول چاڼ شوي بلونه لري.", "empty": "په دې موده کې پلور نشته.", "more": "نور ښکاره کړئ"},
   pagination: {
     loadMore: "نور وښایاست",
     showingN: "ښودل کېږي {n}",
@@ -1508,10 +1471,9 @@ export const ps: MessageTree = {
     servicesHint: "د پلور بل کې د نوم لاندې ښکاري.",
     servicesPh: "لپ‌تاپ پلور · موبایل ترمیم · CCTV نصب",
     billOwners: "د بل مالکین",
-    billOwnersHint: "په پلور بل کې تر دوو مالکانو پورې د تلیفون او WhatsApp سره.",
+    billOwnersHint: "په پلور بل کې تر دوو مالکانو پورې د تلیفون شمېرو سره.",
     ownerName: "د مالکینو {n} نوم",
     ownerPhone: "د مالکینو {n} تلیفون",
-    ownerWhatsapp: "د مالکینو {n} WhatsApp",
     addressPs: "پته (پښتو)",
     addressPsHint: "د پلور بل په پای کې چاپېږي.",
     billFooter: "د بل یادښت",

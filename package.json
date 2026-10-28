@@ -14,7 +14,7 @@
     "tauri": "node scripts/desktop-dev.mjs",
     "tauri:dev": "node scripts/desktop-dev.mjs",
     "build": "tsc --noEmit && vite build && node scripts/prepare-sites-build.mjs",
-    "test": "node --test tests/store.test.mjs tests/preload.test.mjs tests/printing.test.mjs tests/reports.test.mjs tests/brand.test.mjs tests/product-photos.test.mjs tests/appearance.test.mjs tests/product-movements.test.mjs tests/licensing.test.mjs tests/licensing-credentials.test.mjs tests/database-worker.test.mjs tests/recovery.test.mjs tests/accounts.test.cjs tests/product-drafts.test.mjs tests/serialized-inventory.test.mjs tests/whatsapp-share.test.mjs tests/backup-workflow.test.mjs tests/phone.test.mjs",
+    "test": "node --test tests/store.test.mjs tests/preload.test.mjs tests/printing.test.mjs tests/reports.test.mjs tests/brand.test.mjs tests/product-photos.test.mjs tests/appearance.test.mjs tests/product-movements.test.mjs tests/licensing.test.mjs tests/licensing-credentials.test.mjs tests/database-worker.test.mjs tests/recovery.test.mjs tests/accounts.test.cjs tests/product-drafts.test.mjs tests/serialized-inventory.test.mjs tests/backup-workflow.test.mjs tests/phone.test.mjs",
     "test:sites": "node --test tests/sites-worker.test.mjs",
     "package:mac": "npm run license:check && npm run build && electron-builder --mac --dir && node scripts/check-packaged.mjs darwin",
     "package:win": "npm run license:check && npm run build && electron-builder --win nsis && node scripts/check-packaged.mjs win32",
@@ -38,8 +38,6 @@
     "test:accounts:desktop": "electron tests/accounts-electron-smoke.cjs",
     "test:products:desktop": "electron tests/product-entry-electron-smoke.cjs",
     "test:devices:desktop": "electron tests/serialized-inventory-electron-smoke.cjs",
-    "test:whatsapp": "node --test tests/whatsapp-share.test.mjs tests/preload.test.mjs",
-    "test:whatsapp:desktop": "electron tests/whatsapp-electron-smoke.cjs",
     "test:templates:desktop": "electron tests/invoice-templates-electron.cjs"
   },
   "dependencies": {
@@ -93,7 +91,7 @@
       "identity": "-",
       "hardenedRuntime": false,
       "extendInfo": {
-        "NSAppleEventsUsageDescription": "Radefy TechMart controls WhatsApp and System Events to attach and send the invoice or ledger file you choose to share."
+        "NSAppleEventsUsageDescription": "Radefy TechMart may use System Events for desktop document actions you choose."
       },
       "notarize": false,
       "icon": "build/icon.icns",

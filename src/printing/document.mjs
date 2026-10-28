@@ -143,17 +143,16 @@ ${fontFaces}
   };
   const companyCredit =
     doc.kind === "invoice" && doc.companyCredit
-      ? `<footer class="company-print-credit"><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="${COMPANY_LOGO_HOOK}"/><path fill-rule="evenodd" d="${COMPANY_LOGO_LEG}"/></svg>${creditLink("website", e(doc.companyCredit.label))}${creditLink("whatsapp", `<bdi dir="ltr">WhatsApp: ${e(westernDigits(doc.companyCredit.whatsapp))}</bdi>`)}</footer>`
+      ? `<footer class="company-print-credit"><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="${COMPANY_LOGO_HOOK}"/><path fill-rule="evenodd" d="${COMPANY_LOGO_LEG}"/></svg>${creditLink("website", e(doc.companyCredit.label))}</footer>`
       : "";
   const footer =
     options.showFooter && doc.store?.bill_footer
       ? `<p class="store-footer" dir="auto">${e(doc.store.bill_footer)}</p>`
       : "";
-  const ownerLine = (name, phone, whatsapp) => {
+  const ownerLine = (name, phone) => {
     const who = String(name || "").trim();
     if (!who) return "";
     const contacts = [
-      ["whatsapp", whatsapp],
       ["phone", phone],
     ]
       .map(([kind, v]) => {
@@ -171,12 +170,10 @@ ${fontFaces}
         ownerLine(
           doc.store?.owner1_name,
           doc.store?.owner1_phone,
-          doc.store?.owner1_whatsapp,
         ),
         ownerLine(
           doc.store?.owner2_name,
           doc.store?.owner2_phone,
-          doc.store?.owner2_whatsapp,
         ),
       ]
         .filter(Boolean)

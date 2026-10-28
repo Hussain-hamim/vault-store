@@ -1,7 +1,5 @@
 import "./customer-history.css";
-import { WhatsappLogoIcon } from "@phosphor-icons/react";
-import { canWhatsApp, shareViaWhatsApp } from "../whatsapp-share";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { api, af } from "../api";
 import { useI18n } from "../i18n";
 import { ReportPrintButton } from "../printing/PrintDialog";
@@ -42,15 +40,11 @@ export function CustomerSalesHistory({
   const [end, setEnd] = useState("");
   const [data, setData] = useState<Result | null>(null);
   const [error, setError] = useState("");
-  const [sharing, setSharing] = useState(false);
-  const sharingLock = useRef(false);
-  const [notice, setNotice] = useState("");
   const [count, setCount] = useState(10);
   useEffect(() => {
     let active = true;
     setData(null);
     setError("");
-    setNotice("");
     setCount(10);
     api<Result>("customerSalesHistory", {
       id,
@@ -129,35 +123,6 @@ export function CustomerSalesHistory({
     sections: [{ columns, rows: (data?.rows || []).map(cells) }],
     emptyLabel: t("customerHistory.empty"),
   });
-  async function shareReport() {
-    if (!data || sharingLock.current) return;
-    sharingLock.current = true;
-    setSharing(true);
-    setError("");
-    setNotice("");
-    const snapshot = report();
-    const recipient = data.party;
-    try {
-      const status = await api<{ store: PrintDocument["store"] }>("status");
-      const result = await shareViaWhatsApp({
-        phone: recipient.phone,
-        text: t("customerHistory.shareText", {
-          name: recipient.name,
-          start: start || t("customerHistory.allDates"),
-          end: end || t("customerHistory.allDates"),
-        }),
-        document: { ...snapshot, store: status.store },
-        fileBase: `${recipient.name}-sales-${start || "all"}-${end || "all"}`,
-        t,
-      });
-      setNotice(result.message);
-    } catch (e: any) {
-      setError(e.message);
-    } finally {
-      sharingLock.current = false;
-      setSharing(false);
-    }
-  }
   return (
     <section className="customer-sales-history" role="tabpanel">
       <div className="customer-history-toolbar">
@@ -165,7 +130,6 @@ export function CustomerSalesHistory({
           {t("customerHistory.start")}{" "}
           <input
             type="date"
-            disabled={sharing}
             value={start}
             onChange={(e) => setStart(e.target.value)}
           />
@@ -174,7 +138,6 @@ export function CustomerSalesHistory({
           {t("customerHistory.end")}{" "}
           <input
             type="date"
-            disabled={sharing}
             value={end}
             onChange={(e) => setEnd(e.target.value)}
           />
@@ -182,7 +145,6 @@ export function CustomerSalesHistory({
         {(start || end) && (
           <button
             className="button"
-            disabled={sharing}
             onClick={() => {
               setStart("");
               setEnd("");
@@ -195,23 +157,9 @@ export function CustomerSalesHistory({
           <div className="customer-history-actions">
             <ReportPrintButton getDocument={report} />
             <ReportPrintButton intent="pdf" getDocument={report} />
-            <button
-              className="button"
-              disabled={sharing || !canWhatsApp(data.party.phone)}
-              title={
-                !canWhatsApp(data.party.phone)
-                  ? t("whatsapp.needPhone")
-                  : undefined
-              }
-              onClick={shareReport}
-            >
-              <WhatsappLogoIcon size={16} />
-              {t(sharing ? "whatsapp.sending" : "customerHistory.share")}
-            </button>
           </div>
         )}
       </div>
-      {notice && <p role="status">{notice}</p>}
       {error && (
         <p role="alert" className="text-red">
           {error}

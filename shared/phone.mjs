@@ -98,19 +98,3 @@ export function validateNational(countryCode, national) {
   return { ok: true, empty: false, e164: `${country.dial}${local}` };
 }
 
-/** True when the number can open a WhatsApp chat (E.164 digits without +). */
-export function isWhatsAppPhone(value) {
-  const digits = digitsOnly(value).replace(/^0+/, "");
-  // Prefer full international; accept stored E.164 without +.
-  const parsed = parsePhone(value);
-  const e164 = parsed.e164 || digits;
-  return /^[1-9]\d{6,14}$/.test(e164);
-}
-
-export function whatsAppChatUrl(value, text = "") {
-  const parsed = parsePhone(value);
-  const e164 = parsed.e164 || digitsOnly(value);
-  if (!/^[1-9]\d{6,14}$/.test(e164)) return "";
-  const base = `https://wa.me/${e164}`;
-  return text ? `${base}?text=${encodeURIComponent(text)}` : base;
-}

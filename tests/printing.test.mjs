@@ -97,8 +97,8 @@ test("every theme/layout/paper uses one escaped standalone renderer and preserve
         assert.ok(html.includes(`layout-${layout} theme-${theme}`));
         assert.match(html, /<footer class="company-print-credit">/);
         assert.match(html, /href="https:\/\/www\.radefysystems\.com\/"/);
-        assert.match(html, /href="https:\/\/wa\.me\/93771707272"/);
-        assert.match(html, /WhatsApp: \+93 77 170 7272/);
+        assert.doesNotMatch(html, /wa\.me/);
+        assert.doesNotMatch(html, new RegExp("Whats" + "App"));
         assert.match(html, /<svg viewBox="0 0 100 100"/);
         assert.match(html, /Core i7/);
         assert.match(html, /Precision/);
@@ -125,7 +125,6 @@ test("sale bills use the shop chrome; purchase bills keep the standard header", 
       services: "Laptops · Mobiles · CCTV",
       owner1_name: "Ahmad",
       owner1_phone: "+93 70 000 0001",
-      owner1_whatsapp: "+93 70 000 0002",
       owner2_name: "Omar",
       owner2_phone: "+93 70 000 0003",
       bill_footer: "Thank you for shopping",
@@ -713,7 +712,7 @@ test("golden stationery is bilingual, sale-only, escaped and preserves device/di
   doc.store.name_ps = "د کمپیوټر پلورنځی";
   doc.store.watermark = "data:image/png;base64,d2F0ZXI=";
   doc.store.owner1_name = "Ghouth";
-  doc.store.owner1_whatsapp = "0775662322";
+  doc.store.owner1_phone = "0775662322";
   doc.lines[0].identity += " · DEVICE-001";
   const html = renderPrintDocument(doc, { template: "golden", theme: "mono" });
   assert.match(html, /golden-bill/);
@@ -726,7 +725,8 @@ test("golden stationery is bilingual, sale-only, escaped and preserves device/di
   assert.match(html, /data:image\/png;base64,d2F0ZXI=/);
   assert.match(html, /مسؤل/);
   assert.match(html, /Ghouth/);
-  assert.match(html, /gold-icon-whatsapp/);
+  assert.doesNotMatch(html, new RegExp("gold-icon-" + "whats" + "app"));
+  assert.match(html, /gold-icon-phone/);
   assert.doesNotMatch(html, /class="gold-details"/);
   assert.doesNotMatch(html, /Recorded by/);
   assert.doesNotMatch(html, /invoice\.recordedBy/);
@@ -765,15 +765,13 @@ test("golden bills print Western LTR phones and isolate bilingual text in Pashto
   doc.store.address = "Kabul, Afghanistan";
   doc.store.services = "لپټاپ · Laptops · Mobiles";
   doc.store.owner1_name = "Ghouth";
-  doc.store.owner1_whatsapp = "۰۷۷۵۶۶۲۳۲۲";
   doc.store.owner1_phone = "٠٧٠٠٠٠٠٠٠١";
   const html = renderPrintDocument(doc, { template: "golden" });
   assert.match(html, /lang="ps" dir="ltr"/);
-  assert.match(html, /class="ltr-phone" dir="ltr">0775662322/);
   assert.match(html, /class="ltr-phone" dir="ltr">0700000001/);
   assert.doesNotMatch(html, /۰۷۷۵۶۶۲۳۲۲/);
   assert.doesNotMatch(html, /٠٧٠٠٠٠٠٠٠١/);
-  assert.match(html, /gold-icon-whatsapp/);
+  assert.doesNotMatch(html, new RegExp("gold-icon-" + "whats" + "app"));
   assert.match(html, /gold-icon-phone/);
   assert.match(html, /class="gold-bi"/);
   assert.match(html, /lang="ps" dir="rtl">نوم<\/span>/);
@@ -794,9 +792,8 @@ test("golden bills omit metadata, print English totals, time, RTL owners and con
       name: "Test Store",
       owner1_name: "Ahmad",
       owner1_phone: "+93 70 000 0001",
-      owner1_whatsapp: "0775662322",
       owner2_name: "Omar",
-      owner2_whatsapp: "0780000000",
+      owner2_phone: "0780000000",
     },
     context,
   );
@@ -804,7 +801,7 @@ test("golden bills omit metadata, print English totals, time, RTL owners and con
   assert.match(html, /2026-10-27 17:05/);
   assert.match(html, /مسؤلين:/);
   assert.doesNotMatch(html, /مسؤل:/);
-  assert.match(html, /gold-icon-whatsapp/);
+  assert.doesNotMatch(html, new RegExp("gold-icon-" + "whats" + "app"));
   assert.match(html, /gold-icon-phone/);
   assert.match(html, /<span>Previous balance<\/span>/);
   assert.match(html, /<span>Total balance<\/span>/);

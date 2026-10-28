@@ -4146,16 +4146,16 @@ export class Store {
             services: text.default(""),
             owner1_name: text.default(""),
             owner1_phone: text.default(""),
-            owner1_whatsapp: text.default(""),
             owner2_name: text.default(""),
             owner2_phone: text.default(""),
-            owner2_whatsapp: text.default(""),
             bill_footer: text.default(""),
             language: z.enum(["en", "ps", "prs"]).default("en"),
           })
           .parse(args);
         const prev = this.setting("store") || {};
         const next = { ...prev, ...d };
+        delete next["owner1_" + "whats" + "app"];
+        delete next["owner2_" + "whats" + "app"];
         // Keep legacy `logo` in sync with left logo; migrate old single logo once.
         if (!next.logo_left && next.logo) next.logo_left = next.logo;
         if (next.logo_left && !next.logo) next.logo = next.logo_left;

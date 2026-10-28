@@ -59,7 +59,6 @@ app
         kind: options.report ? "report" : "invoice",
         companyCredit: {
           label: "Built by Radefy Systems",
-          whatsapp: "+93 77 170 7272",
         },
         locale: "prs",
         title: "بل / Invoice",
@@ -182,10 +181,6 @@ app
             assert.ok(
               text.includes("https://www.radefysystems.com/"),
               "PDF includes clickable company website",
-            );
-            assert.ok(
-              text.includes("https://wa.me/93771707272"),
-              "PDF includes clickable WhatsApp chat",
             );
           }
           const box = text.match(

@@ -4,7 +4,7 @@ Developed by **Radefy Systems**. The application brand is separate from the shop
 
 The original generated mark is in `public/brand/source-mark.png`, its compact UI asset in `src/assets/radefy-techmart-mark.png`, and native icons in `build/icon.png`, `build/icon.ico` and `build/icon.icns`. `npm run build:icons` regenerates packaging sizes from the source mark (macOS ICNS requires Apple's iconutil). The image is resized only; there are no runtime image services.
 
-Edit `shared/brand.json` to supply the company's verified HTTPS website, support email and international WhatsApp number. Empty contacts show a pending-details message. Desktop links are allowed only when they exactly match a configured destination. Contacting support is optional and requires connectivity; store workflows remain offline.
+Edit `shared/brand.json` to supply the company's verified HTTPS website and support email. Empty contacts show a pending-details message. Desktop links are allowed only when they exactly match a configured destination. Contacting support is optional and requires connectivity; store workflows remain offline. WhatsApp sharing and support links were removed.
 
 The desktop profile remains `Vault Store` beneath the OS app-data directory so existing stores and sessions survive the rename. Keep `com.vault.store`, internal bridge/session identifiers, backup formats/folders and scheduler identifiers stable. `RADEFY_USER_DATA` (legacy `REDIFY_USER_DATA` also supported) can select an isolated profile for testing. The packaged application name is Radefy TechMart; rebuild/install the desktop package to update its installed icon and name.
 

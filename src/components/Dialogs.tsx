@@ -23,7 +23,6 @@ import {
   WarningCircleIcon,
   DownloadSimpleIcon,
   BarcodeIcon,
-  WhatsappLogoIcon,
   PhoneIcon,
   FloppyDiskIcon,
 } from "@phosphor-icons/react";
@@ -80,7 +79,6 @@ import { PRODUCT_CATEGORIES, categoryLabel } from "./product-fields";
 import { ProductForm } from "./ProductForm";
 import { PartySearchSelect } from "./PartySearchSelect";
 import { PhoneField, assertPhoneValid } from "./PhoneField";
-import { canWhatsApp, shareViaWhatsApp } from "../whatsapp-share";
 import { partyLedgerPrintDocument } from "../printing/party-ledger.mjs";
 export { ProductForm } from "./ProductForm";
 
@@ -2888,39 +2886,22 @@ export function InvoiceDialog({
                 <div className="sale-shop-preview-owners">
                   {(
                     [
-                      [
-                        store?.owner1_name,
-                        store?.owner1_phone,
-                        store?.owner1_whatsapp,
-                      ],
-                      [
-                        store?.owner2_name,
-                        store?.owner2_phone,
-                        store?.owner2_whatsapp,
-                      ],
+                      [store?.owner1_name, store?.owner1_phone],
+                      [store?.owner2_name, store?.owner2_phone],
                     ] as const
                   )
                     .filter(([name]) => !!name)
-                    .map(([name, phone, whatsapp], i) => {
-                      const wa = normalizeDigits(String(whatsapp || "")).trim();
+                    .map(([name, phone], i) => {
                       const tel = normalizeDigits(String(phone || "")).trim();
                       return (
                         <div key={i}>
                           <strong dir="auto">{name}</strong>
-                          {wa || tel ? (
+                          {tel ? (
                             <small className="sale-shop-preview-contacts">
-                              {wa ? (
-                                <span dir="ltr">
-                                  <WhatsappLogoIcon size={12} weight="fill" />
-                                  <bdi dir="ltr">{wa}</bdi>
-                                </span>
-                              ) : null}
-                              {tel ? (
-                                <span dir="ltr">
-                                  <PhoneIcon size={12} weight="fill" />
-                                  <bdi dir="ltr">{tel}</bdi>
-                                </span>
-                              ) : null}
+                              <span dir="ltr">
+                                <PhoneIcon size={12} weight="fill" />
+                                <bdi dir="ltr">{tel}</bdi>
+                              </span>
                             </small>
                           ) : null}
                         </div>
@@ -3483,48 +3464,6 @@ export function InvoiceDialog({
         <button className="button" onClick={close}>
           {t("common.close")}
         </button>
-        {doc && canWhatsApp(doc.party_phone) && (
-          <button
-            className="button"
-            disabled={busy}
-            onClick={async () => {
-              if (!store) return;
-              setBusy(true);
-              setError("");
-              try {
-                const printDoc = invoicePrintModel(doc, store, {
-                  locale,
-                  t,
-                  money: af,
-                  foreignMoney: (amount: number, code?: string) =>
-                    foreignMoney(amount, code || doc.currency || "AED"),
-                  specs: productSpecEntries,
-                  rate: (rate: number) =>
-                    fxRateLabel(rate, doc.currency || "AED"),
-                }) as PrintDocument;
-                const result = await shareViaWhatsApp({
-                  phone: doc.party_phone,
-                  text: t("whatsapp.invoiceText", {
-                    number: doc.number,
-                    name: doc.party_name || "",
-                    total: af(doc.total, 2),
-                  }),
-                  document: printDoc,
-                  fileBase: `${doc.party_name || "invoice"}-${doc.number}`,
-                  t,
-                });
-                setNotice(result.message);
-              } catch (e: any) {
-                setError(e.message);
-              } finally {
-                setBusy(false);
-              }
-            }}
-          >
-            <WhatsappLogoIcon size={16} />
-            {t("whatsapp.sendInvoice")}
-          </button>
-        )}
         {doc && (
           <button
             className="button"
@@ -4467,44 +4406,6 @@ export function PartyDetailDialog({
                     }) as PrintDocument
                   }
                 />
-                {canWhatsApp(detail.party?.phone || current.phone) && (
-                  <button
-                    type="button"
-                    className="button"
-                    onClick={async () => {
-                      try {
-                        const doc = partyLedgerPrintDocument({
-                          party: detail.party,
-                          entries: detail.entries,
-                          pageStartBalance: detail.page_start_balance,
-                          kind,
-                          locale,
-                          t,
-                          money: af,
-                          foreignMoney,
-                          labelFor: (e: any) =>
-                            partyLedgerLabel(t, e) || e.kind || "",
-                        }) as PrintDocument;
-                        const result = await shareViaWhatsApp({
-                          phone: detail.party.phone || current.phone,
-                          text: t("whatsapp.ledgerText", {
-                            name: detail.party.name,
-                            balance: af(detail.party.balance, 2),
-                          }),
-                          document: doc,
-                          fileBase: `${detail.party.name}-ledger`,
-                          t,
-                        });
-                        done?.(result.message);
-                      } catch (e: any) {
-                        setError(e.message);
-                      }
-                    }}
-                  >
-                    <WhatsappLogoIcon size={15} />
-                    {t("whatsapp.sendLedger")}
-                  </button>
-                )}
               </div>
             )}
           </div>

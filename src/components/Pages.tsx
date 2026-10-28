@@ -15,7 +15,6 @@ import {
   PackageIcon,
   ArrowRightIcon,
   PrinterIcon,
-  WhatsappLogoIcon,
   LockIcon,
   DatabaseIcon,
   HardDrivesIcon,
@@ -40,7 +39,6 @@ import { useI18n, useT, LOCALES, type Locale } from "../i18n";
 import { ReportPrintButton } from "../printing/PrintDialog";
 import type { PrintDocument } from "../printing/types";
 import { partyLedgerPrintDocument } from "../printing/party-ledger.mjs";
-import { canWhatsApp, shareViaWhatsApp } from "../whatsapp-share";
 
 import { CompanyPage, HelpContent } from "./CompanyPages";
 import { expenseAccountName } from "../expense-accounts";
@@ -1537,44 +1535,6 @@ export function PeoplePage({
                     }) as PrintDocument
                   }
                 />
-                {detail?.party && canWhatsApp(detail.party.phone) && (
-                  <button
-                    type="button"
-                    className="button"
-                    disabled={detailPending || !!detailError}
-                    onClick={async () => {
-                      try {
-                        const doc = partyLedgerPrintDocument({
-                          party: detail.party,
-                          entries: detail.entries,
-                          pageStartBalance: detail.page_start_balance,
-                          kind,
-                          locale,
-                          t,
-                          money: af,
-                          foreignMoney,
-                          labelFor: (e: any) => ledgerLabel(e, t),
-                        }) as PrintDocument;
-                        const result = await shareViaWhatsApp({
-                          phone: detail.party.phone,
-                          text: t("whatsapp.ledgerText", {
-                            name: detail.party.name,
-                            balance: af(detail.party.balance, 2),
-                          }),
-                          document: doc,
-                          fileBase: `${detail.party.name}-ledger`,
-                          t,
-                        });
-                        toast(result.message);
-                      } catch (e: any) {
-                        setDetailActionError(e.message);
-                      }
-                    }}
-                  >
-                    <WhatsappLogoIcon size={15} />
-                    {t("whatsapp.sendLedger")}
-                  </button>
-                )}
                 <button
                   className="text-button"
                   onClick={() => setSelected(null)}
@@ -2631,10 +2591,8 @@ export function SettingsPage({
         services: f.get("services"),
         owner1_name: f.get("owner1_name"),
         owner1_phone: f.get("owner1_phone"),
-        owner1_whatsapp: f.get("owner1_whatsapp"),
         owner2_name: f.get("owner2_name"),
         owner2_phone: f.get("owner2_phone"),
-        owner2_whatsapp: f.get("owner2_whatsapp"),
         bill_footer: f.get("bill_footer"),
         logo: logoLeft,
         logo_left: logoLeft,
@@ -2955,14 +2913,6 @@ export function SettingsPage({
                       dir="ltr"
                       data-digits="western"
                       defaultValue={data.store[`${prefix}_phone`] || ""}
-                    />
-                  </Field>
-                  <Field label={t("settings.ownerWhatsapp", { n })}>
-                    <input
-                      name={`${prefix}_whatsapp`}
-                      dir="ltr"
-                      data-digits="western"
-                      defaultValue={data.store[`${prefix}_whatsapp`] || ""}
                     />
                   </Field>
                 </div>

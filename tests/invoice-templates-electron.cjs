@@ -44,7 +44,6 @@ app
       ],
       companyCredit: {
         label: "Built by Radefy Systems",
-        whatsapp: "+93 771 707 272",
       },
       summary: [
         { key: "total", label: "Total", value: "AF 111,000.00" },
