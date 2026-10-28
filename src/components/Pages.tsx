@@ -19,6 +19,7 @@ import {
   DatabaseIcon,
   HardDrivesIcon,
   TrashIcon,
+  PencilSimpleIcon,
   SignOutIcon,
 } from "@phosphor-icons/react";
 import {
@@ -1383,16 +1384,20 @@ export function PeoplePage({
                             <>
                               <button
                                 type="button"
-                                className="button"
+                                className="icon-button small"
                                 disabled={busy}
+                                title={t("common.edit")}
+                                aria-label={t("common.edit")}
                                 onClick={() => open(kind, p)}
                               >
-                                {t("common.edit")}
+                                <PencilSimpleIcon size={14} weight="bold" />
                               </button>
                               <button
                                 type="button"
-                                className="button button-danger"
+                                className="icon-button small danger"
                                 disabled={busy}
+                                title={t("common.delete")}
+                                aria-label={t("common.delete")}
                                 onClick={() => {
                                   if (p.balance !== 0) {
                                     setConfirmDelete(false);
@@ -1409,8 +1414,7 @@ export function PeoplePage({
                                   setConfirmDelete(p.id);
                                 }}
                               >
-                                <TrashIcon size={14} />
-                                {t("common.delete")}
+                                <TrashIcon size={14} weight="bold" />
                               </button>
                             </>
                           )

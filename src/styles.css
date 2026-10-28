@@ -2160,14 +2160,33 @@ html[dir="rtl"] .period-picker select {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 6px;
-  flex-wrap: wrap;
+  gap: 4px;
+  flex-wrap: nowrap;
   justify-self: end;
 }
 .people-row-actions .button {
   padding: 5px 8px;
   font-size: 10px;
   min-height: 28px;
+}
+.people-row-actions .icon-button.small {
+  width: 26px;
+  height: 26px;
+  color: var(--paint-fg-5a6570, #5a6570);
+  border-color: var(--paint-border-dce4ea, #dce4ea);
+  background: var(--paint-bg-fff, #fff);
+}
+.people-row-actions .icon-button.small:hover {
+  background: var(--paint-bg-eef5f8, #eef5f8);
+  color: var(--paint-fg-2a4a5c, #2a4a5c);
+}
+.people-row-actions .icon-button.small.danger {
+  color: var(--paint-fg-b5374c, #b5374c);
+  border-color: var(--paint-border-efd0d5, #efd0d5);
+}
+.people-row-actions .icon-button.small.danger:hover {
+  background: var(--paint-bg-fdf2f3, #fdf2f3);
+  color: var(--paint-fg-9b2c3c, #9b2c3c);
 }
 .people-ledger-only .contact-ledger {
   padding-top: 4px;

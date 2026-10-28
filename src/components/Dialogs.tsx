@@ -1061,14 +1061,6 @@ export function TradeForm({
                               <TrashIcon size={17} />
                             </button>
                           </div>
-                          {l.product.serialized && purchase ? (
-                            <ReceiveDevices
-                              defaultCondition={l.product.condition}
-                              quantity={l.quantity}
-                              values={l.units}
-                              onChange={(v) => update(i, "units", v)}
-                            />
-                          ) : null}
                           <div className="form-grid three">
                             <Field label={t("common.quantity")}>
                               <NumericInput
@@ -1669,14 +1661,6 @@ export function TradeForm({
                                 <TrashIcon size={17} />
                               </button>
                             </div>
-                            {l.product.serialized ? (
-                              <ReceiveDevices
-                                defaultCondition={l.product.condition}
-                                quantity={l.quantity}
-                                values={l.units}
-                                onChange={(v) => update(i, "units", v)}
-                              />
-                            ) : null}
                             <div className="form-grid three">
                               <Field label={t("common.quantity")}>
                                 <NumericInput
