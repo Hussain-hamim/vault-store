@@ -233,6 +233,19 @@ export function App() {
   const notifications = useNotificationSummary(user, refresh);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const workspaceRef = useRef<HTMLDivElement>(null);
+  const partyDetailUi = useRef<{
+    detailTab: "ledger" | "sales";
+    ledgerView: "trade" | "resale";
+  }>({ detailTab: "ledger", ledgerView: "trade" });
+  const syncPartyDetailUi = useCallback(
+    (state: {
+      detailTab: "ledger" | "sales";
+      ledgerView: "trade" | "resale";
+    }) => {
+      partyDetailUi.current = state;
+    },
+    [],
+  );
   useEffect(() => {
     if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const animation = workspaceRef.current?.animate(
@@ -363,6 +376,9 @@ export function App() {
         [
           "payment",
           "invoice",
+          "saleDelete",
+          "purchaseDelete",
+          "paymentDelete",
           "openingBalance",
           "product",
           "consignmentReceive",
@@ -374,11 +390,16 @@ export function App() {
         returnTo: stackFrom
           ? {
               name: current.name,
-              data:
-                name === "consignmentSettlement" &&
+              data: {
+                ...current.data,
+                ...(current.name === "partyDetail"
+                  ? partyDetailUi.current
+                  : {}),
+                ...(name === "consignmentSettlement" &&
                 current.name === "partyDetail"
-                  ? { ...current.data, ledgerView: "resale" }
-                  : current.data,
+                  ? { ledgerView: "resale" as const }
+                  : {}),
+              },
             }
           : undefined,
       };
@@ -1083,6 +1104,7 @@ export function App() {
           open={open}
           refresh={refresh}
           done={done}
+          onUiState={syncPartyDetailUi}
         />
       )}
       {globalOpen && (

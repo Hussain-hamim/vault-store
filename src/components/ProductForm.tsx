@@ -800,6 +800,7 @@ export function ProductForm({
                           className="button"
                           title={t("barcode.generate")}
                           aria-label={t("barcode.generate")}
+                          tabIndex={-1}
                           disabled={busy || photoBusy}
                           onClick={() =>
                             value("barcode", generateProductBarcode())
@@ -813,6 +814,7 @@ export function ProductForm({
                           className="button"
                           title={t("barcode.print")}
                           aria-label={t("barcode.print")}
+                          tabIndex={-1}
                           disabled={busy || photoBusy || !d.barcode.trim()}
                           onClick={printBarcodeLabel}
                         >

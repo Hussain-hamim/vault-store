@@ -190,6 +190,7 @@ export function CurrencyPicker({
             className="button"
             title={t("currencies.add")}
             aria-label={t("currencies.add")}
+            tabIndex={compact ? -1 : undefined}
             onClick={() => {
               setError("");
               setCode("");

@@ -133,14 +133,26 @@ export function Modal({
           return;
         const list = Array.from(
           ref.current?.querySelectorAll<HTMLElement>(
-            'button:not(:disabled),input:not(:disabled),select:not(:disabled),textarea:not(:disabled),[tabindex="0"]',
+            'button:not(:disabled):not([tabindex="-1"]),input:not(:disabled):not([tabindex="-1"]),select:not(:disabled):not([tabindex="-1"]),textarea:not(:disabled):not([tabindex="-1"]),[tabindex="0"]',
           ) || [],
-        );
+        ).filter((el) => {
+          if (el instanceof HTMLInputElement && el.type === "hidden")
+            return false;
+          const style = window.getComputedStyle(el);
+          if (style.visibility === "hidden" || style.display === "none")
+            return false;
+          return el.getClientRects().length > 0;
+        });
         if (!list.length) return;
-        if (e.shiftKey && document.activeElement === list[0]) {
+        const active = document.activeElement as HTMLElement | null;
+        const index = active ? list.indexOf(active) : -1;
+        if (e.shiftKey && (index <= 0 || active === list[0])) {
           e.preventDefault();
           list.at(-1)?.focus();
-        } else if (!e.shiftKey && document.activeElement === list.at(-1)) {
+        } else if (
+          !e.shiftKey &&
+          (index === list.length - 1 || active === list.at(-1))
+        ) {
           e.preventDefault();
           list[0].focus();
         }

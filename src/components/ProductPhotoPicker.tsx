@@ -168,13 +168,14 @@ export function ProductPhotoPicker({
           </p>
         </div>
         <div className="photo-picker-actions">
-          <label className="button">
+          <label className="button" tabIndex={compact ? -1 : undefined}>
             <ImageIcon size={16} />
             {t(reading ? "photos.reading" : "photos.choose")}
             <input
               type="file"
               accept="image/jpeg,image/png,image/webp"
               disabled={reading}
+              tabIndex={compact ? -1 : undefined}
               onChange={(e) => {
                 pick(e.target.files?.[0] || null);
                 e.target.value = "";
@@ -185,6 +186,7 @@ export function ProductPhotoPicker({
             type="button"
             className="button"
             disabled={reading}
+            tabIndex={compact ? -1 : undefined}
             onClick={() => {
               setError("");
               setCameraOpen(true);
@@ -197,6 +199,7 @@ export function ProductPhotoPicker({
             <button
               className="text-button"
               type="button"
+              tabIndex={compact ? -1 : undefined}
               onClick={() => {
                 setUploaded(null);
                 setAutomatic(true);

@@ -4154,15 +4154,22 @@ export function PartyDetailDialog({
   open,
   refresh = 0,
   done,
+  onUiState,
 }: {
   party: Party;
   user: User;
   open: (name: string, data?: any) => void;
   refresh?: number;
   done?: DialogProps["done"];
+  onUiState?: (state: {
+    detailTab: "ledger" | "sales";
+    ledgerView: "trade" | "resale";
+  }) => void;
 } & Pick<DialogProps, "close">) {
   const { t, locale } = useI18n();
-  const [detailTab, setDetailTab] = useState("ledger");
+  const [detailTab, setDetailTab] = useState<"ledger" | "sales">(() =>
+    (party as any).detailTab === "sales" ? "sales" : "ledger",
+  );
   const [ledgerAfter, setLedgerAfter] = useState("");
   const [ledgerHistory, setLedgerHistory] = useState<string[]>([]);
   const [detail, setDetail] = useState<any>(null);
@@ -4179,6 +4186,10 @@ export function PartyDetailDialog({
   const [ledgerView, setLedgerView] = useState<"trade" | "resale">(
     (party as any).ledgerView === "resale" ? "resale" : "trade",
   );
+
+  useEffect(() => {
+    onUiState?.({ detailTab, ledgerView });
+  }, [detailTab, ledgerView, onUiState]);
 
   useEffect(() => {
     let active = true;
@@ -4407,7 +4418,8 @@ export function PartyDetailDialog({
               id={current.id}
               kind={kind}
               refresh={refresh}
-              onOpenInvoice={(id) => open("invoice", { id })}
+              open={open}
+              user={user}
             />
           ) : (
             <>

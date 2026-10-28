@@ -168,6 +168,12 @@ document.addEventListener("keydown", (event) => {
     event.preventDefault();
 });
 
+function isEnterTabVisible(el: HTMLElement) {
+  const style = window.getComputedStyle(el);
+  if (style.visibility === "hidden" || style.display === "none") return false;
+  return el.getClientRects().length > 0;
+}
+
 /** Enter advances focus like Tab inside forms and editors (barcode/listboxes keep their own Enter). */
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Enter" || event.defaultPrevented || event.isComposing)
@@ -211,50 +217,80 @@ document.addEventListener("keydown", (event) => {
       "form, .modal, [role=dialog], .product-entry, .sale-board, .purchase-board, [data-enter-tab-root]",
     ) || null;
   if (!root) return;
-  const focusable = Array.from(
-    root.querySelectorAll<HTMLElement>(
-      "input:not([disabled]):not([tabindex='-1']), select:not([disabled]):not([tabindex='-1']), textarea:not([disabled]):not([tabindex='-1'])",
+  // Product entry: keep section order Info → Specs → Pricing by walking those
+  // sections in order when present; otherwise use document order in the root.
+  const sectionRoots = [
+    ".entry-identity",
+    ".entry-specifications",
+    ".entry-pricing",
+  ]
+    .map((sel) => root.querySelector<HTMLElement>(sel))
+    .filter((el): el is HTMLElement => !!el);
+  const fieldScope = sectionRoots.length
+    ? sectionRoots
+    : [root as HTMLElement];
+  const fieldSelector =
+    "input:not([disabled]):not([tabindex='-1']), select:not([disabled]):not([tabindex='-1']), textarea:not([disabled]):not([tabindex='-1'])";
+  const focusable = fieldScope.flatMap((scope) =>
+    Array.from(scope.querySelectorAll<HTMLElement>(fieldSelector)).filter(
+      (el) => {
+        if (el.closest(".product-photo-picker,.modal-actions")) return false;
+        if (el instanceof HTMLInputElement) {
+          const type = (el.type || "text").toLowerCase();
+          if (
+            [
+              "hidden",
+              "button",
+              "submit",
+              "reset",
+              "file",
+              "checkbox",
+              "radio",
+              "image",
+            ].includes(type)
+          )
+            return false;
+        }
+        if (el instanceof HTMLTextAreaElement) return false;
+        return isEnterTabVisible(el);
+      },
     ),
-  ).filter((el) => {
-    if (el instanceof HTMLInputElement) {
-      const type = (el.type || "text").toLowerCase();
-      if (
-        [
-          "hidden",
-          "button",
-          "submit",
-          "reset",
-          "file",
-          "checkbox",
-          "radio",
-          "image",
-        ].includes(type)
-      )
-        return false;
-    }
-    if (el instanceof HTMLTextAreaElement) return false;
-    const style = window.getComputedStyle(el);
-    if (style.visibility === "hidden" || style.display === "none") return false;
-    return el.getClientRects().length > 0;
-  });
+  );
   const index = focusable.indexOf(target);
   if (index < 0) return;
-  event.preventDefault();
   const next = focusable[index + 1];
-  if (!next) return;
-  next.focus();
-  if (
-    next instanceof HTMLInputElement &&
-    ["text", "search", "tel", "url", "password", "email", "number"].includes(
-      (next.type || "text").toLowerCase(),
-    )
-  ) {
-    try {
-      next.select();
-    } catch {
-      /* number inputs may not support select */
+  if (next) {
+    event.preventDefault();
+    next.focus();
+    if (
+      next instanceof HTMLInputElement &&
+      ["text", "search", "tel", "url", "password", "email", "number"].includes(
+        (next.type || "text").toLowerCase(),
+      )
+    ) {
+      try {
+        next.select();
+      } catch {
+        /* number inputs may not support select */
+      }
     }
+    return;
   }
+  // Last field → modal action buttons (primary Save when present).
+  const actions = root.querySelector(".modal-actions");
+  if (!actions) return;
+  const buttons = Array.from(
+    actions.querySelectorAll<HTMLElement>("button:not(:disabled)"),
+  ).filter(isEnterTabVisible);
+  const primary =
+    buttons.find((b) => b.classList.contains("button-dark")) ||
+    buttons.find(
+      (b) => b instanceof HTMLButtonElement && b.type === "submit",
+    ) ||
+    buttons[0];
+  if (!primary) return;
+  event.preventDefault();
+  primary.focus();
 });
 
 createRoot(document.getElementById("root")!).render(

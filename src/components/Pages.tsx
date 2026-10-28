@@ -1565,7 +1565,8 @@ export function PeoplePage({
                     id={detail.party.id}
                     kind={kind}
                     refresh={refresh}
-                    onOpenInvoice={(id) => open("invoice", { id })}
+                    open={open}
+                    user={user}
                   />
                 ) : (
                   <>
