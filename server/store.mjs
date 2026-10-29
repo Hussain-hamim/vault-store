@@ -3002,6 +3002,15 @@ export class Store {
       const staging = path.join(path.dirname(this.file), "backup-staging");
       mkdirSync(staging, { recursive: true });
       snapshot = path.join(staging, `${id()}.sqlite`);
+      // Push WAL frames into the main file first so VACUUM INTO / backup() from
+      // this connection (and any reopen) always sees the latest shop commits.
+      try {
+        this.db.prepare("PRAGMA wal_checkpoint(FULL)").get();
+      } catch {
+        try {
+          this.db.prepare("PRAGMA wal_checkpoint(PASSIVE)").get();
+        } catch {}
+      }
       await backup(this.db, snapshot);
       stripCustomPhotosFromBackup(snapshot);
       const check = new DatabaseSync(snapshot, { readOnly: true });

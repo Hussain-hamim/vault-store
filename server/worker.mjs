@@ -1,4 +1,4 @@
-import { parentPort, workerData, Worker } from "node:worker_threads";
+import { parentPort, workerData } from "node:worker_threads";
 import { Store } from "./store.mjs";
 const store = new Store(workerData.file, { demo: workerData.demo });
 let queue = Promise.resolve(),
@@ -94,26 +94,22 @@ parentPort.on("message", (m) => {
           }
           throw new Error("A backup is already running.");
         }
+        // Snapshot from this live connection (after WAL flush) so manual Backup
+        // now includes every commit made while the shop was open. A second
+        // Store/worker reopening the file could miss recent WAL frames.
         const automatic = m.command === "_automaticBackup",
           user = automatic ? null : store.auth(m.token, "backups");
         backupRunning = true;
-        const job = new Worker(new URL("./backup-job.mjs", import.meta.url), {
-          workerData: { file: workerData.file, automatic, user, args: m.args },
-        });
-        let responded = false;
-        job.on("message", (r) => {
-          responded = true;
-          send(m.id, r.result, r.error);
-        });
-        job.on("error", (e) => {
-          responded = true;
-          send(m.id, null, e.message);
-        });
-        job.on("exit", () => {
+        try {
+          send(
+            m.id,
+            automatic
+              ? await store.automaticBackup()
+              : await store.createBackup(user, m.args || {}),
+          );
+        } finally {
           backupRunning = false;
-          if (!responded)
-            send(m.id, null, "Backup process stopped unexpectedly.");
-        });
+        }
         return;
       }
       if (m.command === "canRestore") {
