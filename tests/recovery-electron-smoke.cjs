@@ -9,10 +9,23 @@ const { pathToFileURL } = require("node:url");
 const { generateKeyPairSync, createHash } = require("node:crypto");
 const { DatabaseSync } = require("node:sqlite");
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "radefy-recovery-ui-"));
+// Keep automatic-backup scheduling inside this fixture; never touch the user's LaunchAgent.
+require("node:os").homedir = () => root;
+const childProcess = require("node:child_process");
+const originalExecFileSync = childProcess.execFileSync;
+childProcess.execFileSync = (file, ...args) =>
+  file === "/bin/launchctl" || file === "schtasks.exe"
+    ? Buffer.alloc(0)
+    : originalExecFileSync(file, ...args);
+require("node:module").syncBuiltinESMExports();
+app.setPath("appData", root);
+app.requestSingleInstanceLock = () => true;
 process.env.RADEFY_USER_DATA = path.join(root, "profile");
 Object.defineProperty(app, "isPackaged", { get: () => true });
 app.getAppPath = () => process.cwd();
 app.disableHardwareAcceleration();
+// The remote Mac Dock ICNS issue is outside shop/recovery behavior.
+if (app.dock) app.dock.setIcon = () => {};
 safeStorage.isEncryptionAvailable = () => true;
 safeStorage.encryptString = (s) => Buffer.from(s);
 safeStorage.decryptString = (b) => b.toString();
@@ -209,8 +222,9 @@ app
       ),
     );
     await js(
-      `Array.from(document.querySelectorAll('.sidebar button')).find(b=>b.textContent.includes('Existing Owner')).click()`,
+      `Array.from(document.querySelectorAll('.settings-navigation button')).find(b=>b.textContent.trim()==='Account').click()`,
     );
+    await wait(() => js('!!document.querySelector(".settings-account")'));
     await js(
       `Array.from(document.querySelectorAll('button')).find(b=>b.textContent.trim()==='Sign out').click()`,
     );

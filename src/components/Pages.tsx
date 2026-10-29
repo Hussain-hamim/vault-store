@@ -1,3 +1,4 @@
+import { ShopSwitcher } from "./ShopSwitcher";
 import { OwnerRecovery } from "./OwnerRecovery";
 import { AppearanceSettings } from "../appearance";
 import { ProductPhoto } from "./ProductPhoto";
@@ -2773,6 +2774,7 @@ export function SettingsPage({
                   ))}
                 </select>
               </Field>
+              <ShopSwitcher />
               {onSignOut && (
                 <div className="settings-account-actions">
                   <button

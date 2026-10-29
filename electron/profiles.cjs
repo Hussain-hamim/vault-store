@@ -2,6 +2,45 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { profileId } = require("./accounts.cjs");
+const { randomUUID } = require("node:crypto");
+
+/** Import only the database; never inherit another shop's protected identity. */
+async function importShopProfile({
+  appData,
+  registryFile,
+  file,
+  info,
+  prepare,
+  restoreDatabase,
+}) {
+  if (!info.owner?.id) throw Error("The backup has no active shop owner.");
+  const directory = path.join(appData, "Radefy TechMart Shops", randomUUID());
+  fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
+  try {
+    // Write the activation-required guard BEFORE a database can look like a legacy install.
+    await prepare(directory);
+    await restoreDatabase(file, path.join(directory, "vault.sqlite"), {
+      validated: info,
+    });
+    const entry = {
+      id: profileId(directory),
+      directory,
+      ownerId: info.owner.id,
+      name: info.owner.storeName,
+      username: info.owner.username,
+    };
+    const rows = readProfileRows(registryFile);
+    fs.writeFileSync(registryFile + ".tmp", JSON.stringify([...rows, entry]), {
+      mode: 0o600,
+    });
+    fs.renameSync(registryFile + ".tmp", registryFile);
+    return entry;
+  } catch (error) {
+    // Only this newly allocated directory is removed; existing shops are untouched.
+    fs.rmSync(directory, { recursive: true, force: true });
+    throw error;
+  }
+}
 
 /** Temp/activation-smoke folders must never become the live shop after an upgrade. */
 function isEphemeralDirectory(directory) {
@@ -80,6 +119,12 @@ function resolveStartupDirectory({
   backupDirectory,
 }) {
   if (backupDirectory) return path.resolve(backupDirectory);
+  if (selectedProfileId) {
+    const selected = readProfileRows(registryFile).find(
+      (p) => p.id === selectedProfileId,
+    );
+    if (profileUsable(selected)) return path.resolve(selected.directory);
+  }
   if (envDirectory) return path.resolve(envDirectory);
 
   const profiles = readProfileRows(registryFile);
@@ -138,6 +183,7 @@ function sanitizeProfiles(profiles, { appData, currentDirectory }) {
 }
 
 module.exports = {
+  importShopProfile,
   isEphemeralDirectory,
   hasStoreDatabase,
   defaultStoreDirectory,

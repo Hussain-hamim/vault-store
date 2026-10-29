@@ -4,13 +4,27 @@ const fs = require("node:fs"),
   path = require("node:path"),
   assert = require("node:assert/strict");
 const { pathToFileURL } = require("node:url");
-const root = fs.mkdtempSync(path.join(os.tmpdir(), "accounts-desktop-"));
+// Persistent-profile switching intentionally rejects OS Temp directories.
+const root = fs.mkdtempSync(
+  path.join(process.cwd(), ".local", "accounts-desktop-"),
+);
+// Keep automatic-backup scheduling inside this fixture; never touch the user's LaunchAgent.
+require("node:os").homedir = () => root;
+const childProcess = require("node:child_process");
+const originalExecFileSync = childProcess.execFileSync;
+childProcess.execFileSync = (file, ...args) =>
+  file === "/bin/launchctl" || file === "schtasks.exe"
+    ? Buffer.alloc(0)
+    : originalExecFileSync(file, ...args);
+require("node:module").syncBuiltinESMExports();
 app.setPath("appData", root);
 app.getAppPath = () => process.cwd();
 process.env.RADEFY_USER_DATA = path.join(root, "shop");
 process.env.VAULT_DESKTOP_STATIC = "1";
 app.requestSingleInstanceLock = () => true;
 app.disableHardwareAcceleration();
+// The remote Mac Dock ICNS issue is outside shop/recovery behavior.
+if (app.dock) app.dock.setIcon = () => {};
 const timer = setTimeout(() => {
   console.error("Accounts test timed out");
   app.exit(1);
@@ -74,11 +88,19 @@ const timer = setTimeout(() => {
   const js = (code) => win.webContents.executeJavaScript(code);
   await wait(() => js('!!document.querySelector(".app-shell")'));
   app.quit = () => {};
-  await js(`document.querySelector(".sidebar-profile button, .profile-button")?.click()`);
-  // Open the account menu using the owner label, independent of its CSS class.
-  await js(`{ const button = Array.from(document.querySelectorAll("aside button")).find(b => b.textContent.includes("Test Owner")); if (!document.querySelector('select[aria-label="Switch shop / user"]')) button.click(); }`);
-  await wait(() => js(`!!document.querySelector('select[aria-label="Switch shop / user"]')`));
-  await js(`{ const select = document.querySelector('select[aria-label="Switch shop / user"]'); select.value = Array.from(select.options).find(o => o.value.startsWith("shop:")).value; select.dispatchEvent(new Event("change", {bubbles:true})); }`);
+  await js(
+    `Array.from(document.querySelectorAll('aside button')).find(b => b.textContent.trim() === 'Settings').click()`,
+  );
+  await wait(() =>
+    js(
+      `!!document.querySelector('select[aria-label="Shop on this computer"]')`,
+    ),
+  );
+  const initial = await js('window.vault.accounts("list")');
+  const destination = initial.profiles.find((p) => p.id !== initial.current);
+  await js(
+    `{ const select = document.querySelector('select[aria-label="Shop on this computer"]'); select.value = ${JSON.stringify(destination.id)}; select.dispatchEvent(new Event("change", {bubbles:true})); }`,
+  );
   await wait(async () => !!relaunch);
   assert.equal(await js('!!document.querySelector(".app-shell")'), true);
   assert.equal(relaunch.args.includes("--radefy-recovery"), false);

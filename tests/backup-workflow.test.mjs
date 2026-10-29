@@ -13,7 +13,12 @@ test("24-hour destination timing, retries, new drives and restorable safety copi
   const store = new Store(path.join(root, "live.sqlite"));
   t.after(() => {
     store.close();
-    rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+    rmSync(root, {
+      recursive: true,
+      force: true,
+      maxRetries: 10,
+      retryDelay: 50,
+    });
   });
   const session = store.setup({
     name: "Owner",
@@ -73,7 +78,12 @@ test("automatic backups always copy to discovered drives without an opt-in", asy
   const store = new Store(path.join(root, "live.sqlite"));
   t.after(() => {
     store.close();
-    rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+    rmSync(root, {
+      recursive: true,
+      force: true,
+      maxRetries: 10,
+      retryDelay: 50,
+    });
   });
   const session = store.setup({
     name: "Owner",
@@ -104,7 +114,12 @@ test("worker Backup now includes commits made on the live shop connection", asyn
   const worker = createWorker(file);
   t.after(async () => {
     await worker.close();
-    rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+    rmSync(root, {
+      recursive: true,
+      force: true,
+      maxRetries: 10,
+      retryDelay: 50,
+    });
   });
   const session = await worker.request("setup", {
     name: "Owner",
@@ -163,7 +178,12 @@ test("manual Backup now on a live open store restores the latest commits", async
   const store = new Store(path.join(root, "live.sqlite"));
   t.after(() => {
     store.close();
-    rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+    rmSync(root, {
+      recursive: true,
+      force: true,
+      maxRetries: 10,
+      retryDelay: 50,
+    });
   });
   const session = store.setup({
     name: "Owner",
@@ -223,10 +243,7 @@ test("drive discovery includes local disk and mounted volumes; Windows excludes 
       platform: "darwin",
       volumes: root,
     }),
-    [
-      path.dirname(path.resolve("/shop/live.sqlite")),
-      path.join(root, "USB"),
-    ],
+    [path.dirname(path.resolve("/shop/live.sqlite")), path.join(root, "USB")],
   );
   let script = "";
   const targets = discoverBackupTargets("C:\\Shop\\vault.sqlite", {
@@ -247,4 +264,134 @@ test("drive discovery includes local disk and mounted volumes; Windows excludes 
         platform,
       ).contents.includes("--backup-user-data=/shop A"),
     );
+});
+
+test("manual customer backup survives restoring old then new snapshots", async (t) => {
+  const root = mkdtempSync(
+    path.join(os.tmpdir(), "radefy-customer-roundtrip-"),
+  );
+  let store;
+  t.after(() => {
+    store?.close();
+    rmSync(root, { recursive: true, force: true });
+  });
+  const file = path.join(root, "live.sqlite"),
+    destination = path.join(root, "copies");
+  mkdirSync(destination);
+  store = new Store(file);
+  const session = store.setup({
+    name: "Owner",
+    username: "owner",
+    password: "test-password-long",
+    storeName: "Roundtrip",
+  });
+  const owner = store.auth(session.token);
+  const before = store
+    .all("SELECT id FROM parties WHERE kind='customer'")
+    .map((r) => r.id);
+  const old = (await store.createBackup(owner, { destination })).results[0];
+  const added = Array.from(
+    { length: 10 },
+    (_, i) =>
+      store.createParty(owner, { kind: "customer", name: "New customer " + i })
+        .id,
+  );
+  const recent = (await store.createBackup(owner, { destination })).results[0];
+  assert.equal(recent.status, "verified");
+  store.close();
+  store = null;
+  await restoreDatabase(old.path, file);
+  store = new Store(file);
+  assert.equal(
+    store.one("SELECT COUNT(*) n FROM parties WHERE kind='customer'").n,
+    before.length,
+  );
+  store.close();
+  store = null;
+  await restoreDatabase(recent.path, file);
+  store = new Store(file);
+  for (const id of added)
+    assert.ok(store.one("SELECT id FROM parties WHERE id=?", id));
+  assert.equal(
+    store.one("SELECT COUNT(*) n FROM parties WHERE kind='customer'").n,
+    before.length + 10,
+  );
+});
+
+test("restore includes customer commits in the backup WAL", async (t) => {
+  const { writeFileSync } = await import("node:fs");
+  const { fileChecksum } = await import("../server/files.mjs");
+  const { DatabaseSync } = await import("../server/sqlite.mjs");
+  const root = mkdtempSync(path.join(os.tmpdir(), "radefy-restore-wal-"));
+  let live;
+  t.after(() => {
+    live?.close();
+    rmSync(root, { recursive: true, force: true });
+  });
+  const source = path.join(root, "source.sqlite");
+  const seed = new Store(source);
+  const session = seed.setup({
+    name: "Owner",
+    username: "owner",
+    password: "test-password-long",
+    storeName: "WAL test",
+  });
+  seed.close();
+  writeFileSync(
+    source + ".json",
+    JSON.stringify({
+      application: "Vault Store",
+      schema: 1,
+      checksum: fileChecksum(source),
+    }),
+  );
+  live = new Store(source);
+  live.db.exec("PRAGMA wal_autocheckpoint=0");
+  const owner = live.auth(session.token);
+  const ids = Array.from(
+    { length: 10 },
+    (_, i) =>
+      live.createParty(owner, { kind: "customer", name: "WAL customer " + i })
+        .id,
+  );
+  const info = validateRestore(source);
+  assert.ok(info.walChecksum);
+  const target = path.join(root, "restored.sqlite");
+  await restoreDatabase(source, target, { validated: info });
+  const copy = new DatabaseSync(target, { readOnly: true });
+  try {
+    for (const id of ids)
+      assert.ok(copy.prepare("SELECT id FROM parties WHERE id=?").get(id));
+    assert.equal(
+      copy
+        .prepare(
+          "SELECT COUNT(*) n FROM parties WHERE kind='customer' AND active=1",
+        )
+        .get().n,
+      info.customers,
+    );
+  } finally {
+    copy.close();
+  }
+  live.createParty(owner, {
+    kind: "customer",
+    name: "Changed after confirmation",
+  });
+  await assert.rejects(
+    restoreDatabase(source, target, { validated: info }),
+    /changed after validation/,
+  );
+  const unchanged = new DatabaseSync(target, { readOnly: true });
+  try {
+    assert.equal(
+      unchanged
+        .prepare(
+          "SELECT COUNT(*) n FROM parties WHERE kind='customer' AND active=1",
+        )
+        .get().n,
+      info.customers,
+    );
+  } finally {
+    unchanged.close();
+  }
 });

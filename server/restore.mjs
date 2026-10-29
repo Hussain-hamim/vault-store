@@ -85,7 +85,30 @@ export function validateRestore(file, options = {}) {
   const db = new DatabaseSync(file, { readOnly: true });
   try {
     runDatabaseChecks(db, { deep });
+    const owner = db
+      .prepare(
+        "SELECT id,name,username FROM users WHERE role='Owner' AND active=1 ORDER BY created_at,id LIMIT 1",
+      )
+      .get();
+    const store = JSON.parse(
+      db.prepare("SELECT value FROM settings WHERE key='store'").get()?.value ||
+        "{}",
+    );
     return {
+      owner: owner ? { ...owner, storeName: store.name || owner.name } : null,
+      customers: db
+        .prepare(
+          "SELECT COUNT(*) n FROM parties WHERE kind='customer' AND active=1",
+        )
+        .get().n,
+      suppliers: db
+        .prepare(
+          "SELECT COUNT(*) n FROM parties WHERE kind='supplier' AND active=1",
+        )
+        .get().n,
+      walChecksum: existsSync(file + "-wal")
+        ? fileChecksum(file + "-wal")
+        : null,
       products: db.prepare("SELECT COUNT(*) n FROM products").get().n,
       documents: db.prepare("SELECT COUNT(*) n FROM documents").get().n,
       checksum: hash,
@@ -123,7 +146,23 @@ export async function restoreDatabase(file, target, options = {}) {
     (!options.validated.size || options.validated.size === statSync(file).size)
       ? options.validated
       : validateRestore(file);
+  if (path.resolve(file) === path.resolve(target))
+    throw new Error(
+      "Choose a backup file, not the currently open store database.",
+    );
+  const sourceUnchanged = () => {
+    if (
+      fileChecksum(file) !== valid.checksum ||
+      (existsSync(file + "-wal") ? fileChecksum(file + "-wal") : null) !==
+        (valid.walChecksum || null)
+    )
+      throw new Error(
+        "The backup changed after validation. Select it again before restoring.",
+      );
+  };
+  sourceUnchanged();
   const release = acquireMaintenanceLock(target);
+  let temporary;
   try {
     mkdirSync(path.dirname(target), { recursive: true });
     if (existsSync(target)) {
@@ -143,9 +182,20 @@ export async function restoreDatabase(file, target, options = {}) {
         db.close();
       }
     }
-    const temporary = target + ".restore-" + randomUUID();
+    temporary = target + ".restore-" + randomUUID();
     try {
-      copyFileSync(file, temporary);
+      sourceUnchanged();
+      if (valid.walChecksum) {
+        // SQLite's backup API includes committed WAL frames. A raw file copy
+        // would silently restore an older state than validation displayed.
+        const source = new DatabaseSync(file, { readOnly: true });
+        try {
+          await backup(source, temporary);
+        } finally {
+          source.close();
+        }
+      } else copyFileSync(file, temporary);
+      sourceUnchanged();
     } catch (error) {
       if (error?.code === "ENOSPC")
         throw new Error(
@@ -154,11 +204,38 @@ export async function restoreDatabase(file, target, options = {}) {
       throw error;
     }
     if (
-      statSync(temporary).size !== statSync(file).size ||
-      fileChecksum(temporary) !== valid.checksum
+      !valid.walChecksum &&
+      (statSync(temporary).size !== statSync(file).size ||
+        fileChecksum(temporary) !== valid.checksum)
     ) {
       unlinkSync(temporary);
       throw new Error("Restore copy checksum mismatch.");
+    }
+    const copied = new DatabaseSync(temporary, { readOnly: true });
+    try {
+      runDatabaseChecks(copied, { deep: false });
+      for (const [field, sql] of [
+        [
+          "customers",
+          "SELECT COUNT(*) n FROM parties WHERE kind='customer' AND active=1",
+        ],
+        [
+          "suppliers",
+          "SELECT COUNT(*) n FROM parties WHERE kind='supplier' AND active=1",
+        ],
+        ["products", "SELECT COUNT(*) n FROM products"],
+        ["documents", "SELECT COUNT(*) n FROM documents"],
+      ]) {
+        if (
+          valid[field] != null &&
+          copied.prepare(sql).get().n !== valid[field]
+        )
+          throw new Error(
+            "Restored record counts differ from the selected backup. Your current store was not replaced.",
+          );
+      }
+    } finally {
+      copied.close();
     }
     const fd = openSync(temporary, "r");
     try {
@@ -174,6 +251,12 @@ export async function restoreDatabase(file, target, options = {}) {
     renameSync(temporary, target);
     return { ok: true };
   } finally {
-    release();
+    try {
+      if (temporary)
+        for (const suffix of ["", "-wal", "-shm"])
+          if (existsSync(temporary + suffix)) unlinkSync(temporary + suffix);
+    } finally {
+      release();
+    }
   }
 }

@@ -1,3 +1,4 @@
+import { ShopSwitcher } from "./ShopSwitcher";
 import { useEffect, useState, type ReactNode } from "react";
 import { ArrowRightIcon, KeyIcon, WifiHighIcon } from "@phosphor-icons/react";
 import { BrandWordmark, BrandMark } from "./Brand";
@@ -106,6 +107,7 @@ function ActivationScreen({
         <small>{t("auth.footer")}</small>
       </div>
       <div className="auth-form-container">
+        <ShopSwitcher />
         <form
           className="auth-form activation-form"
           onSubmit={async (event) => {

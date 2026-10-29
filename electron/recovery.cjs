@@ -45,7 +45,10 @@ class RecoveryManager {
         installationId: hash(s.publicKey),
         deviceHash: this.licensing.hash,
         publicKey: s.publicKey,
-        registered: !!s.lastSync,
+        registered:
+          !!s.lastSync &&
+          this.error !== "OWNER_CHANGED" &&
+          (!s.ownerId || !this.owner || s.ownerId === this.owner.id),
         lastSync: s.lastSync,
         error: this.error,
         storeName: this.owner?.storeName || "",
@@ -114,6 +117,7 @@ class RecoveryManager {
           "WRONG_STORE",
           "EXPIRED_CODE",
           "CODE_USED",
+          "OWNER_CHANGED",
         ].includes(result.code)
           ? result.code
           : "SERVICE_UNAVAILABLE",
@@ -128,6 +132,7 @@ class RecoveryManager {
         owner = await this.request("_recoveryOwner");
       if (!owner) return this.status();
       this.owner = owner;
+      if (s.ownerId && s.ownerId !== owner.id) throw Error("OWNER_CHANGED");
       await this.remote("/v1/recovery/register", {
         publicKey: s.publicKey,
         licenseId: this.licensing.state.licenseId,
@@ -135,13 +140,24 @@ class RecoveryManager {
         enrollmentCode,
       });
       s.lastSync = new Date().toISOString();
+      s.ownerId = owner.id;
       this.save();
       this.error = "";
     } catch (e) {
+      if (e.message === "OWNER_CHANGED") {
+        this.identity().lastSync = null;
+        try {
+          this.save();
+        } catch {
+          this.error = "STORAGE_UNAVAILABLE";
+          return this.status();
+        }
+      }
       this.error = [
         "ENROLLMENT_REQUIRED",
         "NETWORK_ERROR",
         "RATE_LIMITED",
+        "OWNER_CHANGED",
       ].includes(e.message)
         ? e.message
         : "SERVICE_UNAVAILABLE";
@@ -160,6 +176,7 @@ class RecoveryManager {
       throw Error("INVALID_CODE");
     this.busy = true;
     try {
+      const owner = await this.assertOwner();
       const s = this.identity(),
         normalized = code.toUpperCase().replace(/[\s-]/g, "");
       if (!s.loginPending || s.loginPending.codeHash !== hash(normalized)) {
@@ -174,6 +191,7 @@ class RecoveryManager {
       if (!p.authorization) {
         p.authorization = await this.remote("/v1/recovery/reset", {
           mode: "login",
+          ownerId: owner.id,
           code: normalized,
           requestId: p.requestId,
           requestCommitment: p.commitment,
@@ -182,6 +200,7 @@ class RecoveryManager {
         this.save();
       }
       const claims = this.check(p.authorization, p, "owner-login");
+      await this.assertOwner(claims.ownerId);
       const result = await this.request("_recoverySignIn", {
         ownerId: claims.ownerId,
         requestId: p.requestId,
@@ -210,6 +229,7 @@ class RecoveryManager {
       throw Error("INVALID_INPUT");
     this.busy = true;
     try {
+      const owner = await this.assertOwner();
       const s = this.identity();
       const normalized = code.toUpperCase().replace(/[\s-]/g, "");
       if (!s.pending || s.pending.codeHash !== hash(normalized)) {
@@ -231,6 +251,7 @@ class RecoveryManager {
       const commitment = p.commitment;
       if (!p.authorization) {
         p.authorization = await this.remote("/v1/recovery/reset", {
+          ownerId: owner.id,
           code: normalized,
           requestId: p.requestId,
           requestCommitment: commitment,
@@ -239,6 +260,7 @@ class RecoveryManager {
         this.save();
       }
       const claims = this.check(p.authorization, p);
+      await this.assertOwner(claims.ownerId);
       const result = await this.request("_recoveryApply", {
         ownerId: claims.ownerId,
         requestId: p.requestId,
@@ -251,6 +273,15 @@ class RecoveryManager {
     } finally {
       this.busy = false;
     }
+  }
+  async assertOwner(expected = this.identity().ownerId) {
+    const owner = await this.request("_recoveryOwner");
+    this.owner = owner;
+    if (!owner || (expected && owner.id !== expected)) {
+      this.error = "OWNER_CHANGED";
+      throw Error("OWNER_CHANGED");
+    }
+    return owner;
   }
   check(receipt, p, purpose = "owner-reset") {
     try {

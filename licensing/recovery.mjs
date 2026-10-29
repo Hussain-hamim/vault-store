@@ -134,10 +134,11 @@ export async function recoveryRequest(request, env) {
       if (
         owner &&
         (owner.public_key !== data.publicKey ||
-          owner.device_hash !== data.deviceHash ||
-          owner.owner_id !== data.owner?.id)
+          owner.device_hash !== data.deviceHash)
       )
         throw Error();
+      if (owner && owner.owner_id !== data.owner?.id)
+        return json({ code: "OWNER_CHANGED" }, 409);
       let licenseId = owner?.license_id || null;
       if (!owner) {
         if (data.licenseId) {
@@ -201,6 +202,9 @@ export async function recoveryRequest(request, env) {
       !(await verified(input.payload, input.signature, owner.public_key))
     )
       throw Error();
+    // Older clients omit ownerId; new clients reject a mismatched restore before consuming a code.
+    if (data.ownerId != null && data.ownerId !== owner.owner_id)
+      return json({ code: "OWNER_CHANGED" }, 409);
     if (
       !/^[a-f0-9-]{36}$/.test(data.requestId || "") ||
       !/^[a-f0-9]{64}$/.test(data.requestCommitment || "")

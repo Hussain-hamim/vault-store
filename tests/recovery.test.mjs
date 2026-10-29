@@ -427,3 +427,124 @@ test("owner can optionally change password after code sign-in; new password surv
     store.close();
   }
 });
+
+test("restored owner conflict blocks recovery without consuming a code or changing cloud ownership", async (t) => {
+  const f = await fixture(t);
+  await f.recovery.sync();
+  const originalOwner = await f.db.request("_recoveryOwner");
+  const code = f.issue();
+  f.recovery.request = async (command, ...args) =>
+    command === "_recoveryOwner"
+      ? { ...originalOwner, id: randomUUID(), username: "restored-owner" }
+      : f.request(command, ...args);
+  assert.equal((await f.recovery.sync()).error, "OWNER_CHANGED");
+  assert.equal(f.recovery.status().registered, false);
+  await assert.rejects(f.recovery.recover(code), /OWNER_CHANGED/);
+  await assert.rejects(
+    f.recovery.reset(code, "replacement-123"),
+    /OWNER_CHANGED/,
+  );
+  assert.equal(
+    f.sql.prepare("SELECT request_id FROM recovery_codes").get().request_id,
+    null,
+  );
+  assert.equal(
+    f.sql.prepare("SELECT owner_id FROM recovery_owners").get().owner_id,
+    originalOwner.id,
+  );
+  f.recovery.request = f.request;
+  assert.equal((await f.recovery.sync()).registered, true);
+  const session = await f.recovery.recover(code);
+  assert.equal(session.user.id, originalOwner.id);
+});
+
+test("legacy recovery identities report owner conflicts before consuming codes", async (t) => {
+  const f = await fixture(t);
+  await f.recovery.sync();
+  delete f.recovery.identity().ownerId;
+  f.recovery.save();
+  const originalOwner = await f.db.request("_recoveryOwner");
+  const code = f.issue();
+  f.recovery.request = async (command, ...args) =>
+    command === "_recoveryOwner"
+      ? { ...originalOwner, id: "different-owner" }
+      : f.request(command, ...args);
+  assert.equal((await f.recovery.sync()).error, "OWNER_CHANGED");
+  assert.equal(f.recovery.status().registered, false);
+  await assert.rejects(f.recovery.recover(code), /OWNER_CHANGED/);
+  assert.equal(
+    f.sql.prepare("SELECT request_id FROM recovery_codes").get().request_id,
+    null,
+  );
+});
+
+test("cached authorizations cannot sign in a different restored owner", async (t) => {
+  const f = await fixture(t);
+  await f.recovery.sync();
+  const code = f.issue();
+  const originalRequest = f.recovery.request;
+  f.recovery.request = async (command, ...args) => {
+    if (command === "_recoverySignIn") throw Error("disk failure");
+    return originalRequest(command, ...args);
+  };
+  await assert.rejects(f.recovery.recover(code), /disk failure/);
+  delete f.recovery.identity().ownerId; // older identity files have no local owner binding
+  let signIns = 0;
+  f.recovery.request = async (command, ...args) => {
+    if (command === "_recoveryOwner") return { id: "restored-owner" };
+    if (command === "_recoverySignIn") signIns++;
+    return originalRequest(command, ...args);
+  };
+  await assert.rejects(f.recovery.recover(code), /OWNER_CHANGED/);
+  assert.equal(signIns, 0);
+});
+
+test("two shops on one device keep separate identities, codes and owner sessions", async (t) => {
+  const first = await fixture(t),
+    second = await fixture(t);
+  await first.recovery.sync();
+  // Both fixtures represent the same hardware, with independent profile directories.
+  second.license.config = first.license.config;
+  const other = new RecoveryManager({
+    licensing: second.license,
+    request: second.request,
+    fetchImpl: first.fetchImpl,
+  });
+  const identity = other.status();
+  assert.equal(identity.deviceHash, first.recovery.status().deviceHash);
+  assert.notEqual(
+    identity.installationId,
+    first.recovery.status().installationId,
+  );
+  assert.equal((await other.sync()).error, "ENROLLMENT_REQUIRED");
+  first.sql
+    .prepare(
+      "INSERT INTO recovery_enrollments(installation_id,device_hash,public_key,code_hash,expires_at) VALUES (?,?,?,?,?)",
+    )
+    .run(
+      identity.installationId,
+      identity.deviceHash,
+      identity.publicKey,
+      digest(""),
+      Date.now() + 1800000,
+    );
+  assert.equal((await other.sync()).registered, true);
+  const firstCode = first.issue(),
+    otherCode = "B".repeat(40);
+  first.sql
+    .prepare(
+      "INSERT INTO recovery_codes(installation_id,code_hash,kind,expires_at) VALUES (?,?,'reset',?)",
+    )
+    .run(identity.installationId, digest(otherCode), Date.now() + 1800000);
+  await assert.rejects(other.recover(firstCode), /WRONG_STORE/);
+  const otherSession = await other.recover(otherCode);
+  assert.equal(otherSession.user.id, second.owner.user.id);
+  const firstSession = await first.recovery.recover(firstCode);
+  assert.equal(firstSession.user.id, first.owner.user.id);
+  await assert.rejects(first.db.request("me", {}, otherSession.token));
+  await assert.rejects(second.db.request("me", {}, firstSession.token));
+  assert.equal(
+    first.sql.prepare("SELECT COUNT(*) n FROM recovery_owners").get().n,
+    2,
+  );
+});

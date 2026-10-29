@@ -41,6 +41,7 @@ const {
   sanitizeProfiles,
   isEphemeralDirectory,
   defaultStoreDirectory,
+  importShopProfile,
 } = require("./profiles.cjs");
 const profileRegistryFile = path.join(
   app.getPath("appData"),
@@ -260,9 +261,12 @@ async function start() {
           "DESKTOP_ONLY",
           "STORAGE_UNAVAILABLE",
           "OWNER_ONLY",
+          "OWNER_CHANGED",
         ].includes(e.message)
           ? e.message
-          : "SERVICE_UNAVAILABLE",
+          : e.message === "OWNER_UNAVAILABLE"
+            ? "OWNER_CHANGED"
+            : "SERVICE_UNAVAILABLE",
       };
     }
   });
@@ -343,6 +347,7 @@ async function start() {
       const entry = {
         id: profileId(directory),
         directory,
+        ownerId: (await worker.request("_recoveryOwner"))?.id,
         name:
           status.store?.name ||
           status.store?.storeName ||
@@ -568,6 +573,56 @@ async function start() {
     // Fail before hashing/copying when the store drive cannot hold the restore.
     assertRestoreDiskSpace(file, target);
     const info = validateRestore(file);
+    if (!info.owner) throw new Error("The backup has no active shop owner.");
+    const currentOwner = await db.request("_recoveryOwner");
+    if (info.owner.id !== currentOwner?.id) {
+      if (profiles.some((p) => !p.hidden && p.ownerId === info.owner.id))
+        throw new Error(
+          "This shop is already saved on this computer. Switch to it before restoring its backup.",
+        );
+      const choice = await dialog.showMessageBox(mainWindow, {
+        type: "question",
+        title: "Add a separate shop?",
+        message: `This backup belongs to ${info.owner.storeName} (${info.owner.username}).`,
+        detail:
+          "Add it as a separate shop on this computer. Your current shop stays unchanged. The added shop needs its own activation and recovery registration. Use the shop selector to switch between them.",
+        buttons: ["Cancel", "Add shop"],
+        defaultId: 0,
+        cancelId: 0,
+        noLink: true,
+      });
+      if (choice.response !== 1) return { cancelled: true };
+      await db.request("canRestore", {}, token);
+      const entry = await importShopProfile({
+        appData: app.getPath("appData"),
+        registryFile: profileRegistryFile,
+        file,
+        info,
+        restoreDatabase,
+        prepare: async (directory) => {
+          if (app.isPackaged)
+            licensing.save(
+              { mode: "required" },
+              path.join(directory, "installation-v1.dat"),
+            );
+        },
+      });
+      profiles.push(entry);
+      fs.writeFileSync(lastProfileFile, entry.id, { mode: 0o600 });
+      app.relaunch({
+        args: [
+          ...process.argv
+            .slice(1)
+            .filter(
+              (a) =>
+                !a.startsWith("--radefy-profile=") && a !== "--radefy-recovery",
+            ),
+          "--radefy-profile=" + entry.id,
+        ],
+      });
+      app.quit();
+      return { ok: true, profileId: entry.id };
+    }
     const sizeLabel =
       info.size >= 1024 ** 3
         ? `${(info.size / 1024 ** 3).toFixed(1)} GB`
@@ -582,7 +637,7 @@ async function start() {
       type: "warning",
       title: "Restore this backup?",
       message: `Replace the current store with the selected backup?`,
-      detail: `${file}\n\n${info.products.toLocaleString()} products · ${info.documents.toLocaleString()} transactions · ${sizeLabel}\nStore drive free: ${(free / 1024 ** 3).toFixed(1)} GB (needs about ${(need / 1024 ** 3).toFixed(1)} GB).${largeNote}\n\nA safety copy of the current store will be saved first. You will be signed out and the app will restart.`,
+      detail: `${file}\n\n${info.customers.toLocaleString()} customers · ${info.suppliers.toLocaleString()} suppliers · ${info.products.toLocaleString()} products · ${info.documents.toLocaleString()} transactions · ${sizeLabel}\nStore drive free: ${(free / 1024 ** 3).toFixed(1)} GB (needs about ${(need / 1024 ** 3).toFixed(1)} GB).${largeNote}\n\nA safety copy of the current store will be saved first. You will be signed out and the app will restart.`,
       buttons: ["Cancel", "Restore backup"],
       defaultId: 0,
       cancelId: 0,
@@ -713,7 +768,11 @@ async function start() {
     copyright: "Developed by " + brand.company,
     ...(appIcon ? { iconPath: appIcon } : {}),
   });
-  if (process.platform === "darwin" && appIcon) app.dock?.setIcon(appIcon);
+  if (process.platform === "darwin") {
+    // Electron's Dock API accepts PNG; the packaged app keeps its native ICNS.
+    const dockIcon = nativeImage.createFromPath(path.join(app.getAppPath(), "build/icon.png"));
+    if (!dockIcon.isEmpty()) app.dock?.setIcon(dockIcon);
+  }
   Menu.setApplicationMenu(
     Menu.buildFromTemplate([
       {

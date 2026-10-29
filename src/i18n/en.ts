@@ -66,6 +66,8 @@ export const en: MessageTree = {
     success:
       "Password reset. Your username is {username}. Sign in with your new password.",
     errors: {
+      OWNER_CHANGED:
+        "This shop's owner does not match this recovery registration. Switch to the original shop, or ask support to register the restored shop separately.",
       WRONG_STORE:
         "This code is for a different store. Ask support for a code for the shop shown above.",
       EXPIRED_CODE: "This code has expired. Ask support for a fresh code.",

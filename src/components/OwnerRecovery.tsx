@@ -35,6 +35,7 @@ export function OwnerRecovery({
           "WRONG_STORE",
           "EXPIRED_CODE",
           "CODE_USED",
+          "OWNER_CHANGED",
         ].includes(code)
           ? code
           : "SERVICE_UNAVAILABLE"),

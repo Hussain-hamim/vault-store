@@ -36,6 +36,7 @@
     "test:recovery:live": "node scripts/licensing/recovery-live.mjs",
     "test:recovery:desktop": "electron tests/recovery-electron-smoke.cjs",
     "test:accounts:desktop": "electron tests/accounts-electron-smoke.cjs",
+    "test:shops:desktop": "electron tests/shop-profiles-electron.cjs",
     "test:products:desktop": "electron tests/product-entry-electron-smoke.cjs",
     "test:devices:desktop": "electron tests/serialized-inventory-electron-smoke.cjs",
     "test:templates:desktop": "electron tests/invoice-templates-electron.cjs"
