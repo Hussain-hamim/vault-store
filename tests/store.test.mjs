@@ -2541,7 +2541,6 @@ test("purchase currencies persist foreign quotes, edit safely and keep FIFO in A
 
 test("custom currencies are shared, persisted, permission checked and validated", async (t) => {
   const dir = mkdtempSync(path.join(os.tmpdir(), "store-currency-"));
-  t.after(() => rmSync(dir, { recursive: true, force: true }));
   const file = path.join(dir, "store.sqlite");
   const f = fixture(t, file);
   const saved = await f.s.dispatch(
@@ -2615,6 +2614,7 @@ test("custom currencies are shared, persisted, permission checked and validated"
   );
   f.s.auth = originalAuth;
   balanced(f.s);
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
 });
 
 test("product opening costs support selected currency without changing historical batches", (t) => {

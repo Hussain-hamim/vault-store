@@ -332,7 +332,6 @@ test("serials are optional but supplied duplicates are rejected; retries do not 
 });
 test("existing quantity device stock migrates without changing costs or accounting, once only", (t) => {
   const root = mkdtempSync(join(tmpdir(), "device-upgrade-"));
-  t.after(() => rmSync(root, { recursive: true, force: true }));
   const file = join(root, "store.sqlite");
   const f = fixture(t, file);
   f.s.run("UPDATE products SET serialized=0 WHERE id=?", f.product);
@@ -351,6 +350,7 @@ test("existing quantity device stock migrates without changing costs or accounti
   const reopened = new Store(file);
   assert.equal(reopened.one("SELECT COUNT(*) n FROM inventory_units").n, 2);
   reopened.close();
+  t.after(() => rmSync(root, { recursive: true, force: true }));
 });
 test("device metadata is editable only with inventory permission and invoice snapshots remain immutable", async (t) => {
   const f = fixture(t);
@@ -483,7 +483,6 @@ test("unsold purchase edits recreate devices atomically and hard delete removes 
 });
 test("legacy sales return their original cost after upgrading and create a replacement tracked device", (t) => {
   const root = mkdtempSync(join(tmpdir(), "device-legacy-"));
-  t.after(() => rmSync(root, { recursive: true, force: true }));
   const file = join(root, "store.sqlite");
   const f = fixture(t, file);
   f.s.run("UPDATE products SET serialized=0 WHERE id=?", f.product);
@@ -515,6 +514,7 @@ test("legacy sales return their original cost after upgrading and create a repla
   } finally {
     upgraded.close();
   }
+  t.after(() => rmSync(root, { recursive: true, force: true }));
 });
 test("a device purchased again after supplier return keeps its identity and uses its new cost", (t) => {
   const f = fixture(t);
@@ -534,7 +534,6 @@ test("a device purchased again after supplier return keeps its identity and uses
 });
 test("backups preserve individual devices, their original costs and sale links", async (t) => {
   const root = mkdtempSync(join(tmpdir(), "device-backup-"));
-  t.after(() => rmSync(root, { recursive: true, force: true }));
   const f = fixture(t, join(root, "store.sqlite"));
   f.buy(9000, 2, {
     units: [{ serial: "BACKUP-DEVICE" }, { notes: "No serial" }],
@@ -559,6 +558,7 @@ test("backups preserve individual devices, their original costs and sale links",
   } finally {
     restored.close();
   }
+  t.after(() => rmSync(root, { recursive: true, force: true }));
 });
 
 test("ambiguous scan identifiers never select the wrong device", async (t) => {

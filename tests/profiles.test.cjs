@@ -10,6 +10,8 @@ const {
   sanitizeProfiles,
 } = require("../electron/profiles.cjs");
 
+fs.mkdirSync(path.join(process.cwd(), ".local"), { recursive: true });
+
 test("Temp directories are ephemeral and never preferred over Vault Store", () => {
   // Keep the fake Roaming folder outside OS Temp so Vault Store is not ephemeral.
   const root = fs.mkdtempSync(
