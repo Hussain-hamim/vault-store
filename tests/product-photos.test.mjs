@@ -272,6 +272,7 @@ test("editing a photo preserves the old photo for historical invoice snapshots",
   });
   const invoice = f.s.postTrade(f.user, {
     kind: "sale",
+    due_date: "2099-12-31",
     party_id: buyer,
     paid: 100000,
     request_key: randomUUID(),
@@ -324,7 +325,12 @@ test("backup copies omit camera photos and restore studio images with shop data 
   const root = mkdtempSync(join(tmpdir(), "radefy-photo-backup-"));
   t.after(() => {
     try {
-      rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+      rmSync(root, {
+        recursive: true,
+        force: true,
+        maxRetries: 5,
+        retryDelay: 50,
+      });
     } catch (error) {
       if (error.code !== "EBUSY") throw error;
     }
@@ -347,7 +353,10 @@ test("backup copies omit camera photos and restore studio images with shop data 
   );
   const copy = new DatabaseSync(file, { readOnly: true });
   try {
-    assert.equal(copy.prepare("SELECT COUNT(*) n FROM product_photos").get().n, 0);
+    assert.equal(
+      copy.prepare("SELECT COUNT(*) n FROM product_photos").get().n,
+      0,
+    );
     assert.equal(
       copy.prepare("SELECT image FROM products WHERE id=?").get(p.id).image,
       "/assets/laptop.png",

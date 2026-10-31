@@ -364,3 +364,8 @@
   font-size: 11px;
   color: var(--paint-fg-84939b, #84939b);
 }
+
+.entry-pricing input.entry-emphasis {font-size:1.12rem;font-weight:800;font-variant-numeric:tabular-nums;border-width:2px;}
+.entry-pricing .entry-emphasis-opening_quantity {color:var(--text);border-color:#5686a5;}
+.entry-pricing .entry-emphasis-cost {color:var(--text);border-color:#b08036;}
+.entry-pricing .entry-emphasis-price {color:var(--text);border-color:#27847d;}

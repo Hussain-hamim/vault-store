@@ -195,7 +195,9 @@ export function PrintDialog({
         target.print();
       }
     } catch (e: any) {
-      setError(e.message);
+      setError(
+        e.message === "LIST_CHANGED" ? t("client.LIST_CHANGED") : e.message,
+      );
     } finally {
       setBusy(false);
     }
@@ -524,7 +526,10 @@ export function ReportPrintButton({
       const status = await api("status");
       if (mounted.current) setDoc({ ...snapshot, store: status.store });
     } catch (e: any) {
-      if (mounted.current) setError(e.message);
+      if (mounted.current)
+        setError(
+          e.message === "LIST_CHANGED" ? t("client.LIST_CHANGED") : e.message,
+        );
     } finally {
       if (mounted.current) setBusy(false);
     }

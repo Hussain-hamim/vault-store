@@ -43,6 +43,7 @@ function fixture(t, file = ":memory:") {
   const sell = (ids, extra = {}) =>
     s.postTrade(u, {
       kind: "sale",
+      due_date: "2099-12-31",
       party_id: customer,
       paid: 0,
       request_key: randomUUID(),
@@ -131,11 +132,11 @@ test("exact device cost overrides FIFO; serial optional; returns restore the sam
   assert.equal(f.units()[1].status, "available");
   f.coherent();
 });
-test("missing, duplicate, wrong-product and already-sold selections roll back atomically", (t) => {
+test("incomplete, duplicate, wrong-product and already-sold selections roll back atomically", (t) => {
   const f = fixture(t);
   f.buy(10000, 2);
   const [a, b] = f.units();
-  assert.throws(() => f.sell([], { quantity: 1 }), /Select exactly/);
+  assert.throws(() => f.sell([a.id], { quantity: 2 }), /Select exactly/);
   assert.throws(() => f.sell([a.id, a.id]), /Select exactly/);
   const other = f.create({ opening_quantity: 1, unit_cost: 1 });
   const wrong = f.s.one(
@@ -233,6 +234,7 @@ test("sale edit/delete restores exact units; a device cannot be sold twice on on
     () =>
       f.s.postTrade(f.u, {
         kind: "sale",
+        due_date: "2099-12-31",
         party_id: f.customer,
         paid: 0,
         request_key: randomUUID(),
@@ -293,6 +295,7 @@ test("opening stock and adjustments track devices; accessories remain quantity F
   );
   const sale = f.s.postTrade(f.u, {
     kind: "sale",
+    due_date: "2099-12-31",
     party_id: f.customer,
     paid: 0,
     request_key: randomUUID(),
@@ -314,6 +317,7 @@ test("serials are optional but supplied duplicates are rejected; retries do not 
     key = randomUUID();
   const input = {
     kind: "sale",
+    due_date: "2099-12-31",
     party_id: f.customer,
     paid: 0,
     request_key: key,
@@ -486,6 +490,7 @@ test("legacy sales return their original cost after upgrading and create a repla
   f.buy(8000);
   const sale = f.s.postTrade(f.u, {
     kind: "sale",
+    due_date: "2099-12-31",
     party_id: f.customer,
     paid: 0,
     request_key: randomUUID(),
@@ -634,6 +639,7 @@ test("sale quantity without unit_ids auto-picks devices FIFO", async (t) => {
   assert.equal(available.length, 2);
   const sale = f.s.postTrade(f.u, {
     kind: "sale",
+    due_date: "2099-12-31",
     party_id: f.customer,
     paid: 0,
     request_key: randomUUID(),
@@ -644,6 +650,9 @@ test("sale quantity without unit_ids auto-picks devices FIFO", async (t) => {
   assert.equal(sold.length, 1);
   assert.equal(sold[0].id, available[0].id);
   assert.equal(sold[0].unit_cost, 10000);
-  assert.equal(f.s.one("SELECT stock FROM products WHERE id=?", f.product).stock, 1);
+  assert.equal(
+    f.s.one("SELECT stock FROM products WHERE id=?", f.product).stock,
+    1,
+  );
   f.coherent();
 });

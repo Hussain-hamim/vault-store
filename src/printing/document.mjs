@@ -1,4 +1,9 @@
-import { autoDirHtml, ltrPhoneHtml, mixedHtml, westernDigits } from "./bidi.mjs";
+import {
+  autoDirHtml,
+  ltrPhoneHtml,
+  mixedHtml,
+  westernDigits,
+} from "./bidi.mjs";
 import { contactGlyph, goldenSale, goldenCss } from "./golden.mjs";
 import brand from "../../shared/brand.json" with { type: "json" };
 import { supportLinks } from "../../server/support.mjs";
@@ -38,8 +43,7 @@ export function renderPrintDocument(doc, input, fonts = {}) {
   const logo = safePrintLogo(doc.store?.logo_left || doc.store?.logo);
   const logoLeft = safePrintLogo(doc.store?.logo_left || doc.store?.logo);
   const logoRight = safePrintLogo(doc.store?.logo_right);
-  const watermark =
-    safePrintLogo(doc.store?.watermark) || logoLeft;
+  const watermark = safePrintLogo(doc.store?.watermark) || logoLeft;
   const fontFaces = Object.entries(fonts)
     .filter(
       ([key, url]) =>
@@ -55,12 +59,25 @@ export function renderPrintDocument(doc, input, fonts = {}) {
     ["positive", "negative", "blue", "amber"].includes(tone)
       ? `tone-${tone}`
       : "";
-  const cell = (value, numeric = false, tone = "") =>
-    `<td class="${numeric ? "num " : ""}${toneClass(tone)}">${numeric ? `<bdi dir="ltr">${e(westernDigits(value))}</bdi>` : autoDirHtml(value, e)}</td>`;
+  const cell = (value, numeric = false, tone = "", identity = false) =>
+    `<td class="${numeric ? "num " : ""}${identity ? "product-identity " : ""}${toneClass(tone)}">${
+      numeric
+        ? `<bdi dir="ltr">${e(westernDigits(value))}</bdi>`
+        : identity
+          ? String(value ?? "")
+              .split("\n")
+              .map((line, i) =>
+                i === 0
+                  ? `<strong>${autoDirHtml(line, e)}</strong>`
+                  : `<small>${autoDirHtml(line, e)}</small>`,
+              )
+              .join("")
+          : autoDirHtml(value, e)
+    }</td>`;
   const tables = (doc.sections || [])
     .map(
       (section) =>
-        `<section class="document-section">${section.title ? `<h3>${e(section.title)}</h3>` : ""}${section.note ? `<p class="section-note">${e(section.note)}</p>` : ""}<table><thead><tr>${section.columns.map((c) => `<th${c.numeric ? ' class="num"' : ""}>${e(c.label)}</th>`).join("")}</tr></thead><tbody>${section.rows.length ? section.rows.map((row, r) => `<tr>${section.columns.map((c, i) => cell(row[i], c.numeric, section.tones?.[r]?.[i])).join("")}</tr>`).join("") : `<tr><td colspan="${section.columns.length}">${e(doc.emptyLabel)}</td></tr>`}</tbody></table></section>`,
+        `<section class="document-section">${section.title ? `<h3>${e(section.title)}</h3>` : ""}${section.note ? `<p class="section-note">${e(section.note)}</p>` : ""}<table><thead><tr>${section.columns.map((c) => `<th${c.numeric ? ' class="num"' : ""}>${e(c.label)}</th>`).join("")}</tr></thead><tbody>${section.rows.length ? section.rows.map((row, r) => `<tr>${section.columns.map((c, i) => cell(row[i], c.numeric, section.tones?.[r]?.[i], c.identity)).join("")}</tr>`).join("") : `<tr><td colspan="${section.columns.length}">${e(doc.emptyLabel)}</td></tr>`}</tbody></table></section>`,
     )
     .join("");
   const labels = (doc.labels || [])
@@ -152,14 +169,10 @@ ${fontFaces}
   const ownerLine = (name, phone) => {
     const who = String(name || "").trim();
     if (!who) return "";
-    const contacts = [
-      ["phone", phone],
-    ]
+    const contacts = [["phone", phone]]
       .map(([kind, v]) => {
         const text = String(v || "").trim();
-        return text
-          ? `${contactGlyph(kind)} ${ltrPhoneHtml(text, e)}`
-          : "";
+        return text ? `${contactGlyph(kind)} ${ltrPhoneHtml(text, e)}` : "";
       })
       .filter(Boolean)
       .join("");
@@ -167,14 +180,8 @@ ${fontFaces}
   };
   const saleOwners = saleShop
     ? [
-        ownerLine(
-          doc.store?.owner1_name,
-          doc.store?.owner1_phone,
-        ),
-        ownerLine(
-          doc.store?.owner2_name,
-          doc.store?.owner2_phone,
-        ),
+        ownerLine(doc.store?.owner1_name, doc.store?.owner1_phone),
+        ownerLine(doc.store?.owner2_name, doc.store?.owner2_phone),
       ]
         .filter(Boolean)
         .join("")
@@ -191,6 +198,7 @@ ${fontFaces}
     <div class="sale-shop-logo">${options.showLogo && logoRight ? `<img src="${e(logoRight)}" alt="">` : ""}</div>
   </div>
   ${doc.store?.services ? `<p class="sale-shop-services" dir="ltr">${mixedHtml(doc.store.services, e)}</p>` : ""}
+  ${doc.store?.address || storePhone ? `<p class="business-info">${doc.store?.address ? `<span dir="auto">${e(doc.store.address)}</span>` : ""} ${storePhone}</p>` : ""}
   ${saleOwners ? `<div class="sale-shop-owners">${saleOwners}</div>` : ""}
   <div class="sale-shop-doc"><h2>${e(doc.title)}</h2>${doc.reference ? `<strong class="document-reference">${e(westernDigits(doc.reference))}</strong>` : ""}${doc.subtitle ? `<p class="document-subtitle"><bdi dir="ltr">${e(westernDigits(doc.subtitle))}</bdi></p>` : ""}</div>
 </header>`

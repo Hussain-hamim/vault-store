@@ -96,3 +96,20 @@ CREATE INDEX IF NOT EXISTS idx_unit_available ON inventory_units(product_id,stat
 CREATE INDEX IF NOT EXISTS idx_unit_batch ON inventory_units(batch_id,status);
 CREATE INDEX IF NOT EXISTS idx_unit_sale ON inventory_units(sale_line_id);
 CREATE TABLE IF NOT EXISTS unit_lines(line_id TEXT NOT NULL REFERENCES document_lines(id),unit_id TEXT NOT NULL REFERENCES inventory_units(id),kind TEXT NOT NULL,snapshot TEXT NOT NULL,PRIMARY KEY(line_id,unit_id)) STRICT;
+
+CREATE TABLE IF NOT EXISTS product_operations(request_key TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id),action TEXT NOT NULL,fingerprint TEXT NOT NULL,result TEXT NOT NULL) STRICT;
+
+CREATE INDEX IF NOT EXISTS idx_sales_due ON documents(due_date,party_id) WHERE kind='sale' AND due_date IS NOT NULL;
+
+-- Monotonic across edits/deletes: movement rowids can be reused after a reversal.
+CREATE TABLE IF NOT EXISTS product_stock_revisions(product_id TEXT PRIMARY KEY REFERENCES products(id),revision INTEGER NOT NULL DEFAULT 0) STRICT;
+CREATE TRIGGER IF NOT EXISTS stock_revision_insert AFTER INSERT ON movements BEGIN
+ INSERT INTO product_stock_revisions VALUES (NEW.product_id,1) ON CONFLICT(product_id) DO UPDATE SET revision=revision+1;
+END;
+CREATE TRIGGER IF NOT EXISTS stock_revision_delete AFTER DELETE ON movements BEGIN
+ INSERT INTO product_stock_revisions VALUES (OLD.product_id,1) ON CONFLICT(product_id) DO UPDATE SET revision=revision+1;
+END;
+CREATE TRIGGER IF NOT EXISTS stock_revision_update AFTER UPDATE ON movements BEGIN
+ INSERT INTO product_stock_revisions VALUES (OLD.product_id,1) ON CONFLICT(product_id) DO UPDATE SET revision=revision+1;
+ INSERT INTO product_stock_revisions SELECT NEW.product_id,1 WHERE NEW.product_id<>OLD.product_id ON CONFLICT(product_id) DO UPDATE SET revision=revision+1;
+END;

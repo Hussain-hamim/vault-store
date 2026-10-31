@@ -56,6 +56,7 @@ const purchase = (f, qty = 10, cost = 80000, extra = {}) =>
 const sale = (f, qty = 1, paid = 60000, extra = {}) =>
   f.s.postTrade(f.u, {
     kind: "sale",
+    due_date: "2099-12-31",
     party_id: f.customer,
     paid,
     request_key: key(),
@@ -208,6 +209,7 @@ test("overselling the same unit is blocked after stock is consumed", (t) => {
   });
   f.s.postTrade(f.u, {
     kind: "sale",
+    due_date: "2099-12-31",
     party_id: f.customer,
     paid: 100000,
     request_key: key(),
@@ -217,6 +219,7 @@ test("overselling the same unit is blocked after stock is consumed", (t) => {
     () =>
       f.s.postTrade(f.u, {
         kind: "sale",
+        due_date: "2099-12-31",
         party_id: f.customer,
         paid: 100000,
         request_key: key(),
@@ -274,7 +277,12 @@ test("backup verifies live WAL data, tolerates failed destinations, and restores
   const root = mkdtempSync(path.join(os.tmpdir(), "vault-test-"));
   t.after(() => {
     try {
-      rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+      rmSync(root, {
+        recursive: true,
+        force: true,
+        maxRetries: 5,
+        retryDelay: 50,
+      });
     } catch (error) {
       if (error.code !== "EBUSY") throw error;
     }
@@ -314,7 +322,12 @@ test("retention never deletes unrelated files and keeps manual snapshots for the
   const root = mkdtempSync(path.join(os.tmpdir(), "vault-retention-"));
   t.after(() => {
     try {
-      rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+      rmSync(root, {
+        recursive: true,
+        force: true,
+        maxRetries: 5,
+        retryDelay: 50,
+      });
     } catch (error) {
       if (error.code !== "EBUSY") throw error;
     }
@@ -400,6 +413,7 @@ test("partial sale returns restore FIFO cost for the returned quantity", (t) => 
     });
   const doc = f.s.postTrade(f.u, {
     kind: "sale",
+    due_date: "2099-12-31",
     party_id: f.customer,
     paid: 200000,
     request_key: key(),
@@ -726,6 +740,7 @@ test("one purchase accepts multiple products without losing cost or return track
   assert.equal(doc.total, 609999);
   const sold = f.s.postTrade(f.u, {
     kind: "sale",
+    due_date: "2099-12-31",
     party_id: f.customer,
     paid: 0,
     request_key: key(),
@@ -821,6 +836,7 @@ test("hard delete removes an invoice and restores stock and financial totals, wi
   }).id;
   const doc = f.s.postTrade(f.u, {
     kind: "sale",
+    due_date: "2099-12-31",
     party_id: f.customer,
     paid: 100000,
     request_key: key(),
@@ -989,6 +1005,7 @@ test("invoice editing preserves cost after a catalog SKU change", async (t) => {
   }).id;
   const old = f.s.postTrade(f.u, {
     kind: "sale",
+    due_date: "2099-12-31",
     party_id: f.customer,
     paid: 0,
     request_key: key(),
@@ -1087,6 +1104,7 @@ test("purchase invoices can be edited while unsold stock is still on hand", (t) 
   // After selling any of the purchase, editing is blocked.
   f.s.postTrade(f.u, {
     kind: "sale",
+    due_date: "2099-12-31",
     party_id: f.customer,
     paid: 100000,
     request_key: key(),
@@ -1189,6 +1207,7 @@ test("FIFO keeps separate purchase costs and profit uses batches sold, not catal
   // Sell 4: 3×18000 + 1×20000 = 74000; revenue 4×250000; gross 1000000-74000
   const doc = f.s.postTrade(f.u, {
     kind: "sale",
+    due_date: "2099-12-31",
     party_id: f.customer,
     paid: 1_000_000,
     request_key: key(),
@@ -1216,6 +1235,7 @@ test("FIFO keeps separate purchase costs and profit uses batches sold, not catal
   // Next sale takes restored cheap unit first, then remaining expensive unit
   const next = f.s.postTrade(f.u, {
     kind: "sale",
+    due_date: "2099-12-31",
     party_id: f.customer,
     paid: 500000,
     request_key: key(),
@@ -2021,7 +2041,12 @@ test("historical owner reports use their as-of date and customer resale survives
   const root = mkdtempSync(path.join(os.tmpdir(), "vault-resale-backup-"));
   t.after(() => {
     try {
-      rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+      rmSync(root, {
+        recursive: true,
+        force: true,
+        maxRetries: 5,
+        retryDelay: 50,
+      });
     } catch (error) {
       if (error.code !== "EBUSY") throw error;
     }
@@ -2264,13 +2289,17 @@ test("one receive can take several new products for the same owner", async (t) =
   );
   assert.equal(receipt.lines.length, 2);
   assert.equal(
-    f.s.one("SELECT stock FROM products WHERE id=?", receipt.lines[0].product_id)
-      .stock,
+    f.s.one(
+      "SELECT stock FROM products WHERE id=?",
+      receipt.lines[0].product_id,
+    ).stock,
     1,
   );
   assert.equal(
-    f.s.one("SELECT stock FROM products WHERE id=?", receipt.lines[1].product_id)
-      .stock,
+    f.s.one(
+      "SELECT stock FROM products WHERE id=?",
+      receipt.lines[1].product_id,
+    ).stock,
     2,
   );
   assert.equal(
@@ -2321,6 +2350,7 @@ test("unlisted customer resale creates owner and product atomically, then record
   assert.equal(f.s.totals().net, 0);
   const invoice = f.s.postTrade(f.u, {
     kind: "sale",
+    due_date: "2099-12-31",
     party_id: f.customer,
     date: today(),
     paid: 300000,
@@ -2962,6 +2992,7 @@ test("sale payment currency converts cash and debt without changing AF prices or
   purchase(f, 2, 80000);
   const args = {
     kind: "sale",
+    due_date: "2099-12-31",
     party_id: f.customer,
     currency: "USD",
     fx_rate: 700000,
@@ -3011,6 +3042,7 @@ test("sale foreign payments reject mismatches and overpayments and accept AFN at
   purchase(f, 3, 80000);
   const args = {
     kind: "sale",
+    due_date: "2099-12-31",
     party_id: f.customer,
     currency: "USD",
     fx_rate: 700000,
@@ -3275,33 +3307,77 @@ test("remembered login survives multiple days and database reopen; signout revok
 test("product deletion requires zero stock and preserves invoices; returns restore visibility", async (t) => {
   const f = fixture(t);
   purchase(f, 2);
-  await assert.rejects(f.s.dispatch("productDelete", {id:f.product}, f.token), /Stock remains/);
-  assert.equal(f.s.one("SELECT active FROM products WHERE id=?",f.product).active,1);
+  await assert.rejects(
+    f.s.dispatch("productDelete", { id: f.product }, f.token),
+    /Stock remains/,
+  );
+  assert.equal(
+    f.s.one("SELECT active FROM products WHERE id=?", f.product).active,
+    1,
+  );
   const doc = sale(f, 2, 0);
   const before = f.s.totals();
-  await f.s.dispatch("productDelete", {id:f.product}, f.token);
-  await f.s.dispatch("productDelete", {id:f.product}, f.token);
-  assert.equal((await f.s.dispatch("catalog", {q:"SSD-01"}, f.token)).rows.length,0);
-  assert.equal(f.s.getDocument(doc.id).lines.length,1);
-  assert.deepEqual(f.s.totals().gross,before.gross);
-  f.s.returnTrade(f.u, {original_id:doc.id,lines:[{line_id:doc.lines[0].id,quantity:1}],note:"Returned",request_key:key()});
-  assert.equal(f.s.one("SELECT active FROM products WHERE id=?",f.product).active,1);
-  assert.equal((await f.s.dispatch("catalog", {q:"SSD-01"}, f.token)).rows[0].stock,1);
-  await assert.rejects(f.s.dispatch("productDelete", {id:f.product}, f.token), /Stock remains/);
+  await f.s.dispatch("productDelete", { id: f.product }, f.token);
+  await f.s.dispatch("productDelete", { id: f.product }, f.token);
+  assert.equal(
+    (await f.s.dispatch("catalog", { q: "SSD-01" }, f.token)).rows.length,
+    0,
+  );
+  assert.equal(f.s.getDocument(doc.id).lines.length, 1);
+  assert.deepEqual(f.s.totals().gross, before.gross);
+  f.s.returnTrade(f.u, {
+    original_id: doc.id,
+    lines: [{ line_id: doc.lines[0].id, quantity: 1 }],
+    note: "Returned",
+    request_key: key(),
+  });
+  assert.equal(
+    f.s.one("SELECT active FROM products WHERE id=?", f.product).active,
+    1,
+  );
+  assert.equal(
+    (await f.s.dispatch("catalog", { q: "SSD-01" }, f.token)).rows[0].stock,
+    1,
+  );
+  await assert.rejects(
+    f.s.dispatch("productDelete", { id: f.product }, f.token),
+    /Stock remains/,
+  );
   balanced(f.s);
 });
 test("product deletion is authenticated and requires inventory permission", async (t) => {
   const f = fixture(t);
-  await assert.rejects(f.s.dispatch("productDelete", {id:f.product}));
-  await f.s.dispatch("userCreate",{name:"Cashier",username:"cashier",password:"cashier-test-pass",role:"Cashier"},f.token);
-  const session = await f.s.dispatch("login",{username:"cashier",password:"cashier-test-pass"});
-  await assert.rejects(f.s.dispatch("productDelete", {id:f.product}, session.token),/Permission/);
-  await f.s.dispatch("productDelete", {id:f.product}, f.token);
-  assert.equal(f.s.one("SELECT active FROM products WHERE id=?",f.product).active,0);
+  await assert.rejects(f.s.dispatch("productDelete", { id: f.product }));
+  await f.s.dispatch(
+    "userCreate",
+    {
+      name: "Cashier",
+      username: "cashier",
+      password: "cashier-test-pass",
+      role: "Cashier",
+    },
+    f.token,
+  );
+  const session = await f.s.dispatch("login", {
+    username: "cashier",
+    password: "cashier-test-pass",
+  });
+  await assert.rejects(
+    f.s.dispatch("productDelete", { id: f.product }, session.token),
+    /Permission/,
+  );
+  await f.s.dispatch("productDelete", { id: f.product }, f.token);
+  assert.equal(
+    f.s.one("SELECT active FROM products WHERE id=?", f.product).active,
+    0,
+  );
 });
 test("party update and delete require zero balance", async (t) => {
   const f = fixture(t);
-  const zero = f.s.createParty(f.u, { kind: "customer", name: "Settled customer" }).id;
+  const zero = f.s.createParty(f.u, {
+    kind: "customer",
+    name: "Settled customer",
+  }).id;
   const owed = f.s.createParty(f.u, {
     kind: "customer",
     name: "Open balance customer",
@@ -3310,12 +3386,24 @@ test("party update and delete require zero balance", async (t) => {
   }).id;
   await f.s.dispatch(
     "partyUpdate",
-    { id: zero, name: "Settled renamed", phone: "0700", email: "", address: "Kabul" },
+    {
+      id: zero,
+      name: "Settled renamed",
+      phone: "0700",
+      email: "",
+      address: "Kabul",
+    },
     f.token,
   );
-  assert.equal(f.s.one("SELECT name FROM parties WHERE id=?", zero).name, "Settled renamed");
+  assert.equal(
+    f.s.one("SELECT name FROM parties WHERE id=?", zero).name,
+    "Settled renamed",
+  );
   await f.s.dispatch("partyDelete", { id: zero }, f.token);
-  assert.equal(f.s.one("SELECT active FROM parties WHERE id=?", zero).active, 0);
+  assert.equal(
+    f.s.one("SELECT active FROM parties WHERE id=?", zero).active,
+    0,
+  );
   assert.equal(
     f.s.listParties({ kind: "customer" }).rows.some((p) => p.id === zero),
     false,
@@ -3324,26 +3412,60 @@ test("party update and delete require zero balance", async (t) => {
     f.s.dispatch("partyDelete", { id: owed }, f.token),
     /balance is 0/,
   );
-  assert.equal(f.s.one("SELECT active FROM parties WHERE id=?", owed).active, 1);
+  assert.equal(
+    f.s.one("SELECT active FROM parties WHERE id=?", owed).active,
+    1,
+  );
 });
 
 test("Previous customer opening edits replace one existing posting atomically", (t) => {
   const { s, u } = fixture(t);
   for (const kind of ["customer", "supplier"]) {
     const request_key = key();
-    const party = s.createParty(u, { kind, name: "Previous contact", opening_balance: 10000, opening_date: today(), request_key });
-    const original = s.one("SELECT id FROM documents WHERE request_key=?", request_key).id;
-    const edit = (amount) => s.updateParty(u, { id: party.id, name: "Edited contact", opening: { request_key, amount, date: today() } });
+    const party = s.createParty(u, {
+      kind,
+      name: "Previous contact",
+      opening_balance: 10000,
+      opening_date: today(),
+      request_key,
+    });
+    const original = s.one(
+      "SELECT id FROM documents WHERE request_key=?",
+      request_key,
+    ).id;
+    const edit = (amount) =>
+      s.updateParty(u, {
+        id: party.id,
+        name: "Edited contact",
+        opening: { request_key, amount, date: today() },
+      });
     edit(15000);
     edit(15000);
     assert.equal(s.partyBalance(party.id).balance, 15000);
-    assert.equal(s.one("SELECT COUNT(*) n FROM documents WHERE party_id=?", party.id).n, 1);
-    assert.equal(s.one("SELECT id FROM documents WHERE request_key=?", request_key).id, original);
+    assert.equal(
+      s.one("SELECT COUNT(*) n FROM documents WHERE party_id=?", party.id).n,
+      1,
+    );
+    assert.equal(
+      s.one("SELECT id FROM documents WHERE request_key=?", request_key).id,
+      original,
+    );
     edit(4000);
     assert.equal(s.partyBalance(party.id).balance, 4000);
     edit(0);
     assert.equal(s.partyBalance(party.id).balance, 0);
-    assert.throws(() => s.updateParty({ ...u, role: "Manager" }, { id: party.id, name: "Bad update", opening: { request_key, amount: 200, date: today() } }), /owner/);
+    assert.throws(
+      () =>
+        s.updateParty(
+          { ...u, role: "Manager" },
+          {
+            id: party.id,
+            name: "Bad update",
+            opening: { request_key, amount: 200, date: today() },
+          },
+        ),
+      /owner/,
+    );
     assert.equal(s.partyBalance(party.id).name, "Edited contact");
     s.saveSetting("closedThrough", today());
     assert.throws(() => edit(500), /closed/);
@@ -3355,14 +3477,30 @@ test("Previous customer opening edits replace one existing posting atomically", 
 test("Previous can set an initially zero opening balance without duplicate postings", (t) => {
   const { s, u } = fixture(t);
   const request_key = key();
-  const party = s.createParty(u, { kind: "customer", name: "Zero opening", request_key });
-  const args = { id: party.id, name: party.name, opening: { request_key, amount: 3000, date: today() } };
+  const party = s.createParty(u, {
+    kind: "customer",
+    name: "Zero opening",
+    request_key,
+  });
+  const args = {
+    id: party.id,
+    name: party.name,
+    opening: { request_key, amount: 3000, date: today() },
+  };
   s.updateParty(u, args);
   s.updateParty(u, args);
   assert.equal(s.partyBalance(party.id).balance, 3000);
   const doc = s.one("SELECT * FROM documents WHERE request_key=?", request_key);
   s.run("UPDATE documents SET paid=1000 WHERE id=?", doc.id);
-  assert.throws(() => s.updateParty(u, { ...args, name: "Should roll back", opening: { ...args.opening, amount: 4000 } }), /linked payments/);
+  assert.throws(
+    () =>
+      s.updateParty(u, {
+        ...args,
+        name: "Should roll back",
+        opening: { ...args.opening, amount: 4000 },
+      }),
+    /linked payments/,
+  );
   assert.equal(s.partyBalance(party.id).name, party.name);
   assert.equal(s.partyBalance(party.id).balance, 3000);
 });
@@ -3372,16 +3510,48 @@ test("Customer sales history includes all filtered invoices and current balances
   purchase(f, 30);
   const docs = [];
   for (let i = 0; i < 12; i++) docs.push(sale(f, 1, 60000));
-  await f.s.dispatch("openingBalance", { party_id: f.customer, amount: 10000, date: today(), request_key: key() }, f.token);
-  f.s.returnTrade(f.u, { original_id: docs[0].id, note: "Customer return", lines: [{ line_id: docs[0].lines[0].id, quantity: 1 }], request_key: key() });
-  const report = await f.s.dispatch("customerSalesHistory", { id: f.customer, start: today(), end: today() }, f.token);
+  await f.s.dispatch(
+    "openingBalance",
+    { party_id: f.customer, amount: 10000, date: today(), request_key: key() },
+    f.token,
+  );
+  f.s.returnTrade(f.u, {
+    original_id: docs[0].id,
+    note: "Customer return",
+    lines: [{ line_id: docs[0].lines[0].id, quantity: 1 }],
+    request_key: key(),
+  });
+  const report = await f.s.dispatch(
+    "customerSalesHistory",
+    { id: f.customer, start: today(), end: today() },
+    f.token,
+  );
   assert.equal(report.rows.length, 12);
   assert.equal(report.totals.remaining, 11 * 40000);
   assert.equal(report.party.balance, 11 * 40000 + 10000);
   assert.equal(report.totals.returned, 100000);
   assert.equal(report.rows[0].lines[0].name, "Test SSD");
   assert.equal(report.rows[0].lines[0].quantity, 1);
-  assert.equal((await f.s.dispatch("customerSalesHistory", { id: f.customer, end: "2000-01-01" }, f.token)).rows.length, 0);
-  await assert.rejects(f.s.dispatch("customerSalesHistory", { id: f.customer, start: "2026-02-02", end: "2026-01-01" }, f.token), /Start date/);
-  await assert.rejects(f.s.dispatch("customerSalesHistory", { id: f.supplier }, f.token), /Customer required/);
+  assert.equal(
+    (
+      await f.s.dispatch(
+        "customerSalesHistory",
+        { id: f.customer, end: "2000-01-01" },
+        f.token,
+      )
+    ).rows.length,
+    0,
+  );
+  await assert.rejects(
+    f.s.dispatch(
+      "customerSalesHistory",
+      { id: f.customer, start: "2026-02-02", end: "2026-01-01" },
+      f.token,
+    ),
+    /Start date/,
+  );
+  await assert.rejects(
+    f.s.dispatch("customerSalesHistory", { id: f.supplier }, f.token),
+    /Customer required/,
+  );
 });

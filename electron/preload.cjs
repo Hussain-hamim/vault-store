@@ -12,6 +12,15 @@ contextBridge.exposeInMainWorld(
       if (!reply.ok) throw new Error(reply.error);
       return reply.result;
     },
+    dueReminders: (locale, token) =>
+      ipcRenderer.invoke("vault:due-reminders", locale, token),
+    onOpenDue: (callback) => {
+      const listener = (_event, tab) => {
+        if (tab === "due" || tab === "overdue") callback(tab);
+      };
+      ipcRenderer.on("vault:open-due", listener);
+      return () => ipcRenderer.removeListener("vault:open-due", listener);
+    },
     accounts: (action, id) => ipcRenderer.invoke("vault:accounts", action, id),
     recovery: async (action, args) => {
       const reply = await ipcRenderer.invoke("vault:recovery", action, args);

@@ -1,13 +1,15 @@
+import { dueInvoices, kabulDay } from "./due-invoices.mjs";
 import { z } from "zod";
 /** Current actionable conditions, never sample rows or an unread-message counter. */
 export function notifications(s, user, input = {}) {
   const d = z
     .object({
-      kind: z.enum(["stock", "customers"]).default("stock"),
+      kind: z.enum(["stock", "customers", "due", "overdue"]).default("stock"),
       limit: z.number().int().min(1).max(100).default(10),
       cursor: z.string().max(1500).nullable().optional(),
       revision: z.number().int().nonnegative().optional(),
       summaryOnly: z.boolean().default(false),
+      asOf: z.string().optional(),
     })
     .parse(input);
   const stockAllowed = user.permissions.some((p) =>
@@ -29,7 +31,16 @@ export function notifications(s, user, input = {}) {
     : { total: 0, amount: 0 };
   if (!Number.isSafeInteger(customers.amount))
     throw new Error("Customer balance total exceeds supported precision.");
+  const asOf = kabulDay();
+  if (d.asOf && d.asOf !== asOf) throw new Error("NOTIFICATIONS_CHANGED");
+  const invoices = dueInvoices(s, user, asOf);
+  const due = invoices.filter((r) => r.due_date === asOf),
+    overdue = invoices.filter((r) => r.due_date < asOf);
   const summary = {
+    due: new Set(due.map((r) => r.party_id)).size,
+    overdue: new Set(overdue.map((r) => r.party_id)).size,
+    dueInvoices: invoices.length,
+    dueAmount: invoices.reduce((a, r) => a + r.balance, 0),
     stock: stock.total,
     zero: stock.zero,
     customers: customers.total,
@@ -38,6 +49,7 @@ export function notifications(s, user, input = {}) {
   };
   const result = {
     summary,
+    asOf,
     revision,
     permissions: { stock: stockAllowed, customers: peopleAllowed },
     rows: [],
@@ -46,9 +58,36 @@ export function notifications(s, user, input = {}) {
   if (d.summaryOnly) return result;
   if (
     (d.kind === "stock" && !stockAllowed) ||
-    (d.kind === "customers" && !peopleAllowed)
+    (d.kind !== "stock" && !peopleAllowed)
   )
     throw new Error("Permission required for these notifications.");
+  if (d.kind === "due" || d.kind === "overdue") {
+    const grouped = new Map();
+    for (const row of d.kind === "due" ? due : overdue) {
+      if (!grouped.has(row.party_id))
+        grouped.set(row.party_id, {
+          id: row.party_id,
+          name: row.name,
+          phone: row.phone,
+          balance: 0,
+          invoices: [],
+        });
+      const party = grouped.get(row.party_id);
+      party.balance += row.balance;
+      party.invoices.push(row);
+    }
+    const all = [...grouped.values()].sort(
+      (a, b) => b.balance - a.balance || a.id.localeCompare(b.id),
+    );
+    const offset = d.cursor
+      ? z.number().int().min(0).parse(JSON.parse(d.cursor))
+      : 0;
+    return {
+      ...result,
+      rows: all.slice(offset, offset + d.limit),
+      next: offset + d.limit < all.length ? String(offset + d.limit) : null,
+    };
+  }
   let rows;
   if (d.kind === "stock") {
     let after = "",

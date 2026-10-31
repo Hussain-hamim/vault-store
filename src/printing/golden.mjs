@@ -8,7 +8,8 @@ import {
 
 /** Sale-only yellow shop stationery, matching typical Afghan computer-store pads. */
 function ruledCount(paper) {
-  if (paper === "A5" || paper === "Letter") return 10;
+  if (paper === "A5") return 7;
+  if (paper === "Letter") return 10;
   if (paper === "A3") return 22;
   return 16;
 }
@@ -93,7 +94,7 @@ export function goldenSale({
   const summary = (doc.summary || [])
     .map(
       (s) =>
-        `<div><span>${goldTotals[s.key] || e(s.label)}</span><strong><bdi dir="ltr">${e(westernDigits(s.value))}</bdi></strong></div>`,
+        `<div><span>${e(s.label || goldTotals[s.key] || "")}</span><strong><bdi dir="ltr">${e(westernDigits(s.value))}</bdi></strong></div>`,
     )
     .join("");
   const mark =
@@ -118,6 +119,17 @@ export function goldenSale({
     <div><b>${bi("Date", "نېټه")}</b> <bdi dir="ltr">${e(westernDigits(doc.subtitle))}</bdi></div>
     <div><b>${bi("Bill No", "بل شمېره")}</b> <bdi dir="ltr">${e(westernDigits(doc.reference))}</bdi></div>
   </section>
+  ${
+    (doc.metadata || []).filter((m) => m.essential).length
+      ? `<section class="gold-payment-details">${doc.metadata
+          .filter((m) => m.essential)
+          .map(
+            (m) =>
+              `<div><span>${e(m.label)}</span> <strong dir="auto">${e(m.value)}</strong></div>`,
+          )
+          .join("")}</section>`
+      : ""
+  }
   <div class="gold-lines">${mark}<table class="gold-table" dir="ltr"><colgroup><col style="width:7%"><col style="width:45%"><col style="width:18%"><col style="width:10%"><col style="width:20%"></colgroup><thead><tr>${[
     bi("No", "ګڼه"),
     bi("Description", "تفصیل"),
@@ -145,9 +157,7 @@ export function goldenSale({
               ? `<p lang="ps" dir="rtl">${e(doc.store.address_ps)}</p>`
               : ""
           }${
-            doc.store?.address
-              ? `<p dir="ltr">${e(doc.store.address)}</p>`
-              : ""
+            doc.store?.address ? `<p dir="ltr">${e(doc.store.address)}</p>` : ""
           }</div>`
         : ""
     }
@@ -204,7 +214,7 @@ export const goldenCss = `
 .gold-totals>div:last-child{border:0;font-weight:800}
 .gold-totals span{background:#f09a4f;padding:4px 6px;min-width:52%;color:#2a1d38}
 .gold-totals strong{padding:4px 6px}
-.gold-note,.gold-closing .store-footer{border:0;margin:4px 0;padding:2px 10px;font-family:Printarabic,Printlatin,Arial,sans-serif;font-size:11px;font-weight:600;white-space:pre-line;text-align:center;unicode-bidi:plaintext}
+.gold-payment-details{display:flex;flex-wrap:wrap;gap:6px 18px;padding:8px 12px;font-size:10px;border-bottom:1px solid #d6cba8}.gold-note,.gold-closing .store-footer{border:0;margin:4px 0;padding:2px 10px;font-family:Printarabic,Printlatin,Arial,sans-serif;font-size:11px;font-weight:600;white-space:pre-line;text-align:center;unicode-bidi:plaintext}
 .gold-address{background:#3a2b52;color:#fff;text-align:center;padding:8px 10px;font-family:Printarabic,Printlatin,Arial,sans-serif;font-size:12px}
 .gold-address p{margin:0;white-space:pre-line}
 .gold-address p+p{margin-top:4px}

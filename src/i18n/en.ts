@@ -1,6 +1,30 @@
 import type { MessageTree } from "./types";
 
 export const en: MessageTree = {
+  client: {
+    balance: "Balance",
+    SELECT_STOCK_DEVICES:
+      "Select the exact devices to remove, then save again. Select one for each unit being removed.",
+    STOCK_CHANGED:
+      "Stock changed while this form was open. Close and reopen the product before saving.",
+    SALE_DUE_REQUIRED: "Choose a payment due date for this unpaid sale.",
+    LIST_CHANGED: "Store data changed during loading. Refresh and try again.",
+    deleteStock:
+      "This removes {qty} units and writes off {value} of stock cost. Historical invoices stay available.",
+    allMatching: "All matching records: {n}",
+    fullInventory:
+      "All products matching the selected search and filters. Stock value uses remaining batch costs in AFN.",
+    stockValue: "Stock value (AFN)",
+    customerFilter: "Customer filter",
+    allCustomers: "All customers",
+    debtors: "Debtors only",
+    sort: "Sort by",
+    nameSort: "Name A–Z",
+    balanceSort: "Highest balance first",
+    due: "Due today",
+    overdue: "Overdue",
+    dueInvoiceCount: "Unpaid invoices: {n}",
+  },
   entry: {
     previous: "Previous",
     backToNew: "Back to New",
@@ -181,8 +205,7 @@ export const en: MessageTree = {
     printStationHint:
       "Choose a product, set how many sticky labels you need, then print on your 29×18 mm QR label printer.",
     printSetup: "QR label print",
-    printSetupHint:
-      "Labels print at 29×18 mm for your QR scanner roll.",
+    printSetupHint: "Labels print at 29×18 mm for your QR scanner roll.",
     labelSize: "Label size",
     copies: "Number of labels",
     copiesHint:
@@ -195,8 +218,10 @@ export const en: MessageTree = {
     driverHint:
       "Install your printer’s Windows/macOS driver, select that printer in the print dialog, and set 29×18 mm label size there. No extra app driver is required beyond the normal printer driver.",
     hint: "Generated codes can be printed as QR stickers and stuck on items without a factory barcode. Keep a manufacturer barcode if the product already has one.",
-    needValid: "Enter or generate a code that can be printed as a QR label (letters and numbers).",
-    unsupported: "This code uses characters that cannot be printed as a QR label.",
+    needValid:
+      "Enter or generate a code that can be printed as a QR label (letters and numbers).",
+    unsupported:
+      "This code uses characters that cannot be printed as a QR label.",
     labelsTitle: "QR labels",
     labelsSubtitle: "{n} labels",
     noLabels: "No printable QR codes in this selection.",
@@ -483,7 +508,8 @@ export const en: MessageTree = {
     remember: "Remember these choices on this computer",
     preview: "Print preview",
     previewError: "The print preview could not load. Close it and try again.",
-    cancelled: "Print or Save PDF was cancelled. Nothing was sent to the printer.",
+    cancelled:
+      "Print or Save PDF was cancelled. Nothing was sent to the printer.",
     savePdf: "Save PDF",
     downloadHtml: "Download printable file",
     printPdf: "Print / save PDF",
@@ -997,8 +1023,42 @@ export const en: MessageTree = {
       "Enter the national number for +{dial} ({n} digits). A leading 0 is OK.",
     invalidLength: "Phone number for +{dial} must be {n} digits.",
   },
-  customerHistory: { "title": "Invoices", "start": "Start date", "end": "End date", "allDates": "All dates", "date": "Date", "invoice": "Invoice", "products": "Products / quantity", "total": "Sales total", "returned": "Returns", "paid": "Paid / allocated", "remaining": "Remaining on invoices", "currentBalance": "Current customer balance", "scope": "Includes all sales in the selected dates. Payments, returns and remaining balances are current; the customer balance includes all account activity. Print/PDF includes every filtered invoice.", "empty": "No sales in this period.", "more": "Load more"},
-  supplierHistory: { "title": "Invoices", "start": "Start date", "end": "End date", "allDates": "All dates", "date": "Date", "invoice": "Invoice", "products": "Products / quantity", "total": "Purchase total", "returned": "Returns", "paid": "Paid / allocated", "remaining": "Remaining on invoices", "currentBalance": "Current supplier balance", "scope": "Includes all purchases in the selected dates. Payments, returns and remaining balances are current; the supplier balance includes all account activity. Print/PDF includes every filtered invoice.", "empty": "No purchases in this period.", "more": "Load more"},
+  customerHistory: {
+    title: "Invoices",
+    start: "Start date",
+    end: "End date",
+    allDates: "All dates",
+    date: "Date",
+    invoice: "Invoice",
+    products: "Products / quantity",
+    total: "Sales total",
+    returned: "Returns",
+    paid: "Paid / allocated",
+    remaining: "Remaining on invoices",
+    currentBalance: "Current customer balance",
+    scope:
+      "Includes all sales in the selected dates. Payments, returns and remaining balances are current; the customer balance includes all account activity. Print/PDF includes every filtered invoice.",
+    empty: "No sales in this period.",
+    more: "Load more",
+  },
+  supplierHistory: {
+    title: "Invoices",
+    start: "Start date",
+    end: "End date",
+    allDates: "All dates",
+    date: "Date",
+    invoice: "Invoice",
+    products: "Products / quantity",
+    total: "Purchase total",
+    returned: "Returns",
+    paid: "Paid / allocated",
+    remaining: "Remaining on invoices",
+    currentBalance: "Current supplier balance",
+    scope:
+      "Includes all purchases in the selected dates. Payments, returns and remaining balances are current; the supplier balance includes all account activity. Print/PDF includes every filtered invoice.",
+    empty: "No purchases in this period.",
+    more: "Load more",
+  },
   pagination: {
     loadMore: "Load more",
     showingN: "Showing {n}",
@@ -1299,7 +1359,8 @@ export const en: MessageTree = {
     groupStockDebt: "Stock & debt",
     hintProfitLoss: "How much you sold, what it cost, and what you kept.",
     hintDaily: "Day-by-day sales, cost, expenses, and profit.",
-    hintInvoiceProfit: "Gross profit on each sale invoice and return in the period.",
+    hintInvoiceProfit:
+      "Gross profit on each sale invoice and return in the period.",
     hintProductProfit: "Which products made the most money this period.",
     hintResaleProfit:
       "Shop profit on customer-owned resale stock: sale price minus the owner’s agreed share.",
@@ -1507,7 +1568,8 @@ export const en: MessageTree = {
     addressPs: "Address (Pashto)",
     addressPsHint: "Printed at the bottom of sale invoices.",
     billFooter: "Bill note",
-    billFooterHint: "Optional thank-you or return note under the totals on sale bills.",
+    billFooterHint:
+      "Optional thank-you or return note under the totals on sale bills.",
     billFooterPh: "Thank you for shopping with us.",
     saveBill: "Save bill design",
     saved: "Store settings saved.",
@@ -1814,8 +1876,10 @@ export const en: MessageTree = {
     debit: "Debit",
     credit: "Credit",
     balance: "Balance",
-    deleteConfirmCustomer: "Delete this customer? Past invoices stay in history.",
-    deleteConfirmSupplier: "Delete this supplier? Past invoices stay in history.",
+    deleteConfirmCustomer:
+      "Delete this customer? Past invoices stay in history.",
+    deleteConfirmSupplier:
+      "Delete this supplier? Past invoices stay in history.",
     deleteBalanceCustomer:
       "You cannot delete this customer until the balance is 0.",
     deleteBalanceSupplier:

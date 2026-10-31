@@ -1,3 +1,5 @@
+import { normalizeGeneration } from "../../shared/product-search.mjs";
+import { DeviceSelection, type Device } from "./DeviceInventory";
 import {
   BarcodeIcon,
   PackageIcon,
@@ -20,13 +22,7 @@ import {
   ArrowsClockwiseIcon,
   type Icon,
 } from "@phosphor-icons/react";
-import {
-  useEffect,
-  useId,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import {
   api,
   moneyInput,
@@ -161,7 +157,7 @@ function empty(common?: Values): Entry {
     name: "",
     category: common?.category || "Computers",
     categoryOther: common?.categoryOther || "",
-    brand: common?.brand || "Apple",
+    brand: common?.brand || "Dell",
     brandOther: common?.brandOther || "",
     model: "",
     sku: "",
@@ -232,6 +228,9 @@ export function ProductForm({
   const { locale } = useI18n();
   const [labelDoc, setLabelDoc] = useState<PrintDocument | null>(null);
   const [labelCopies, setLabelCopies] = useState(1);
+  const [stockDevices, setStockDevices] = useState<Device[]>([]);
+  const [chooseStockDevices, setChooseStockDevices] = useState(false);
+  const stockRequest = useRef(requestKey());
   const [entry, setEntry] = useState<Entry>(() =>
     product ? existing(product) : empty(),
   );
@@ -306,6 +305,9 @@ export function ProductForm({
     return () => window.cancelAnimationFrame(id);
   }, []);
   function load(e: Entry, index = -1) {
+    setStockDevices([]);
+    setChooseStockDevices(false);
+    stockRequest.current = requestKey();
     setEntry(e);
     setCursor(index);
     setEpoch((n) => n + 1);
@@ -394,7 +396,13 @@ export function ProductForm({
       : d.rate.trim()
         ? toFxRate(d.rate)
         : 0;
-    if (!purchase && (!cost || !rate))
+    const legacyCost =
+      editing &&
+      !entry.original?.cost_foreign &&
+      !entry.original?.cost_aed &&
+      !d.cost.trim() &&
+      !d.rate.trim();
+    if (!purchase && !legacyCost && (!cost || !rate))
       throw new Error(t("currencies.costRateRequired"));
     const attrs = editableSpecKeys(category, cameraType);
     const attributes = Object.fromEntries(
@@ -428,7 +436,9 @@ export function ProductForm({
       fx_rate: rate,
       unit_cost: purchase
         ? (entry.original?.unit_cost ?? 0)
-        : afnFromAed(cost, rate) + cargo,
+        : legacyCost
+          ? entry.original?.unit_cost || 0
+          : afnFromAed(cost, rate) + cargo,
       ...(!editing ? { opening_quantity: openingQty } : {}),
       ...entry.photo,
     };
@@ -514,31 +524,29 @@ export function ProductForm({
     try {
       const data = payload();
       const delta = stockDelta();
-      const serialized = trackedCategory(resolvedCategory || d.category);
-      if (editing && delta < 0 && serialized)
-        throw new Error(t("productForm.stockReduceDevices"));
+
       if (editing && delta !== 0 && delta + (entry.original?.stock ?? 0) < 0)
         throw new Error(t("productForm.stockNegative"));
       let p: Product;
       if (editing) {
         const result = await api<{ id: string; product: Product }>(
           "productUpdate",
-          data,
+          {
+            ...data,
+            ...(intent !== "purchase"
+              ? {
+                  stock_target: Number(d.opening_quantity),
+                  expected_stock: entry.original!.stock,
+                  expected_revision: entry.original!.stock_revision ?? 0,
+                  request_key: stockRequest.current,
+                  unit_ids: stockDevices.length
+                    ? stockDevices.map((u) => u.id)
+                    : undefined,
+                }
+              : {}),
+          },
         );
         p = result.product;
-        if (delta !== 0) {
-          await api("adjust", {
-            product_id: p.id,
-            quantity: delta,
-            cost: delta > 0 ? data.unit_cost || p.unit_cost || 0 : 0,
-            note: t("productForm.stockEditNote"),
-            request_key: requestKey(),
-          });
-          const detail = await api<{ product: Product }>("productDetail", {
-            id: p.id,
-          });
-          p = detail.product;
-        }
       } else {
         const r = await api<{ id: string; product: Product }>(
           "productDraftPublish",
@@ -587,7 +595,12 @@ export function ProductForm({
         );
       return true;
     } catch (e: any) {
-      setError(e.message);
+      if (e.message === "SELECT_STOCK_DEVICES") setChooseStockDevices(true);
+      setError(
+        ["SELECT_STOCK_DEVICES", "STOCK_CHANGED"].includes(e.message)
+          ? t(`client.${e.message}`)
+          : e.message,
+      );
       return committed;
     } finally {
       locked.current = false;
@@ -672,6 +685,11 @@ export function ProductForm({
     <Field label={label} icon={fieldIcons[name]}>
       <NumericInput
         name={name}
+        className={
+          ["cost", "price", "opening_quantity"].includes(name)
+            ? `entry-emphasis entry-emphasis-${name}`
+            : undefined
+        }
         kind={integer ? "integer" : "decimal"}
         min="0"
         step={integer ? "1" : "0.01"}
@@ -884,6 +902,16 @@ export function ProductForm({
                   </div>
                 </section>
               </div>
+              {chooseStockDevices && entry.original && (
+                <section>
+                  <p>{t("client.SELECT_STOCK_DEVICES")}</p>
+                  <DeviceSelection
+                    product={entry.original}
+                    selected={stockDevices}
+                    onChange={setStockDevices}
+                  />
+                </section>
+              )}
               <section className="entry-section entry-pricing">
                 <h3>{t("productForm.pricing")}</h3>
                 <div className="entry-grid two">
@@ -895,6 +923,8 @@ export function ProductForm({
                       >
                         <CurrencyPicker
                           compact
+                          allowCodes={["AED", "AFN", "USD"]}
+                          allowAdd={false}
                           value={d.currency}
                           onChange={(code) =>
                             setEntry((e) => ({
@@ -913,10 +943,19 @@ export function ProductForm({
                       {number(
                         "cost",
                         t("currencies.unitCost", { code: d.currency }),
+                        false,
+                        !(
+                          editing &&
+                          !entry.original?.cost_foreign &&
+                          !entry.original?.cost_aed &&
+                          !d.rate.trim()
+                        ),
                       )}
                       {number(
                         "cargo",
                         t("currencies.cargoRent", { code: "AFN" }),
+                        false,
+                        false,
                       )}
                       <Field
                         label={t("currencies.rate", { code: d.currency })}
@@ -927,7 +966,14 @@ export function ProductForm({
                           value={d.rate}
                           readOnly={d.currency === "AFN"}
                           onChange={(e) => value("rate", e.target.value)}
-                          required
+                          required={
+                            !(
+                              editing &&
+                              !entry.original?.cost_foreign &&
+                              !entry.original?.cost_aed &&
+                              !d.cost.trim()
+                            )
+                          }
                           step="0.0001"
                         />
                       </Field>
@@ -937,7 +983,11 @@ export function ProductForm({
                       >
                         <input
                           readOnly
-                          value={costAF}
+                          value={
+                            editing && !d.cost.trim() && !d.rate.trim()
+                              ? String((entry.original?.unit_cost || 0) / 100)
+                              : costAF
+                          }
                           tabIndex={-1}
                           dir="ltr"
                         />
@@ -1175,10 +1225,9 @@ function SpecInput({
     RAM: ["4 GB", "8 GB", "16 GB", "32 GB", "64 GB", "128 GB"],
     Storage: ["128 GB", "256 GB", "512 GB", "1 TB", "2 TB", "4 TB"],
     Generation: [
-      "11th Gen",
-      "12th Gen",
-      "13th Gen",
-      "14th Gen",
+      ...Array.from({ length: 13 }, (_, i) =>
+        normalizeGeneration(String(i + 2)),
+      ),
       "M1",
       "M2",
       "M3",
@@ -1186,7 +1235,13 @@ function SpecInput({
       "Ryzen 5000",
       "Ryzen 7000",
     ],
-    Sensor: ["Full-frame", "APS-C", "Micro Four Thirds", "1-inch", "1/2.3-inch"],
+    Sensor: [
+      "Full-frame",
+      "APS-C",
+      "Micro Four Thirds",
+      "1-inch",
+      "1/2.3-inch",
+    ],
     Resolution: [
       "2 MP",
       "4 MP",
@@ -1250,6 +1305,7 @@ function SpecInput({
         if (!e.currentTarget.contains(e.relatedTarget)) {
           setOpen(false);
           setActive(-1);
+          if (name === "Generation") onChange(normalizeGeneration(value));
         }
       }}
     >
@@ -1274,6 +1330,12 @@ function SpecInput({
             setActive(-1);
           }}
           onKeyDown={(e) => {
+            if (
+              name === "Generation" &&
+              (e.key === "Enter" || e.key === "Tab") &&
+              active < 0
+            )
+              onChange(normalizeGeneration(value));
             if (!suggestions.length) return;
             if (e.key === "ArrowDown" || e.key === "ArrowUp") {
               e.preventDefault();

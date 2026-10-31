@@ -14,7 +14,7 @@
     "tauri": "node scripts/desktop-dev.mjs",
     "tauri:dev": "node scripts/desktop-dev.mjs",
     "build": "tsc --noEmit && vite build && node scripts/prepare-sites-build.mjs",
-    "test": "node --test tests/store.test.mjs tests/preload.test.mjs tests/printing.test.mjs tests/reports.test.mjs tests/brand.test.mjs tests/profiles.test.cjs tests/product-photos.test.mjs tests/appearance.test.mjs tests/product-movements.test.mjs tests/licensing.test.mjs tests/licensing-credentials.test.mjs tests/database-worker.test.mjs tests/recovery.test.mjs tests/accounts.test.cjs tests/product-drafts.test.mjs tests/serialized-inventory.test.mjs tests/backup-workflow.test.mjs tests/phone.test.mjs",
+    "test": "node --test tests/store.test.mjs tests/preload.test.mjs tests/printing.test.mjs tests/reports.test.mjs tests/brand.test.mjs tests/profiles.test.cjs tests/product-photos.test.mjs tests/appearance.test.mjs tests/product-movements.test.mjs tests/licensing.test.mjs tests/licensing-credentials.test.mjs tests/database-worker.test.mjs tests/recovery.test.mjs tests/accounts.test.cjs tests/product-drafts.test.mjs tests/serialized-inventory.test.mjs tests/backup-workflow.test.mjs tests/phone.test.mjs tests/client-improvements.test.mjs tests/due-reminders.test.cjs",
     "test:sites": "node --test tests/sites-worker.test.mjs",
     "package:mac": "npm run license:check && npm run build && electron-builder --mac --dir && node scripts/check-packaged.mjs darwin",
     "package:win": "npm run license:check && npm run build && electron-builder --win nsis && node scripts/check-packaged.mjs win32",
@@ -39,7 +39,9 @@
     "test:shops:desktop": "electron tests/shop-profiles-electron.cjs",
     "test:products:desktop": "electron tests/product-entry-electron-smoke.cjs",
     "test:devices:desktop": "electron tests/serialized-inventory-electron-smoke.cjs",
-    "test:templates:desktop": "electron tests/invoice-templates-electron.cjs"
+    "test:templates:desktop": "electron tests/invoice-templates-electron.cjs",
+    "test:client:desktop": "electron tests/client-workflow-electron.cjs",
+    "test:reminders:desktop": "electron tests/due-reminders-electron.cjs"
   },
   "dependencies": {
     "@fontsource-variable/plus-jakarta-sans": "^5.2.8",

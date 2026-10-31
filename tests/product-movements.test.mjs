@@ -70,6 +70,7 @@ test("product detail orders same-day stock changes by posting order", async (t) 
   });
   const sale = store.postTrade(user, {
     kind: "sale",
+    due_date: "2099-12-31",
     party_id: customer.id,
     paid: 0,
     request_key: "sale-movement-test",

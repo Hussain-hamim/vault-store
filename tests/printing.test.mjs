@@ -38,6 +38,7 @@ const context = {
 const invoice = {
   id: "invoice-1",
   kind: "sale",
+  due_date: "2099-12-31",
   number: "SAL-001",
   date: "2026-10-24",
   party_name: "Customer",
@@ -589,6 +590,7 @@ test("sale print and PDF show original payment and its AF conversion alongside A
     {
       ...invoice,
       kind: "sale",
+      due_date: "2099-12-31",
       currency: "USD",
       fx_rate: 700000,
       paid_foreign: 1000,
@@ -730,11 +732,15 @@ test("golden stationery is bilingual, sale-only, escaped and preserves device/di
   assert.doesNotMatch(html, /class="gold-details"/);
   assert.doesNotMatch(html, /Recorded by/);
   assert.doesNotMatch(html, /invoice\.recordedBy/);
-  assert.match(html, /<span>Total<\/span>/);
-  assert.match(html, /<span>Paid<\/span>/);
-  assert.match(html, /<span>Balance<\/span>/);
+  assert.match(html, /<span>invoice\.total<\/span>/);
+  assert.match(html, /<span>invoice\.paid<\/span>/);
+  assert.match(html, /<span>client\.balance<\/span>/);
   assert.doesNotMatch(html, /ټول/);
   assert.doesNotMatch(html, /ورکړل شوي/);
+  const localized = { ...doc, locale: "ps", summary: doc.summary.map((row, i) => ({ ...row, label: ["ټول", "ورکړل شوي", "پاتې"][i] })) };
+  const localizedHtml = renderPrintDocument(localized, { template: "golden" });
+  assert.match(localizedHtml, /<span>ټول<\/span>/);
+  assert.match(localizedHtml, /<span>پاتې<\/span>/);
   assert.equal((html.match(/class="row-number"/g) || []).length, 16);
   assert.match(html, /theme-golden/);
   assert.doesNotMatch(
@@ -777,10 +783,13 @@ test("golden bills print Western LTR phones and isolate bilingual text in Pashto
   assert.match(html, /lang="ps" dir="rtl">نوم<\/span>/);
   assert.match(html, /lang="ps" dir="rtl">کابل، افغانستان<\/p>/);
   assert.match(html, /dir="ltr">Kabul, Afghanistan<\/p>/);
-  assert.match(html, /dir="rtl">لپټاپ<\/span> · <span dir="ltr">Laptops<\/span>/);
+  assert.match(
+    html,
+    /dir="rtl">لپټاپ<\/span> · <span dir="ltr">Laptops<\/span>/,
+  );
 });
 
-test("golden bills omit metadata, print English totals, time, RTL owners and contact icons", () => {
+test("golden bills omit recording metadata, print localized totals, time, RTL owners and contact icons", () => {
   const doc = invoicePrintModel(
     {
       ...invoice,
@@ -798,13 +807,13 @@ test("golden bills omit metadata, print English totals, time, RTL owners and con
     context,
   );
   const html = renderPrintDocument(doc, { template: "golden" });
-  assert.match(html, /2026-10-27 17:05/);
+  assert.match(html, /2026-10-27 05:05 PM/);
   assert.match(html, /مسؤلين:/);
   assert.doesNotMatch(html, /مسؤل:/);
   assert.doesNotMatch(html, new RegExp("gold-icon-" + "whats" + "app"));
   assert.match(html, /gold-icon-phone/);
-  assert.match(html, /<span>Previous balance<\/span>/);
-  assert.match(html, /<span>Total balance<\/span>/);
+  assert.doesNotMatch(html, /<span>Previous balance<\/span>/);
+  assert.doesNotMatch(html, /<span>Total balance<\/span>/);
   assert.doesNotMatch(html, /class="gold-details"/);
   assert.doesNotMatch(html, /invoice\.recordedBy/);
   assert.doesNotMatch(html, /sales\.previousBalance/);
@@ -854,7 +863,10 @@ test("print preferences isolate sales, purchase invoices and customer/supplier l
   };
   assert.equal(readPrintPreferences(sale, storage).layout, "classic");
   assert.equal(readPrintPreferences(sale, storage).template, "golden");
-  records.set(printPreferenceKey(sale), JSON.stringify({ template: "standard" }));
+  records.set(
+    printPreferenceKey(sale),
+    JSON.stringify({ template: "standard" }),
+  );
   assert.equal(readPrintPreferences(sale, storage).template, "standard");
   records.set(printPreferenceKey(sale), JSON.stringify({ template: "golden" }));
   assert.equal(readPrintPreferences(sale, storage).template, "golden");
