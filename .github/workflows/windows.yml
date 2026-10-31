@@ -17,11 +17,11 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
-      - run: npm run test:sites
       - name: Build full Windows installer and check packaged database
         run: npm run package:win
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - run: npm run test:sites
       - name: Upload Windows installer
         uses: actions/upload-artifact@v4
         with:
