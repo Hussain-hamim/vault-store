@@ -136,6 +136,10 @@ app
       '[...document.querySelectorAll(".currency-picker select option")].map(e=>e.value)',
     );
     assert.deepEqual(currencies.sort(), ["AED", "AFN", "USD"]);
+    for (const [field, query, expected] of [["Storage", "5", "512 GB"], ["RAM", "16", "16 GB"], ["Generation", "8", "8th Gen"]]) {
+      await set(`[name=${field}]`, query);
+      assert.deepEqual(await js(`[...document.querySelectorAll('[name=${field}]')][0].closest('.entry-spec').querySelector('[role=listbox]') ? [...document.querySelector('[name=${field}]').closest('.entry-spec').querySelectorAll('[role=option]')].map(e=>e.textContent.trim()) : []`), [expected]);
+    }
     await set("[name=Generation]", "8");
     await js(
       'document.querySelector("[name=Generation]").dispatchEvent(new KeyboardEvent("keydown",{key:"Tab",bubbles:true,cancelable:true}))',

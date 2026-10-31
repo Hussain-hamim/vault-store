@@ -25,6 +25,7 @@ import {
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import {
   api,
+  normalizeDigits,
   moneyInput,
   fxRateInput,
   toMoney,
@@ -1287,7 +1288,12 @@ function SpecInput({
       "Camera only",
     ],
   };
-  const suggestions = suggestionMap[name] || [];
+  const allSuggestions = suggestionMap[name] || [];
+  const query = normalizeDigits(value).trim().toLowerCase().replace(/\s+/g, "");
+  const suggestions = allSuggestions.filter(s => !query ||
+    s.toLowerCase().replace(/\s+/g, "").startsWith(query) ||
+    s.toLowerCase().split(/\s+/).some(word => word.startsWith(query)));
+
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
   const listId = useId();
@@ -1315,10 +1321,10 @@ function SpecInput({
           name={name}
           value={value}
           maxLength={200}
-          role={suggestions.length ? "combobox" : undefined}
-          aria-expanded={suggestions.length ? open : undefined}
+          role={allSuggestions.length ? "combobox" : undefined}
+          aria-expanded={allSuggestions.length ? open && suggestions.length > 0 : undefined}
           aria-controls={suggestions.length && open ? listId : undefined}
-          aria-autocomplete={suggestions.length ? "list" : undefined}
+          aria-autocomplete={allSuggestions.length ? "list" : undefined}
           aria-activedescendant={
             open && active >= 0 ? `${listId}-${active}` : undefined
           }
