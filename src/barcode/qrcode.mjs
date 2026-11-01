@@ -27,10 +27,13 @@ export function qrSvg(text, { margin = 1 } = {}) {
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
       if (!qr.modules.get(y, x)) continue;
-      rects.push(`<rect x="${x + margin}" y="${y + margin}" width="1" height="1"/>`);
+      // Explicit black fill — some thermal print pipelines drop default SVG fill.
+      rects.push(
+        `<rect x="${x + margin}" y="${y + margin}" width="1" height="1" fill="#000"/>`,
+      );
     }
   }
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${dim} ${dim}" shape-rendering="crispEdges" aria-label="${escapeAttr(value)}">${rects.join("")}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${dim} ${dim}" shape-rendering="crispEdges" fill="#000" aria-label="${escapeAttr(value)}">${rects.join("")}</svg>`;
 }
 
 function escapeAttr(value) {

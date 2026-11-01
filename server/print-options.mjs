@@ -6,10 +6,23 @@ export const PAPER_SIZES = Object.freeze({
   A3: { width: 297, height: 420 },
   receipt80: { width: 80, height: 200 },
   receipt58: { width: 58, height: 200 },
-  // Sticky QR-label roll for the shop scanners (width × height mm).
-  label29x18: { width: 29, height: 18 },
+  // Sticky QR-label rolls (width × height mm) for Xprinter XP-365B-class stock.
+  label30x20: { width: 30, height: 20 },
+  label40x20: { width: 40, height: 20 },
+  label40x30: { width: 40, height: 30 },
+  label50x30: { width: 50, height: 30 },
+  label50x40: { width: 50, height: 40 },
+  label60x40: { width: 60, height: 40 },
 });
-export const LABEL_PAPERS = Object.freeze(["label29x18"]);
+export const LABEL_PAPERS = Object.freeze([
+  "label30x20",
+  "label40x20",
+  "label40x30",
+  "label50x30",
+  "label50x40",
+  "label60x40",
+]);
+export const DEFAULT_LABEL_PAPER = "label30x20";
 export const PRINT_LAYOUTS = ["modern", "classic", "minimal", "compact"];
 export const SALE_TEMPLATES = Object.freeze(["golden", "standard"]);
 export const PRINT_THEMES = Object.freeze({
@@ -31,7 +44,10 @@ export function normalizePrintOptions(input = {}, kind = "invoice") {
   const labelJob = kind === "label";
   let paper = "A4";
   if (labelJob) {
-    paper = LABEL_PAPERS.includes(raw.paper) ? raw.paper : "label29x18";
+    // Older installs remembered 29×18 mm stock; map that to the default.
+    const requested =
+      raw.paper === "label29x18" ? DEFAULT_LABEL_PAPER : raw.paper;
+    paper = LABEL_PAPERS.includes(requested) ? requested : DEFAULT_LABEL_PAPER;
   } else if (
     Object.hasOwn(PAPER_SIZES, raw.paper) &&
     (kind === "invoice" || !String(raw.paper).startsWith("receipt")) &&
@@ -77,8 +93,10 @@ export function printGeometry(input, kind = "invoice") {
   return {
     width: landscape ? page.height : page.width,
     height: landscape ? page.width : page.height,
+    // Sticky labels use the full face. Electron or driver margins would shove
+    // the QR off center and can print blank stickers.
     margin: isLabelPaper(options.paper)
-      ? 1
+      ? 0
       : options.paper.startsWith("receipt")
         ? 3
         : options.margins === "narrow"
@@ -91,6 +109,7 @@ export function electronPrintOptions(input, kind = "invoice", pdf = false) {
   const page = PAPER_SIZES[options.paper];
   const custom = isThermalPaper(options.paper);
   const margin = printGeometry(options, kind).margin;
+  const labelJob = kind === "label" || isLabelPaper(options.paper);
   return {
     printBackground: true,
     landscape: options.orientation === "landscape",
@@ -112,14 +131,18 @@ export function electronPrintOptions(input, kind = "invoice", pdf = false) {
         }
       : {
           silent: false,
-          color: options.theme !== "mono",
-          margins: {
-            marginType: "custom",
-            top: (margin * 96) / 25.4,
-            right: (margin * 96) / 25.4,
-            bottom: (margin * 96) / 25.4,
-            left: (margin * 96) / 25.4,
-          },
+          // Keep color on for QR labels — some mono/thermal drivers print blank
+          // when Chromium asks for grayscale-only output.
+          color: labelJob ? true : options.theme !== "mono",
+          margins: labelJob
+            ? { marginType: "none" }
+            : {
+                marginType: "custom",
+                top: (margin * 96) / 25.4,
+                right: (margin * 96) / 25.4,
+                bottom: (margin * 96) / 25.4,
+                left: (margin * 96) / 25.4,
+              },
         }),
   };
 }

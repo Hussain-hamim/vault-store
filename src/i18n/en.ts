@@ -179,10 +179,10 @@ export const en: MessageTree = {
     printShort: "Print",
     printStation: "Print QR labels",
     printStationHint:
-      "Choose a product, set how many sticky labels you need, then print on your 29×18 mm QR label printer.",
+      "Choose a product, set how many sticky labels you need, then print on your QR label printer.",
     printSetup: "QR label print",
     printSetupHint:
-      "Labels print at 29×18 mm for your QR scanner roll.",
+      "Pick a label size. The QR stays centered on the sticker.",
     labelSize: "Label size",
     copies: "Number of labels",
     copiesHint:
@@ -191,9 +191,9 @@ export const en: MessageTree = {
     pickProduct: "Choose product",
     willGenerate: "Will generate on print",
     thermalHint:
-      "Made for sticky QR-label printers on 29×18 mm rolls. Set the same size in the printer driver.",
+      "Made for sticky QR-label printers. Match this size in the printer driver before printing.",
     driverHint:
-      "Install your printer’s Windows/macOS driver, select that printer in the print dialog, and set 29×18 mm label size there. No extra app driver is required beyond the normal printer driver.",
+      "Install your printer’s Windows/macOS driver, select that printer in the print dialog, and set the same label size there (Xprinter XP-365B). No extra app driver is required beyond the normal printer driver.",
     hint: "Generated codes can be printed as QR stickers and stuck on items without a factory barcode. Keep a manufacturer barcode if the product already has one.",
     needValid: "Enter or generate a code that can be printed as a QR label (letters and numbers).",
     unsupported: "This code uses characters that cannot be printed as a QR label.",
@@ -516,7 +516,12 @@ export const en: MessageTree = {
       A3: "A3",
       receipt80: "80 mm receipt",
       receipt58: "58 mm receipt",
-      label29x18: "29×18 mm QR label",
+      label30x20: "30×20 mm QR label",
+      label40x20: "40×20 mm QR label",
+      label40x30: "40×30 mm QR label",
+      label50x30: "50×30 mm QR label",
+      label50x40: "50×40 mm QR label",
+      label60x40: "60×40 mm QR label",
     },
   },
   app: {

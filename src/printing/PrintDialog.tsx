@@ -322,43 +322,34 @@ export function PrintDialog({
             </div>
           )}
           <div className="print-settings-group">
-            {labelJob && LABEL_PAPERS.length === 1 ? (
-              <Field label={t("barcode.labelSize")}>
-                <input
-                  readOnly
-                  value={`${t(`printing.papers.${LABEL_PAPERS[0]}`)} · ${PAPER_SIZES.label29x18.width} × ${PAPER_SIZES.label29x18.height} mm`}
-                />
-                <p className="muted">{t("barcode.thermalHint")}</p>
-              </Field>
-            ) : (
-              <Field
-                label={t(labelJob ? "barcode.labelSize" : "printing.paper")}
+            <Field
+              label={t(labelJob ? "barcode.labelSize" : "printing.paper")}
+            >
+              <select
+                value={options.paper}
+                onChange={(e) => update("paper", e.target.value)}
               >
-                <select
-                  value={options.paper}
-                  onChange={(e) => update("paper", e.target.value)}
-                >
-                  {(labelJob
-                    ? (
-                        LABEL_PAPERS as readonly (keyof typeof PAPER_SIZES)[]
-                      ).map((id) => [id, PAPER_SIZES[id]] as const)
-                    : Object.entries(PAPER_SIZES).filter(
-                        ([id]) =>
-                          (doc.kind === "invoice" ||
-                            !id.startsWith("receipt")) &&
-                          (options.template !== "golden" ||
-                            !id.startsWith("receipt")) &&
-                          !id.startsWith("label"),
-                      )
-                  ).map(([id, paper]) => (
-                    <option key={id} value={id}>
-                      {t(`printing.papers.${id}`)} · {paper.width} ×{" "}
-                      {paper.height} mm
-                    </option>
-                  ))}
-                </select>
-              </Field>
-            )}
+                {(labelJob
+                  ? (
+                      LABEL_PAPERS as readonly (keyof typeof PAPER_SIZES)[]
+                    ).map((id) => [id, PAPER_SIZES[id]] as const)
+                  : Object.entries(PAPER_SIZES).filter(
+                      ([id]) =>
+                        (doc.kind === "invoice" ||
+                          !id.startsWith("receipt")) &&
+                        (options.template !== "golden" ||
+                          !id.startsWith("receipt")) &&
+                        !id.startsWith("label"),
+                    )
+                ).map(([id, paper]) => (
+                  <option key={id} value={id}>
+                    {t(`printing.papers.${id}`)} · {paper.width} ×{" "}
+                    {paper.height} mm
+                  </option>
+                ))}
+              </select>
+              {labelJob && <p className="muted">{t("barcode.thermalHint")}</p>}
+            </Field>
             {!labelJob && (
               <div className="form-grid">
                 <Field label={t("printing.orientation")}>

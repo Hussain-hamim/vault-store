@@ -6,6 +6,8 @@ import {
   printGeometry,
   electronPrintOptions,
   PAPER_SIZES,
+  LABEL_PAPERS,
+  DEFAULT_LABEL_PAPER,
   PRINT_LAYOUTS,
   PRINT_THEMES,
 } from "../server/print-options.mjs";
@@ -13,6 +15,7 @@ import {
   renderPrintDocument,
   safePrintLogo,
 } from "../src/printing/document.mjs";
+import { barcodeLabelDocument } from "../src/printing/barcode-label.mjs";
 import {
   invoicePrintModel,
   reportPrintModel,
@@ -89,7 +92,9 @@ test("print preferences reject corrupt values and separate report papers from in
   );
 });
 test("every theme/layout/paper uses one escaped standalone renderer and preserves invoice values", () => {
-  for (const paper of Object.keys(PAPER_SIZES))
+  for (const paper of Object.keys(PAPER_SIZES).filter(
+    (id) => !id.startsWith("label"),
+  ))
     for (const layout of PRINT_LAYOUTS)
       for (const theme of Object.keys(PRINT_THEMES)) {
         const html = renderPrintDocument(model(), { paper, layout, theme });
@@ -278,16 +283,17 @@ test("print jobs are bounded, authenticated by source and do not accept arbitrar
           },
         ],
       },
-      { paper: "label29x18" },
+      { paper: "label30x20" },
     ),
-    options: { paper: "label29x18" },
+    options: { paper: "label30x20" },
     source: { type: "report", permission: "inventory" },
   };
   assert.equal(validatePrintJob(labelJob), labelJob);
-  assert.match(labelJob.html, /flex-direction:column/);
-  assert.match(labelJob.html, /barcode-top/);
-  assert.match(labelJob.html, /barcode-bottom/);
-  assert.match(labelJob.html, /align-items:center/);
+  assert.match(labelJob.html, /barcode-name/);
+  assert.match(labelJob.html, /barcode-code/);
+  assert.match(labelJob.html, /flex-direction:row/);
+  assert.match(labelJob.html, /writing-mode:vertical-rl/);
+  assert.match(labelJob.html, /@page\{size:30mm 20mm;margin:0\}/);
 });
 test("all report tabs produce printable structured data with the same balances and explicit current-stock scope", () => {
   const data = {
@@ -412,6 +418,7 @@ test("paper preview includes white left/right gutters and browser/desktop margin
   for (const kind of ["invoice", "report"]) {
     for (const paper of Object.keys(PAPER_SIZES)) {
       if (kind === "report" && paper.startsWith("receipt")) continue;
+      if (paper.startsWith("label")) continue;
       for (const margins of ["standard", "narrow"]) {
         const options = { paper, margins };
         const page = printGeometry(options, kind);
@@ -451,6 +458,89 @@ test("paper preview includes white left/right gutters and browser/desktop margin
       }
     }
   }
+});
+test("QR label print offers selectable sizes and centers the code with no Electron margins", () => {
+  assert.equal(DEFAULT_LABEL_PAPER, "label30x20");
+  assert.ok(LABEL_PAPERS.length > 1);
+  assert.equal(normalizePrintOptions({}, "label").paper, "label30x20");
+  assert.equal(
+    normalizePrintOptions({ paper: "label29x18" }, "label").paper,
+    "label30x20",
+  );
+  assert.equal(
+    normalizePrintOptions({ paper: "A4" }, "label").paper,
+    "label30x20",
+  );
+  for (const paper of LABEL_PAPERS) {
+    const size = PAPER_SIZES[paper];
+    const page = printGeometry({ paper }, "label");
+    assert.equal(page.width, size.width);
+    assert.equal(page.height, size.height);
+    assert.equal(page.margin, 0);
+    const html = renderPrintDocument(
+      {
+        kind: "label",
+        locale: "en",
+        title: "QR labels",
+        source: { type: "report", permission: "inventory" },
+        labels: [
+          {
+            name: "SSD",
+            model: "990",
+            barcode: "RTM1001",
+            svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 21 21" fill="#000"><rect width="1" height="1" fill="#000"/></svg>',
+          },
+        ],
+      },
+      { paper },
+    );
+    assert.match(
+      html,
+      new RegExp(
+        `@page\\{size:${size.width}mm ${size.height}mm;margin:0\\}`,
+      ),
+    );
+    assert.match(html, /flex-direction:row/);
+    assert.match(html, /barcode-name/);
+    assert.match(html, /barcode-code/);
+    assert.match(html, /writing-mode:vertical-rl/);
+    assert.match(html, /fill="#000"/);
+    const printer = electronPrintOptions({ paper }, "label");
+    assert.equal(printer.color, true);
+    assert.equal(printer.margins.marginType, "none");
+    assert.deepEqual(printer.pageSize, {
+      width: size.width * 1000,
+      height: size.height * 1000,
+    });
+  }
+  const options = { paper: "label30x20" };
+  const html = renderPrintDocument(
+    {
+      kind: "label",
+      locale: "en",
+      title: "QR labels",
+      source: { type: "report", permission: "inventory" },
+      labels: [
+        {
+          name: "SSD",
+          model: "990",
+          barcode: "RTM1001",
+          svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 21 21" fill="#000"><rect width="1" height="1" fill="#000"/></svg>',
+        },
+      ],
+    },
+    options,
+  );
+  assert.match(html, /width:19\.4mm;height:19\.4mm/);
+  const pdf = electronPrintOptions(options, "label", true);
+  assert.equal(pdf.margins.left, 0);
+  assert.equal(pdf.margins.top, 0);
+  const labeled = barcodeLabelDocument(
+    [{ name: "SSD", model: "990", barcode: "RTM1001" }],
+    { t: (key) => key, locale: "en", copies: 1 },
+  );
+  assert.match(labeled.labels[0].svg, /<rect x="1" y="1"/);
+  assert.doesNotMatch(labeled.labels[0].svg, /<rect x="0"/);
 });
 
 test("foreign purchase and return printouts use saved currency quotes and conversion rates", () => {

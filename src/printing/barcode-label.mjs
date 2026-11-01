@@ -13,8 +13,9 @@ export function barcodeLabelDocument(products, { t, locale, copies = 1 }) {
   for (const product of products) {
     const code = String(product.barcode || "").trim();
     if (!code || !canEncodeQr(code)) continue;
-    // Quiet margin 0 — the sticker CSS already leaves a thin edge around the QR.
-    const svg = qrSvg(code, { margin: 0 });
+    // Thin quiet zone inside the SVG — captions sit just outside the mark,
+    // and the sticker white face supplies the rest of the scan margin.
+    const svg = qrSvg(code, { margin: 1 });
     const model = String(product.model || "").trim();
     labels.push({
       name: product.name || "",

@@ -67,7 +67,7 @@ export function renderPrintDocument(doc, input, fonts = {}) {
     .map((label) => {
       const model = String(label.model || label.identity || "").trim();
       const top = [label.name, model].filter(Boolean).join(" · ");
-      return `<article class="barcode-label"><div class="barcode-top"><strong>${e(top || label.name || "")}</strong></div><div class="barcode-svg">${typeof label.svg === "string" && label.svg.startsWith("<svg") ? label.svg : ""}</div><div class="barcode-bottom"><bdi dir="ltr">${e(label.barcode)}</bdi></div></article>`;
+      return `<article class="barcode-label" dir="ltr"><div class="barcode-side barcode-name"><strong>${e(top || label.name || "")}</strong></div><div class="barcode-svg">${typeof label.svg === "string" && label.svg.startsWith("<svg") ? label.svg : ""}</div><div class="barcode-side barcode-code"><bdi dir="ltr">${e(label.barcode)}</bdi></div></article>`;
     })
     .join("");
   const labelSheet = labels
@@ -76,25 +76,48 @@ export function renderPrintDocument(doc, input, fonts = {}) {
       ? `<p class="section-note">${e(doc.emptyLabel || "")}</p>`
       : "";
   if (doc.kind === "label") {
-    const innerH = Math.max(8, page.height - page.margin * 2);
-    const innerW = Math.max(8, page.width - page.margin * 2);
-    // Top name + bottom code share ~3.6 mm; the rest goes to a centered QR.
-    const qrMax = Math.min(innerW - 0.2, Math.max(9, innerH - 3.6));
+    // Name on the left, QR in the middle, code on the right. Side captions
+    // run vertically so they stay readable on narrow sticker widths.
+    const captionPx = Math.max(
+      5.5,
+      Math.min(9.5, Math.round(page.height * 0.26 * 10) / 10),
+    );
+    const edgePad = Math.max(
+      0.4,
+      Math.min(1.2, Math.round(page.width * 0.025 * 10) / 10),
+    );
+    const stackGap = 0.35;
+    const sideMin = Math.max(
+      2.2,
+      Math.min(4.5, Math.round(page.width * 0.12 * 10) / 10),
+    );
+    const outerPad = 0.3;
+    const qrMax =
+      Math.round(
+        Math.max(
+          8,
+          Math.min(
+            page.height - outerPad * 2,
+            page.width - edgePad * 2 - sideMin * 2 - stackGap * 2,
+          ),
+        ) * 10,
+      ) / 10;
     const labelCss = `
 ${fontFaces}
-*{box-sizing:border-box}html{background:white}body{margin:0;color:#111;font:6px ${rtl ? "Printarabic,Printlatin" : "Printlatin"},Arial,sans-serif;line-height:1.1;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-.barcode-label{width:100%;height:${innerH}mm;min-height:${innerH}mm;padding:0.2mm;display:flex;flex-direction:column;align-items:center;justify-content:space-between;gap:0.2mm;text-align:center;page-break-after:always;break-after:page;overflow:hidden}
+*{box-sizing:border-box}html{background:white}body{margin:0;padding:0;width:${page.width}mm;color:#000;background:#fff;font:${Math.max(6, Math.round(captionPx))}px ${rtl ? "Printarabic,Printlatin" : "Printlatin"},Arial,sans-serif;line-height:1.05;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.barcode-label{width:${page.width}mm;height:${page.height}mm;min-height:${page.height}mm;margin:0;padding:${outerPad}mm ${edgePad}mm;display:flex;flex-direction:row;align-items:center;justify-content:center;gap:${stackGap}mm;overflow:hidden;background:#fff;color:#000;page-break-after:always;break-after:page}
 .barcode-label:last-child{page-break-after:auto;break-after:auto}
-.barcode-top,.barcode-bottom{flex:0 0 auto;width:100%;min-width:0;overflow:hidden}
-.barcode-top strong{display:block;font-size:5.5px;font-weight:700;line-height:1.1;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.barcode-svg{flex:0 0 auto;width:${qrMax}mm;height:${qrMax}mm;display:flex;align-items:center;justify-content:center;margin:0 auto}
-.barcode-svg svg{width:100%;height:100%;display:block}
-.barcode-bottom bdi{display:block;font-family:ui-monospace,Consolas,monospace;font-size:5.5px;letter-spacing:.02em;line-height:1.1;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.barcode-side{flex:1 1 0;min-width:0;max-width:${sideMin + 1.5}mm;height:${qrMax}mm;margin:0;overflow:hidden;display:flex;align-items:center;justify-content:center}
+.barcode-name{justify-content:flex-end}.barcode-code{justify-content:flex-start}
+.barcode-side strong,.barcode-side bdi{display:block;writing-mode:vertical-rl;text-orientation:mixed;font-size:${captionPx}px;line-height:1.05;max-height:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#000}
+.barcode-side strong{font-weight:700}.barcode-side bdi{font-family:ui-monospace,Consolas,monospace;letter-spacing:.02em}
+.barcode-svg{flex:0 0 auto;width:${qrMax}mm;height:${qrMax}mm;margin:0;display:flex;align-items:center;justify-content:center}
+.barcode-svg svg{width:100%;height:100%;display:block;fill:#000}
 .empty-labels{padding:8px;text-align:center;color:#555}
-@page{size:${page.width}mm ${page.height}mm;margin:${page.margin}mm}
-@media screen{html{background:#e8ebef}body{background:white;width:${page.width}mm;min-height:${page.height}mm;padding:${page.margin}mm;margin:8px auto;box-shadow:0 0 0 1px #c5cad1}
-.barcode-label{border:1px dashed #b0b6bf;margin-bottom:8px;page-break-after:auto}}
-@media print{body{margin:0;padding:0}.barcode-label{border:0;margin:0}}
+@page{size:${page.width}mm ${page.height}mm;margin:0}
+@media screen{html{background:#e8ebef}body{background:white;width:${page.width}mm;margin:8px auto;height:auto;box-shadow:0 0 0 1px #c5cad1}
+.barcode-label{outline:1px dashed #b0b6bf;margin-bottom:8px;page-break-after:auto}}
+@media print{html,body{margin:0;padding:0;width:${page.width}mm;background:#fff}.barcode-label{outline:0;margin:0}}
 `;
     const body = labels
       ? labels
