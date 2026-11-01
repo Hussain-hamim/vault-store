@@ -38,8 +38,16 @@
 .product-detail-modal [role="tabpanel"][hidden] {
   display: none;
 }
+.product-detail-modal .spec-grid span {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--paint-fg-35353a, #35353a);
+}
 .product-detail-modal .spec-grid strong {
   overflow-wrap: anywhere;
+  font-weight: 650;
+  color: var(--paint-fg-55555c, #55555c);
 }
 .product-detail-modal .table-wrap {
   overflow-x: auto;

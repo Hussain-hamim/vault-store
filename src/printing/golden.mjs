@@ -2,7 +2,7 @@ import {
   autoDirHtml,
   bilingualLabel,
   ltrPhoneHtml,
-  mixedHtml,
+  noteHtml,
   westernDigits,
 } from "./bidi.mjs";
 
@@ -111,7 +111,7 @@ export function goldenSale({
       }<h2 dir="ltr">${e(doc.store?.name || "")}</h2></div>
       <div class="gold-side">${image(logoRight)}</div>
     </div>
-    ${doc.store?.services ? `<p class="gold-services" dir="ltr">${mixedHtml(doc.store.services, e)}</p>` : ""}
+    ${doc.store?.services ? noteHtml(doc.store.services, e, "gold-services") : ""}
     <div class="gold-contacts" dir="rtl">${ownerHtml}${phoneHtml ? `<div class="gold-contact-phones" dir="ltr">${phoneHtml}</div>` : ""}</div>
   </header>
   <section class="gold-meta">
@@ -144,10 +144,10 @@ export function goldenSale({
       <div class="gold-sign">${bi("Sign", "لاسلیک")}:<div></div></div>
       <div class="gold-totals">${summary || totals}</div>
     </div>
-    ${doc.note ? `<p class="gold-note" dir="ltr">${mixedHtml(doc.note, e)}</p>` : ""}
+    ${doc.note ? noteHtml(doc.note, e, "gold-note") : ""}
     ${
       options.showFooter && doc.store?.bill_footer
-        ? `<p class="store-footer" dir="ltr">${mixedHtml(doc.store.bill_footer, e)}</p>`
+        ? noteHtml(doc.store.bill_footer, e, "store-footer")
         : ""
     }
     ${
@@ -180,7 +180,9 @@ export const goldenCss = `
 .gold-side img,.gold-brand img{max-width:100%;max-height:88px;object-fit:contain}
 .gold-titles h1{font-size:28px;line-height:1.45;margin:0 0 6px;color:#2a1d38;font-weight:800;direction:rtl;unicode-bidi:isolate}
 .gold-titles h2{font-size:16px;line-height:1.3;color:#fff;background:#1d1528;border-radius:999px;margin:0 auto;padding:5px 14px;font-weight:800;text-transform:uppercase;display:inline-block;letter-spacing:.04em;direction:ltr;unicode-bidi:isolate}
-.gold-services{font-family:Printarabic,Printlatin,Arial,sans-serif;font-size:13px;margin:6px 12px 10px;color:#2a1d38;direction:ltr;unicode-bidi:isolate}
+.gold-services{font-family:Printarabic,Printlatin,Arial,sans-serif;font-size:13px;margin:6px 12px 10px;color:#2a1d38;unicode-bidi:isolate;white-space:pre-line;text-align:center}
+.gold-services[dir=rtl],.gold-note[dir=rtl],.gold-closing .store-footer[dir=rtl]{direction:rtl;unicode-bidi:isolate}
+.gold-services[dir=ltr],.gold-note[dir=ltr],.gold-closing .store-footer[dir=ltr]{direction:ltr;unicode-bidi:isolate}
 .gold-contacts{background:#1d1528;color:#fff;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px 16px;font-size:12px;direction:rtl}
 .gold-contact-phones{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin-inline-start:auto;direction:ltr;unicode-bidi:isolate}
 .gold-contact-phone{display:inline-flex;align-items:center;gap:5px;direction:ltr;unicode-bidi:isolate;white-space:nowrap}
@@ -214,7 +216,7 @@ export const goldenCss = `
 .gold-totals>div:last-child{border:0;font-weight:800}
 .gold-totals span{background:#f09a4f;padding:4px 6px;min-width:52%;color:#2a1d38}
 .gold-totals strong{padding:4px 6px}
-.gold-payment-details{display:flex;flex-wrap:wrap;gap:6px 18px;padding:8px 12px;font-size:10px;border-bottom:1px solid #d6cba8}.gold-note,.gold-closing .store-footer{border:0;margin:4px 0;padding:2px 10px;font-family:Printarabic,Printlatin,Arial,sans-serif;font-size:11px;font-weight:600;white-space:pre-line;text-align:center;unicode-bidi:plaintext}
+.gold-payment-details{display:flex;flex-wrap:wrap;gap:6px 18px;padding:8px 12px;font-size:10px;border-bottom:1px solid #d6cba8}.gold-note,.gold-closing .store-footer{border:0;margin:4px 0;padding:2px 10px;font-family:Printarabic,Printlatin,Arial,sans-serif;font-size:11px;font-weight:600;white-space:pre-line;text-align:center;unicode-bidi:isolate}
 .gold-address{background:#3a2b52;color:#fff;text-align:center;padding:8px 10px;font-family:Printarabic,Printlatin,Arial,sans-serif;font-size:12px}
 .gold-address p{margin:0;white-space:pre-line}
 .gold-address p+p{margin-top:4px}

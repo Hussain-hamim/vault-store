@@ -851,15 +851,40 @@ test("golden stationery is bilingual, sale-only, escaped and preserves device/di
 });
 
 test("golden bills print Western LTR phones and isolate bilingual text in Pashto locale", async () => {
-  const { westernDigits } = await import("../src/printing/bidi.mjs");
+  const { westernDigits, mixedHtml, noteHtml } = await import(
+    "../src/printing/bidi.mjs"
+  );
+  const esc = (v) =>
+    String(v ?? "").replace(
+      /[&<>"']/g,
+      (c) =>
+        ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[
+          c
+        ],
+    );
   assert.equal(westernDigits("۰۷۷۵۶۶۲۳۲۲"), "0775662322");
   assert.equal(westernDigits("٠٧٠٠٠٠٠٠٠١"), "0700000001");
+  const pashtoNote =
+    "له پیرود څخه مننه. مهرباني وکړئ د بیرته ورکولو لپاره رسید وساتئ او په ۱۴ ورځو کې راشئ.";
+  assert.match(
+    noteHtml(pashtoNote, esc, "store-footer"),
+    /class="store-footer" lang="ps" dir="rtl">/,
+  );
+  assert.doesNotMatch(
+    noteHtml(pashtoNote, esc, "store-footer"),
+    /<span dir="rtl"/,
+  );
+  assert.match(
+    mixedHtml("لپټاپ موبایل او ټابلیټ", esc),
+    /^<span dir="rtl" lang="ps">لپټاپ موبایل او ټابلیټ<\/span>$/,
+  );
   const doc = model();
   doc.locale = "ps";
   doc.store.name_ps = "د کمپیوټر پلورنځی";
   doc.store.address_ps = "کابل، افغانستان";
   doc.store.address = "Kabul, Afghanistan";
   doc.store.services = "لپټاپ · Laptops · Mobiles";
+  doc.store.bill_footer = pashtoNote;
   doc.store.owner1_name = "Ghouth";
   doc.store.owner1_phone = "٠٧٠٠٠٠٠٠٠١";
   const html = renderPrintDocument(doc, { template: "golden" });
@@ -875,7 +900,11 @@ test("golden bills print Western LTR phones and isolate bilingual text in Pashto
   assert.match(html, /dir="ltr">Kabul, Afghanistan<\/p>/);
   assert.match(
     html,
-    /dir="rtl">لپټاپ<\/span> · <span dir="ltr">Laptops<\/span>/,
+    /dir="rtl" lang="ps">لپټاپ<\/span> · <span dir="ltr">Laptops<\/span>/,
+  );
+  assert.match(
+    html,
+    /class="store-footer" lang="ps" dir="rtl">له پیرود څخه مننه/,
   );
 });
 

@@ -49,7 +49,7 @@ import {
   ShieldCheckIcon,
   CommandIcon,
 } from "@phosphor-icons/react";
-import { api, setToken, Product, User, normalizeDigits } from "./api";
+import { api, setToken, Product, Party, User, normalizeDigits } from "./api";
 import { useI18n, type Locale } from "./i18n";
 import { Dashboard } from "./components/Dashboard";
 import {
@@ -229,7 +229,12 @@ export function App() {
     [collapsed, setCollapsed] = useState(false),
     [globalOpen, setGlobalOpen] = useState(false),
     [palette, setPalette] = useState(false),
-    [saleSeed, setSaleSeed] = useState<Product | undefined>();
+    [saleSeed, setSaleSeed] = useState<Product | undefined>(),
+    [salePartySeed, setSalePartySeed] = useState<Party | undefined>(),
+    [saleReturnCustomerId, setSaleReturnCustomerId] = useState<
+      string | undefined
+    >(),
+    [customerFocusId, setCustomerFocusId] = useState<string | undefined>();
   useUserTheme(user?.id);
   const notifications = useNotificationSummary(user, refresh);
   useEffect(() => {
@@ -354,6 +359,14 @@ export function App() {
         setSaleEditId(name === "saleEdit" ? data?.id : undefined);
         setSaleSeed(
           name === "sale" && data?.product ? data.product : undefined,
+        );
+        setSalePartySeed(
+          name === "sale" && data?.customer ? data.customer : undefined,
+        );
+        setSaleReturnCustomerId(
+          name === "sale" && data?.customer?.id && data?.returnToCustomer
+            ? data.customer.id
+            : undefined,
         );
         setBillEpoch((v) => v + 1);
       }
@@ -812,18 +825,28 @@ export function App() {
                   inline
                   documentId={saleEditId}
                   seedProduct={saleSeed}
+                  seedParty={salePartySeed}
                   close={() => {
                     setSaleTab("bill");
                     setSaleEditId(undefined);
                     setSaleSeed(undefined);
+                    setSalePartySeed(undefined);
+                    setSaleReturnCustomerId(undefined);
                     setBillEpoch((v) => v + 1);
                   }}
                   done={(s, result: any) => {
                     toast(s, { reload: true });
+                    const returnId = saleReturnCustomerId;
                     setSaleTab("bill");
                     setSaleEditId(undefined);
                     setSaleSeed(undefined);
+                    setSalePartySeed(undefined);
+                    setSaleReturnCustomerId(undefined);
                     setBillEpoch((v) => v + 1);
+                    if (returnId) {
+                      setCustomerFocusId(returnId);
+                      setPage("customers");
+                    }
                     if (result?.print === true && result?.id)
                       open("invoice", {
                         id: result.id,
@@ -925,7 +948,13 @@ export function App() {
               )}
             </div>
           ) : page === "customers" ? (
-            <PeoplePage key="customer" {...props} kind="customer" />
+            <PeoplePage
+              key="customer"
+              {...props}
+              kind="customer"
+              focusPartyId={customerFocusId}
+              onFocusPartyConsumed={() => setCustomerFocusId(undefined)}
+            />
           ) : page === "suppliers" ? (
             <PeoplePage key="supplier" {...props} kind="supplier" />
           ) : page === "dailyBook" ? (

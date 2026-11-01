@@ -113,11 +113,13 @@ export function TradeForm({
   inline = false,
   documentId,
   seedProduct,
+  seedParty,
 }: {
   kind: "sale" | "purchase";
   inline?: boolean;
   documentId?: string;
   seedProduct?: Product;
+  seedParty?: Party;
 } & DialogProps) {
   const t = useT();
   const PAGE = 8;
@@ -481,6 +483,15 @@ export function TradeForm({
     // Seed once when the bill opens from global search / product detail.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seedProduct?.id, documentId]);
+  useEffect(() => {
+    if (purchase || documentId || !seedParty?.id) return;
+    setCustomerMode("existing");
+    chooseParty(seedParty);
+    setCustomerName("");
+    setCustomerPhone("");
+    // Seed once when the bill opens from the customer screen.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seedParty?.id, documentId, purchase]);
   const update = (i: number, key: keyof CartLine, v: any) =>
     setLines((ls) =>
       ls.map((l, j) => {
@@ -3336,9 +3347,15 @@ export function InvoiceDialog({
                 </div>
               )}
             </div>
-            {doc.note && <p className="invoice-note">{doc.note}</p>}
+            {doc.note && (
+              <p className="invoice-note" dir="auto">
+                {doc.note}
+              </p>
+            )}
             {store?.bill_footer ? (
-              <p className="invoice-note">{store.bill_footer}</p>
+              <p className="invoice-note" dir="auto">
+                {store.bill_footer}
+              </p>
             ) : null}
             {doc.kind === "sale" && (
               <>

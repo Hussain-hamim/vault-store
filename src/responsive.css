@@ -171,26 +171,26 @@ textarea {
   }
 }
 
-/* Keep the reference desktop inventory anatomy in narrow Mac preview windows. */
+/* Keep the reference desktop inventory anatomy from 600px workspace width. */
 @container workspace (min-width: 600px) {
   .inventory-list .inventory-list-cols,
   .inventory-list .inventory-row-main {
     display: grid;
-    grid-template-columns:
-      minmax(0, 1fr) minmax(64px, 0.24fr) minmax(88px, 0.3fr)
-      28px;
+    grid-template-columns: minmax(0, 1fr) 72px minmax(118px, 0.28fr) 32px;
     grid-template-areas: none;
-    gap: 10px;
+    gap: 12px;
     align-items: center;
   }
   .inventory-list.with-cost .inventory-list-cols,
   .inventory-list.with-cost .inventory-row-main {
     grid-template-columns:
-      minmax(0, 1fr) minmax(58px, 0.21fr) minmax(80px, 0.28fr)
-      minmax(88px, 0.3fr) 28px;
+      minmax(0, 1fr) 72px minmax(118px, 0.22fr) minmax(118px, 0.22fr)
+      minmax(118px, 0.22fr) 32px;
   }
   .inventory-list.with-cost .inventory-row-cost,
-  .inventory-list.with-cost .inventory-list-cols span:nth-child(3) {
+  .inventory-list.with-cost .inventory-row-qty-cost,
+  .inventory-list.with-cost .inventory-list-cols span:nth-child(3),
+  .inventory-list.with-cost .inventory-list-cols span:nth-child(4) {
     display: block;
   }
   .inventory-list .inventory-row-product,
@@ -198,9 +198,17 @@ textarea {
   .inventory-list .inventory-row-meta,
   .inventory-list
     .inventory-row-main
-    > .inventory-row-meta:not(.inventory-row-cost):not(.inventory-row-price) {
+    > .inventory-row-meta:not(.inventory-row-cost):not(.inventory-row-qty-cost):not(.inventory-row-price) {
     grid-area: auto;
     min-width: 0;
+  }
+  .inventory-list .inventory-row-cost strong,
+  .inventory-list .inventory-row-qty-cost strong,
+  .inventory-list .inventory-row-price strong {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    overflow-wrap: normal;
   }
   .inventory-list .inventory-row-price {
     justify-self: stretch;
@@ -220,14 +228,24 @@ textarea {
   .inventory-list-sticky .toolbar-right {
     flex: 1 1 auto;
   }
+  .inventory-list .inventory-list-cols,
   .inventory-list .inventory-row-main {
-    gap: 7px;
+    grid-template-columns: minmax(0, 1fr) 64px minmax(110px, 0.28fr) 28px;
+    gap: 8px;
+  }
+  .inventory-list.with-cost .inventory-list-cols,
+  .inventory-list.with-cost .inventory-row-main {
+    grid-template-columns:
+      minmax(0, 1fr) 56px minmax(104px, 0.2fr) minmax(104px, 0.2fr)
+      minmax(104px, 0.2fr) 28px;
+    gap: 8px;
   }
   .inventory-list .inventory-row-cost strong,
+  .inventory-list .inventory-row-qty-cost strong,
   .inventory-list .inventory-row-price strong {
-    font-size: 11px;
-    white-space: normal;
-    overflow-wrap: anywhere;
+    font-size: 13px;
+    white-space: nowrap;
+    overflow-wrap: normal;
   }
   .inventory-list .inventory-row-product {
     gap: 8px;
@@ -385,12 +403,16 @@ textarea {
   }
 }
 @container workspace (min-width: 900px) {
-  .inventory-page.page-content,
   .people-page.page-content,
   .docs-page.page-content,
   .daybook-page.page-content,
   .capital-page.page-content {
     width: min(1040px, 82%);
+  }
+  /* Inventory keeps full workspace width so cost/price columns stay readable. */
+  .inventory-page.page-content {
+    width: 100%;
+    max-width: none;
   }
 }
 .activation-form input[name="activationKey"] { font-family: ui-monospace, monospace; font-size: 12px; letter-spacing: .025em; }

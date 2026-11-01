@@ -1551,7 +1551,6 @@ html[dir="rtl"] .period-picker select {
   padding: var(--page-pad-y) var(--page-pad-x);
   box-sizing: border-box;
 }
-.inventory-page.page-content,
 .people-page.page-content,
 .docs-page.page-content,
 .daybook-page.page-content,
@@ -1559,6 +1558,17 @@ html[dir="rtl"] .period-picker select {
   width: var(--content-tight);
   max-width: 100%;
   padding: var(--page-pad-y) var(--page-pad-x);
+}
+.inventory-page.page-content {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: var(--page-pad-y) var(--page-pad-x);
+  box-sizing: border-box;
+}
+.inventory-page .inventory-list {
+  width: 100%;
+  max-width: none;
 }
 .page-intro {
   display: flex;
@@ -1955,12 +1965,12 @@ html[dir="rtl"] .period-picker select {
     minmax(110px, 0.85fr) minmax(118px, auto);
   gap: 10px;
   align-items: center;
-  padding: 4px 14px 8px;
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 0.03em;
+  padding: 6px 14px 10px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
   text-transform: uppercase;
-  color: var(--paint-fg-8f9aa0, #8f9aa0);
+  color: var(--paint-fg-2c3338, #2c3338);
 }
 .people-list-scroll {
   flex: 1;
@@ -2140,12 +2150,12 @@ html[dir="rtl"] .period-picker select {
 }
 .people-row-balance strong {
   display: block;
-  font-size: 13px;
-  font-weight: 700;
+  font-size: 15px;
+  font-weight: 800;
   letter-spacing: -0.02em;
 }
 .people-row-balance .balance-owed {
-  color: var(--paint-fg-b14454, #b14454);
+  color: var(--paint-fg-c0392b, #c0392b);
 }
 .people-row-balance .balance-settled {
   color: var(--paint-fg-2f6d82, #2f6d82);
@@ -2154,7 +2164,7 @@ html[dir="rtl"] .period-picker select {
   color: var(--paint-fg-5f6b3d, #5f6b3d);
 }
 .people-row-balance .balance-credit {
-  color: var(--paint-fg-2f7a55, #2f7a55);
+  color: var(--paint-fg-1f7a4d, #1f7a4d);
 }
 .people-row-actions {
   display: flex;
@@ -2233,9 +2243,11 @@ html[dir="rtl"] .period-picker select {
 }
 .ledger-table thead th {
   background: var(--paint-bg-f4f6f2, #f4f6f2);
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--paint-fg-505059, #505059);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--paint-fg-2c3338, #2c3338);
   position: sticky;
   top: 0;
   z-index: 1;
@@ -3821,6 +3833,8 @@ input[data-numeric] {
   line-height: 1.8;
   color: var(--paint-fg-999, #999);
   margin-bottom: 17px;
+  white-space: pre-line;
+  unicode-bidi: plaintext;
 }
 .return-form {
   border-top: 1px solid var(--paint-border-eee, #eee);
@@ -7063,12 +7077,12 @@ html[dir="rtl"] .sale-customer-phone .phone-field select {
     );
   gap: 10px;
   align-items: center;
-  padding: 4px 12px 8px;
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 0.03em;
+  padding: 6px 12px 10px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
   text-transform: uppercase;
-  color: var(--paint-fg-92968c, #92968c);
+  color: var(--paint-fg-2c3338, #2c3338);
 }
 .docs-expense .docs-list-cols {
   grid-template-columns:
@@ -7193,8 +7207,8 @@ html[dir="rtl"] .sale-customer-phone .phone-field select {
 }
 .docs-row-money strong {
   display: block;
-  font-size: 13px;
-  font-weight: 700;
+  font-size: 15px;
+  font-weight: 800;
   color: var(--paint-fg-2f3328, #2f3328);
   font-variant-numeric: tabular-nums;
 }
@@ -7204,6 +7218,22 @@ html[dir="rtl"] .sale-customer-phone .phone-field select {
   font-size: 10px;
   color: var(--paint-fg-8a8f84, #8a8f84);
 }
+.docs-money-total strong {
+  color: var(--paint-fg-245d89, #245d89);
+}
+.docs-money-paid {
+  color: var(--paint-fg-2c6f79, #2c6f79) !important;
+  font-weight: 650;
+}
+.docs-money-due strong.text-red,
+.docs-money-balance strong.text-red {
+  color: var(--paint-fg-c0392b, #c0392b);
+}
+.docs-money-due strong.text-green,
+.docs-money-balance strong.text-green {
+  color: var(--paint-fg-1f7a4d, #1f7a4d);
+}
+.docs-expense .docs-money-total strong,
 .docs-expense .docs-row-money strong {
   color: var(--paint-fg-9a4f35, #9a4f35);
 }
@@ -7294,6 +7324,7 @@ html[dir="rtl"] .sale-customer-phone .phone-field select {
 .inventory-list {
   flex: 1;
   min-height: 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -7313,32 +7344,38 @@ html[dir="rtl"] .sale-customer-phone .phone-field select {
 .inventory-list-cols,
 .inventory-row-main {
   display: grid;
-  grid-template-columns: minmax(240px, 1fr) minmax(88px, 0.35fr) minmax(
-      110px,
-      0.4fr
-    ) 36px;
+  grid-template-columns: minmax(0, 1fr) minmax(72px, 0.2fr) minmax(
+      118px,
+      0.28fr
+    ) 32px;
   gap: 12px;
   align-items: center;
+  width: 100%;
+  min-width: 0;
 }
 .inventory-list.with-cost .inventory-list-cols,
 .inventory-list.with-cost .inventory-row-main {
+  /* Product flexes; money columns keep a readable fixed floor so AF amounts
+     never wrap mid-number. */
   grid-template-columns:
-    minmax(240px, 1fr) minmax(88px, 0.32fr) minmax(110px, 0.38fr)
-    minmax(110px, 0.38fr) 36px;
+    minmax(0, 1fr) 72px minmax(118px, 0.22fr) minmax(118px, 0.22fr)
+    minmax(118px, 0.22fr) 32px;
+  gap: 12px;
 }
 .inventory-list-cols {
-  padding: 4px 14px 8px;
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 0.03em;
+  padding: 8px 10px 10px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
   text-transform: uppercase;
-  color: var(--paint-fg-9a9a9e, #9a9a9e);
+  color: var(--paint-fg-2c3338, #2c3338);
 }
 .inventory-list-scroll {
   flex: 1;
   min-height: 0;
-  overflow: auto;
-  padding: 8px 10px 6px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 8px 8px 6px;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -7349,8 +7386,11 @@ html[dir="rtl"] .sale-customer-phone .phone-field select {
   flex-direction: column;
   gap: 6px;
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
   text-align: left;
-  padding: 8px 10px;
+  padding: 8px 8px;
   border: 1.5px solid var(--paint-border-e4e4e0, #e4e4e0);
   border-radius: 11px;
   background: var(--paint-bg-fff, #fff);
@@ -7435,8 +7475,8 @@ html[dir="rtl"] .sale-customer-phone .phone-field select {
   min-width: 0;
 }
 .inventory-row-image {
-  width: 56px;
-  height: 56px;
+  width: 48px;
+  height: 48px;
   border-radius: 10px;
   border: 1px solid var(--paint-border-ebebe7, #ebebe7);
   background: var(--paint-bg-f4f4f1, #f4f4f1);
@@ -7585,36 +7625,64 @@ html[dir="rtl"] .sale-customer-phone .phone-field select {
   color: var(--paint-fg-5f6b3d, #5f6b3d);
   border-color: var(--paint-border-d5ddb8, #d5ddb8);
 }
+.inventory-row-cost,
+.inventory-row-qty-cost,
+.inventory-row-price {
+  min-width: 0;
+}
 .inventory-row-cost strong,
+.inventory-row-qty-cost strong,
 .inventory-row-price strong {
   display: block;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--paint-fg-35353a, #35353a);
+  font-size: 15px;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  unicode-bidi: isolate;
+  direction: ltr;
+}
+.inventory-row-cost strong {
+  color: var(--paint-fg-9a5b1f, #9a5b1f);
+}
+.inventory-row-qty-cost strong {
+  color: var(--paint-fg-5c4a2a, #5c4a2a);
+}
+.inventory-row-price strong {
+  color: var(--paint-fg-0f7a5a, #0f7a5a);
+}
+.inventory-row-qty-cost small {
+  display: block;
+  font-size: 9px;
+  color: var(--paint-fg-8a8a8e, #8a8a8e);
+  margin-top: 1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .inventory-row-cost .inventory-cost-rate {
   display: block;
-  margin-top: 2px;
-  font-size: 10px;
+  margin-top: 1px;
+  font-size: 9px;
   font-weight: 650;
   color: var(--paint-fg-2c6f79, #2c6f79);
   font-variant-numeric: tabular-nums;
   unicode-bidi: isolate;
   direction: ltr;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .inventory-row-cost small {
   display: block;
-  margin-top: 2px;
+  margin-top: 1px;
   font-size: 9px;
   color: var(--paint-fg-9a9a9f, #9a9a9f);
 }
-.inventory-row-price strong {
-  color: var(--paint-fg-2f6b4a, #2f6b4a);
-}
 .inventory-row-go {
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   border-radius: 9px;
   display: flex;
   align-items: center;
@@ -7636,23 +7704,22 @@ html[dir="rtl"] .sale-customer-phone .phone-field select {
 }
 @media (max-width: 900px) {
   .inventory-list-cols,
-  .inventory-row-main,
+  .inventory-row-main {
+    grid-template-columns: minmax(0, 1fr) 64px minmax(110px, 0.28fr) 28px;
+    gap: 8px;
+  }
   .inventory-list.with-cost .inventory-list-cols,
   .inventory-list.with-cost .inventory-row-main {
-    grid-template-columns: minmax(180px, 1fr) minmax(80px, 0.35fr) minmax(
-        100px,
-        0.4fr
-      ) 36px;
-  }
-  .inventory-list.with-cost .inventory-list-cols span:nth-child(3),
-  .inventory-list.with-cost .inventory-row-cost {
-    display: none;
+    grid-template-columns:
+      minmax(0, 1fr) 56px minmax(104px, 0.2fr) minmax(104px, 0.2fr)
+      minmax(104px, 0.2fr) 28px;
+    gap: 8px;
   }
   .inventory-row-specs {
     margin-left: 0;
   }
 }
-@media (max-width: 720px) {
+@media (max-width: 599px) {
   .inventory-list-cols {
     display: none;
   }
@@ -7671,14 +7738,15 @@ html[dir="rtl"] .sale-customer-phone .phone-field select {
     grid-area: go;
   }
   .inventory-row-main
-    > .inventory-row-meta:not(.inventory-row-cost):not(.inventory-row-price) {
+    > .inventory-row-meta:not(.inventory-row-cost):not(.inventory-row-qty-cost):not(.inventory-row-price) {
     grid-area: stock;
   }
   .inventory-row-price {
     grid-area: price;
     justify-self: end;
   }
-  .inventory-row-cost {
+  .inventory-row-cost,
+  .inventory-row-qty-cost {
     display: none;
   }
 }
@@ -7949,17 +8017,8 @@ img {
   .daybook-cash > svg {
     display: none;
   }
-  .inventory-list-cols,
   .people-list-cols,
   .docs-list-cols {
-    display: none;
-  }
-  .inventory-row-main,
-  .inventory-list.with-cost .inventory-row-main {
-    grid-template-columns: minmax(0, 1fr) auto auto 32px;
-    gap: 8px;
-  }
-  .inventory-list.with-cost .inventory-row-cost {
     display: none;
   }
   .people-row {
@@ -8076,27 +8135,6 @@ img {
   .capital-hero-metrics,
   .daybook-metrics {
     grid-template-columns: 1fr 1fr;
-  }
-  .inventory-row-main,
-  .inventory-list.with-cost .inventory-row-main {
-    grid-template-columns: 1fr auto;
-    grid-template-areas:
-      "product go"
-      "stock price";
-  }
-  .inventory-row-product {
-    grid-area: product;
-  }
-  .inventory-row-go {
-    grid-area: go;
-  }
-  .inventory-row-main
-    > .inventory-row-meta:not(.inventory-row-cost):not(.inventory-row-price) {
-    grid-area: stock;
-  }
-  .inventory-row-price {
-    grid-area: price;
-    justify-self: end;
   }
   .people-row {
     grid-template-columns: minmax(0, 1fr) auto;
@@ -8354,11 +8392,7 @@ html[dir="rtl"] kbd {
 .auth-screen { height: 100dvh; overflow-y: auto; }
 .auth-form-container { min-width: 0; }
 
-/* Strong, readable stock/pricing hierarchy without widening the desktop cards. */
-.inventory-row-meta strong {font-size:17px;font-weight:800;font-variant-numeric:tabular-nums;}
-.inventory-row-cost strong {color:var(--paint-fg-55488a,#674c1b);}
-.inventory-row-price strong {color:var(--paint-fg-2c6f79,#126d67);}
-.inventory-row-meta:not(.inventory-row-cost):not(.inventory-row-price) strong {color:var(--paint-fg-2c6f79,#245d89);}
+/* Qty badge stays prominent; money colors live with inventory-row-* rules above. */
+.inventory-row-meta .badge {font-size:15px;font-weight:800;padding:5px 10px;}
 .sale-shop-preview-doc {border-top:2px solid var(--border);padding-top:12px;}
 .notification-item-copy details button {display:flex;margin-top:6px;max-width:100%;white-space:normal;}
-.inventory-row-meta .badge {font-size:16px;font-weight:800;padding:5px 10px;}

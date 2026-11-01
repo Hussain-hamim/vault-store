@@ -763,45 +763,67 @@ export function ProductForm({
                   <h3>{t("productForm.info")}</h3>
                   <div className="entry-grid three">
                     {text("name", t("product.name"), true)}
-                    <Field label={t("product.category")} icon={SquaresFourIcon}>
-                      <select
-                        name="category"
-                        value={d.category}
-                        onChange={(e) => value("category", e.target.value)}
-                      >
-                        {categoryChoices(d.category, customCategories).map(
-                          (c) => (
-                            <option key={c} value={c}>
-                              {categoryLabel(t, c)}
-                            </option>
-                          ),
-                        )}
-                      </select>
-                    </Field>
-                    {d.category === "Other" &&
-                      text(
-                        "categoryOther",
-                        t("productForm.customCategory"),
-                        true,
-                      )}
-                    <Field
+                    <SuggestField
+                      name="category"
+                      label={t("product.category")}
+                      icon={SquaresFourIcon}
+                      value={
+                        d.category === "Other" ? d.categoryOther : d.category
+                      }
+                      options={categoryChoices(
+                        d.category === "Other" ? d.categoryOther : d.category,
+                        customCategories,
+                      )
+                        .filter((c) => c !== "Other")
+                        .map((c) => ({
+                          value: c,
+                          label: categoryLabel(t, c),
+                        }))}
+                      onChange={(next) => {
+                        const known = categoryChoices(
+                          next,
+                          customCategories,
+                        ).find(
+                          (c) =>
+                            c !== "Other" &&
+                            (c === next ||
+                              categoryLabel(t, c).toLowerCase() ===
+                                next.trim().toLowerCase()),
+                        );
+                        if (known) {
+                          value("category", known);
+                          value("categoryOther", "");
+                        } else {
+                          value("category", "Other");
+                          value("categoryOther", next);
+                        }
+                      }}
+                    />
+                    <SuggestField
+                      name="brand"
                       label={t("productForm.companyBrand")}
                       icon={BuildingsIcon}
-                    >
-                      <select
-                        name="brand"
-                        value={d.brand}
-                        onChange={(e) => value("brand", e.target.value)}
-                      >
-                        {brandChoices(d.brand).map((b) => (
-                          <option key={b} value={b}>
-                            {b === "Other" ? t("common.other") : b}
-                          </option>
-                        ))}
-                      </select>
-                    </Field>
-                    {d.brand === "Other" &&
-                      text("brandOther", t("productForm.customBrand"), true)}
+                      value={d.brand === "Other" ? d.brandOther : d.brand}
+                      options={brandChoices(
+                        d.brand === "Other" ? d.brandOther : d.brand,
+                      )
+                        .filter((b) => b !== "Other")
+                        .map((b) => ({ value: b, label: b }))}
+                      onChange={(next) => {
+                        const known = brandChoices(next).find(
+                          (b) =>
+                            b !== "Other" &&
+                            b.toLowerCase() === next.trim().toLowerCase(),
+                        );
+                        if (known) {
+                          value("brand", known);
+                          value("brandOther", "");
+                        } else {
+                          value("brand", "Other");
+                          value("brandOther", next);
+                        }
+                      }}
+                    />
                     {text("model", t("product.model"), true)}
                     {text("sku", t("product.sku"), true)}
                     <Field label={t("product.barcode")} icon={BarcodeIcon}>
@@ -1209,6 +1231,125 @@ export function ProductForm({
         </Modal>
       )}
     </>
+  );
+}
+function SuggestField({
+  name,
+  label,
+  icon,
+  value,
+  onChange,
+  options,
+}: {
+  name: string;
+  label: string;
+  icon?: Icon;
+  value: string;
+  onChange: (value: string) => void;
+  options: { value: string; label: string }[];
+}) {
+  const query = normalizeDigits(value).trim().toLowerCase().replace(/\s+/g, "");
+  const suggestions = options.filter((opt) => {
+    if (!query) return true;
+    const hay = `${opt.label} ${opt.value}`
+      .toLowerCase()
+      .replace(/\s+/g, "");
+    return (
+      hay.startsWith(query) ||
+      opt.label
+        .toLowerCase()
+        .split(/\s+/)
+        .some((word) => word.startsWith(query)) ||
+      opt.value.toLowerCase().startsWith(query)
+    );
+  });
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(-1);
+  const listId = useId();
+  const input = useRef<HTMLInputElement>(null);
+  const choose = (opt: { value: string; label: string }) => {
+    onChange(opt.value);
+    setOpen(false);
+    setActive(-1);
+    input.current?.focus();
+  };
+  return (
+    <div
+      className="entry-spec"
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget)) {
+          setOpen(false);
+          setActive(-1);
+        }
+      }}
+    >
+      <Field label={label} icon={icon}>
+        <input
+          ref={input}
+          name={name}
+          value={value}
+          maxLength={80}
+          role="combobox"
+          aria-expanded={open && suggestions.length > 0}
+          aria-controls={suggestions.length && open ? listId : undefined}
+          aria-autocomplete="list"
+          aria-activedescendant={
+            open && active >= 0 ? `${listId}-${active}` : undefined
+          }
+          autoComplete="off"
+          onFocus={() => setOpen(true)}
+          onClick={() => setOpen(true)}
+          onChange={(e) => {
+            onChange(e.target.value);
+            setOpen(true);
+            setActive(-1);
+          }}
+          onKeyDown={(e) => {
+            if (!suggestions.length) return;
+            if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+              e.preventDefault();
+              setOpen(true);
+              setActive(
+                (i) =>
+                  (i + (e.key === "ArrowDown" ? 1 : -1) + suggestions.length) %
+                  suggestions.length,
+              );
+            } else if (e.key === "Enter" && open && active >= 0) {
+              e.preventDefault();
+              choose(suggestions[active]);
+            } else if (e.key === "Escape" && open) {
+              e.preventDefault();
+              e.stopPropagation();
+              setOpen(false);
+              setActive(-1);
+            }
+          }}
+        />
+      </Field>
+      {suggestions.length > 0 && open && (
+        <div
+          id={listId}
+          className="entry-suggestions"
+          role="listbox"
+          aria-label={label}
+        >
+          {suggestions.map((opt, i) => (
+            <button
+              type="button"
+              key={opt.value}
+              id={`${listId}-${i}`}
+              role="option"
+              aria-selected={active === i}
+              tabIndex={-1}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => choose(opt)}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 function SpecInput({

@@ -74,12 +74,12 @@
     minmax(90px, 0.8fr) minmax(70px, 0.6fr) minmax(120px, 1fr);
   gap: 10px;
   align-items: center;
-  padding: 4px 12px 8px;
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 0.03em;
+  padding: 6px 12px 10px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
   text-transform: uppercase;
-  color: var(--paint-fg-92968c, #92968c);
+  color: var(--paint-fg-2c3338, #2c3338);
 }
 .customer-history-list {
   display: flex;

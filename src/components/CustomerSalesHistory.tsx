@@ -256,13 +256,13 @@ export function CustomerSalesHistory({
                   <div className="docs-row-meta">
                     <span className="docs-row-date">{row.date}</span>
                   </div>
-                  <div className="docs-row-meta docs-row-money">
+                  <div className="docs-row-meta docs-row-money docs-money-total">
                     <strong>{af(row.total)}</strong>
-                    <small>
+                    <small className="docs-money-paid">
                       {t("documents.paidAmount", { amount: af(row.paid) })}
                     </small>
                   </div>
-                  <div className="docs-row-meta docs-row-money">
+                  <div className="docs-row-meta docs-row-money docs-money-due">
                     <strong
                       className={outstanding > 0 ? "text-red" : "text-green"}
                     >

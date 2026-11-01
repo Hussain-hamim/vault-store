@@ -23,6 +23,7 @@ import {
   TrashIcon,
   PencilSimpleIcon,
   SignOutIcon,
+  ShoppingCartSimpleIcon,
 } from "@phosphor-icons/react";
 import {
   api,
@@ -419,6 +420,7 @@ export function ProductsPage({
             <span>{t("inventory.productSpecs")}</span>
             <span>{t("inventory.qty")}</span>
             {showCost && <span>{t("inventory.unitCost")}</span>}
+            {showCost && <span>{t("inventory.qtyCost")}</span>}
             <span>{t("inventory.sellingPrice")}</span>
             <span aria-hidden="true" />
           </div>
@@ -434,6 +436,9 @@ export function ProductsPage({
                 const unitCost = p.stock
                   ? (p.cost || 0) / p.stock
                   : p.unit_cost || 0;
+                const qtyCost = p.stock
+                  ? p.cost || unitCost * p.stock
+                  : 0;
                 const specs = productSpecs(p);
                 return (
                   <button
@@ -487,6 +492,16 @@ export function ProductsPage({
                             {p.stock
                               ? t("inventory.fifoAvg")
                               : t("inventory.lastBuy")}
+                          </small>
+                        </div>
+                      )}
+                      {showCost && (
+                        <div className="inventory-row-meta inventory-row-qty-cost">
+                          <strong>{af(qtyCost, 2)}</strong>
+                          <small>
+                            {p.stock
+                              ? `${p.stock} × ${af(unitCost, 2)}`
+                              : t("inventory.qtyCostEmpty")}
                           </small>
                         </div>
                       )}
@@ -869,10 +884,10 @@ export function DocumentsPage({
                         </small>
                       ) : null}
                     </div>
-                    <div className="docs-row-meta docs-row-money">
+                    <div className="docs-row-meta docs-row-money docs-money-total">
                       <strong>{af(d.total)}</strong>
                       {kind !== "expense" && (
-                        <small>
+                        <small className="docs-money-paid">
                           {t("documents.paidAmount", { amount: af(d.paid) })}
                         </small>
                       )}
@@ -891,7 +906,7 @@ export function DocumentsPage({
                       ) : null}
                     </div>
                     {kind !== "expense" && (
-                      <div className="docs-row-meta docs-row-money">
+                      <div className="docs-row-meta docs-row-money docs-money-due">
                         <strong
                           className={
                             outstanding > 0 ? "text-red" : "text-green"
@@ -902,7 +917,7 @@ export function DocumentsPage({
                       </div>
                     )}
                     {kind === "sale" && (
-                      <div className="docs-row-meta docs-row-money">
+                      <div className="docs-row-meta docs-row-money docs-money-balance">
                         <strong
                           className={
                             (d.party_balance || 0) > 0
@@ -1059,7 +1074,13 @@ export function PeoplePage({
   open,
   toast,
   user,
-}: PageProps & { kind: "customer" | "supplier" }) {
+  focusPartyId,
+  onFocusPartyConsumed,
+}: PageProps & {
+  kind: "customer" | "supplier";
+  focusPartyId?: string;
+  onFocusPartyConsumed?: () => void;
+}) {
   const { t, locale } = useI18n();
   const [debtorFilter, setDebtorFilter] = useState("all");
   const [sort, setSort] = useState("name");
@@ -1079,6 +1100,8 @@ export function PeoplePage({
     [detailTab, setDetailTab] = useState<"ledger" | "invoices">("ledger");
   const searchQ = useDebouncedValue(q, 200);
   const canManage = user.permissions.includes("people");
+  const canSell =
+    kind === "customer" && user.permissions.includes("sales");
   useEffect(() => {
     let active = true;
     setLoading(true);
@@ -1160,6 +1183,16 @@ export function PeoplePage({
     setDetailTab("ledger");
     setConfirmDelete(false);
     setDetailActionError("");
+  }
+  useEffect(() => {
+    if (kind !== "customer" || !focusPartyId) return;
+    selectParty(focusPartyId);
+    onFocusPartyConsumed?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kind, focusPartyId]);
+  function sellToCustomer(party: Party) {
+    if (!canSell) return;
+    open("sale", { customer: party, returnToCustomer: true });
   }
   const balanceTone = (balance: number) =>
     balance > 0 ? "owed" : balance < 0 ? "credit" : "settled";
@@ -1446,6 +1479,18 @@ export function PeoplePage({
                         onClick={(e) => e.stopPropagation()}
                         onKeyDown={(e) => e.stopPropagation()}
                       >
+                        {canSell && !confirming ? (
+                          <button
+                            type="button"
+                            className="icon-button small"
+                            disabled={busy}
+                            title={t("people.sellToCustomerHint")}
+                            aria-label={t("people.sellToCustomer")}
+                            onClick={() => sellToCustomer(p)}
+                          >
+                            <ShoppingCartSimpleIcon size={14} weight="bold" />
+                          </button>
+                        ) : null}
                         {canManage && !p.walk_in ? (
                           confirming ? (
                             <>
@@ -1524,11 +1569,11 @@ export function PeoplePage({
                               </button>
                             </>
                           )
-                        ) : (
+                        ) : !canSell ? (
                           <span className="people-row-go" aria-hidden="true">
                             <ArrowUpRightIcon size={16} />
                           </span>
-                        )}
+                        ) : null}
                       </div>
                     </article>
                   );
@@ -1631,6 +1676,15 @@ export function PeoplePage({
                     </strong>
                   </div>
                   <div className="inline-actions">
+                    {canSell && (
+                      <button
+                        className="button button-dark"
+                        onClick={() => sellToCustomer(detail.party)}
+                      >
+                        <ShoppingCartSimpleIcon size={15} />
+                        {t("people.sellToCustomer")}
+                      </button>
+                    )}
                     {detail.party.balance > 0 &&
                       user.permissions.includes("finance") && (
                         <button
@@ -3115,6 +3169,7 @@ export function SettingsPage({
               >
                 <textarea
                   name="bill_footer"
+                  dir="auto"
                   defaultValue={data.store.bill_footer || ""}
                   rows={2}
                   placeholder={t("settings.billFooterPh")}
