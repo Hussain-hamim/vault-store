@@ -2942,7 +2942,7 @@ export function InvoiceDialog({
       }
       onClose={close}
       wide
-      className={returning ? "invoice-return-dialog" : ""}
+      className={`invoice-detail-dialog${returning ? " invoice-return-dialog" : ""}`}
     >
       {doc && (
         <>
@@ -3058,93 +3058,110 @@ export function InvoiceDialog({
                 </div>
               </div>
             )}
-            <div className="invoice-meta">
-              {doc.kind === "sale" && doc.returned > 0 && (
-                <div>
-                  <span>{t("invoice.returned")}</span>
-                  <strong className="money">{af(doc.returned, 2)}</strong>
-                </div>
-              )}
-              <div>
-                <span>
-                  {["purchase", "purchase_return", "payment"].includes(doc.kind)
-                    ? t("invoice.supplier")
-                    : t("invoice.customer")}
-                </span>
-                <strong>{doc.party_name || "—"}</strong>
-                {doc.party_phone ? (
-                  <small className="block muted">
-                    <bdi dir="ltr">
-                      {normalizeDigits(String(doc.party_phone))}
-                    </bdi>
-                  </small>
-                ) : null}
-              </div>
-              <div>
-                <span>{t("invoice.recordedBy")}</span>
-                <strong>{doc.user_name}</strong>
-              </div>
-              <div>
-                <span>{t("invoice.dueDate")}</span>
-                <strong>{doc.due_date || "—"}</strong>
-                {doc.kind === "sale" &&
-                  user.permissions.includes("sales") &&
-                  ["Owner", "Manager"].includes(user.role) && (
-                    <form
-                      onSubmit={async (e) => {
-                        e.preventDefault();
-                        const date = new FormData(e.currentTarget).get(
-                          "due_date",
-                        );
-                        setBusy(true);
-                        setError("");
-                        try {
-                          await api("saleDueDate", {
-                            id: doc.id,
-                            revision: doc.revision,
-                            due_date: date,
-                          });
-                          setDoc(await api("document", { id: doc.id }));
-                        } catch (error: any) {
-                          setError(error.message);
-                        } finally {
-                          setBusy(false);
-                        }
-                      }}
-                    >
-                      <input
-                        type="date"
-                        name="due_date"
-                        aria-label={t("invoice.dueDate")}
-                        defaultValue={doc.due_date || ""}
-                        min={doc.date}
-                        required
-                      />
-                      <button className="button" disabled={busy}>
-                        {t("common.save")}
-                      </button>
-                    </form>
-                  )}
-              </div>
-              {["purchase", "purchase_return", "sale", "sale_return"].includes(
-                doc.kind,
-              ) &&
-                !!doc.fx_rate &&
-                doc.currency &&
-                doc.currency !== "AFN" && (
-                  <div>
-                    <span>{t("currencies.exchangeRate")}</span>
-                    <strong>
-                      <CurrencyFlag
-                        code={doc.currency}
-                        country={doc.currency_country}
-                      />{" "}
-                      {fxRateLabel(doc.fx_rate, doc.currency || "AED")}{" "}
-                      <CurrencyFlag code="AFN" />
-                    </strong>
-                  </div>
+            <table className="invoice-facts">
+              <tbody>
+                {doc.kind === "sale" && doc.returned > 0 && (
+                  <tr>
+                    <th scope="row">{t("invoice.returned")}</th>
+                    <td>
+                      <strong className="money text-red">
+                        {af(doc.returned, 2)}
+                      </strong>
+                    </td>
+                  </tr>
                 )}
-            </div>
+                <tr>
+                  <th scope="row">
+                    {["purchase", "purchase_return", "payment"].includes(
+                      doc.kind,
+                    )
+                      ? t("invoice.supplier")
+                      : t("invoice.customer")}
+                  </th>
+                  <td>
+                    <strong>{doc.party_name || "—"}</strong>
+                    {doc.party_phone ? (
+                      <small className="block muted">
+                        <bdi dir="ltr">
+                          {normalizeDigits(String(doc.party_phone))}
+                        </bdi>
+                      </small>
+                    ) : null}
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row">{t("invoice.recordedBy")}</th>
+                  <td>
+                    <strong>{doc.user_name}</strong>
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row">{t("invoice.dueDate")}</th>
+                  <td>
+                    <strong>{doc.due_date || "—"}</strong>
+                    {doc.kind === "sale" &&
+                      user.permissions.includes("sales") &&
+                      ["Owner", "Manager"].includes(user.role) && (
+                        <form
+                          className="invoice-due-form"
+                          onSubmit={async (e) => {
+                            e.preventDefault();
+                            const date = new FormData(e.currentTarget).get(
+                              "due_date",
+                            );
+                            setBusy(true);
+                            setError("");
+                            try {
+                              await api("saleDueDate", {
+                                id: doc.id,
+                                revision: doc.revision,
+                                due_date: date,
+                              });
+                              setDoc(await api("document", { id: doc.id }));
+                            } catch (error: any) {
+                              setError(error.message);
+                            } finally {
+                              setBusy(false);
+                            }
+                          }}
+                        >
+                          <input
+                            type="date"
+                            name="due_date"
+                            aria-label={t("invoice.dueDate")}
+                            defaultValue={doc.due_date || ""}
+                            min={doc.date}
+                            required
+                          />
+                          <button className="button" disabled={busy}>
+                            {t("common.save")}
+                          </button>
+                        </form>
+                      )}
+                  </td>
+                </tr>
+                {["purchase", "purchase_return", "sale", "sale_return"].includes(
+                  doc.kind,
+                ) &&
+                  !!doc.fx_rate &&
+                  doc.currency &&
+                  doc.currency !== "AFN" && (
+                    <tr>
+                      <th scope="row">{t("currencies.exchangeRate")}</th>
+                      <td>
+                        <strong>
+                          <CurrencyFlag
+                            code={doc.currency}
+                            country={doc.currency_country}
+                          />{" "}
+                          {fxRateLabel(doc.fx_rate, doc.currency || "AED")}{" "}
+                          <CurrencyFlag code="AFN" />
+                        </strong>
+                      </td>
+                    </tr>
+                  )}
+              </tbody>
+            </table>
             {doc.lines.length > 0 && (
               <table className="data-table">
                 <thead>

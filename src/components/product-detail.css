@@ -35,10 +35,12 @@
   margin-top: 22px;
   border-bottom: 1px solid var(--line);
 }
-.product-detail-modal [role="tabpanel"][hidden] {
-  display: none;
+.product-detail-modal [role="tabpanel"][hidden],
+.product-detail-modal #product-details-panel[hidden],
+.product-detail-modal #product-movements-panel[hidden] {
+  display: none !important;
 }
-.product-detail-modal [role="tabpanel"] {
+.product-detail-modal [role="tabpanel"]:not([hidden]) {
   min-height: 145px;
   padding-top: 4px;
 }
@@ -98,23 +100,23 @@
   unicode-bidi: isolate;
 }
 
-/* Two fact columns on wider detail dialogs. */
+/* Two fact columns on wider detail dialogs (only when the Details tab is open). */
 @media (min-width: 720px) {
-  #product-details-panel {
+  #product-details-panel:not([hidden]) {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0 22px;
     align-items: start;
   }
-  #product-details-panel .product-detail-facts {
+  #product-details-panel:not([hidden]) .product-detail-facts {
     margin-top: 16px;
   }
-  #product-details-panel .product-detail-facts + .product-detail-facts {
+  #product-details-panel:not([hidden]) .product-detail-facts + .product-detail-facts {
     margin-top: 16px;
     padding-top: 0;
     border-top: 0;
   }
-  #product-details-panel .product-detail-facts:only-child {
+  #product-details-panel:not([hidden]) .product-detail-facts:only-child {
     grid-column: 1 / -1;
   }
 }

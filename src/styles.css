@@ -3642,60 +3642,63 @@ input[data-numeric] {
 }
 .sale-shop-preview {
   text-align: center;
-  margin: 0 0 18px;
-  padding-bottom: 14px;
+  margin: 0 0 12px;
+  padding-bottom: 10px;
   border-bottom: 2px solid var(--paint-line-dce0e5, #dce0e5);
 }
 .sale-shop-preview-brand {
   display: grid;
-  grid-template-columns: 72px 1fr 72px;
-  gap: 12px;
+  grid-template-columns: 56px 1fr 56px;
+  gap: 8px;
   align-items: center;
 }
 .sale-shop-preview-titles h2 {
   margin: 0;
-  font-size: 22px;
+  font-size: 18px;
   direction: ltr;
   unicode-bidi: isolate;
 }
 .sale-shop-preview-ps {
-  margin: 4px 0 0;
-  font-size: 17px;
+  margin: 2px 0 0;
+  font-size: 14px;
   color: var(--accent, #244d85);
   unicode-bidi: isolate;
 }
 .sale-shop-preview-spacer {
   display: block;
-  width: 72px;
+  width: 56px;
   height: 1px;
 }
 .sale-shop-preview-services {
-  margin: 10px 0 0;
+  margin: 6px 0 0;
   white-space: pre-line;
   color: var(--paint-fg-a2a2a8, #626974);
-  font-size: 12px;
+  font-size: 11px;
+  line-height: 1.35;
   unicode-bidi: plaintext;
+  max-height: 2.7em;
+  overflow: hidden;
 }
 .sale-shop-preview-owners {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 8px 28px;
-  margin-top: 12px;
+  gap: 4px 18px;
+  margin-top: 8px;
   direction: rtl;
 }
 .sale-shop-preview-owners > div {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  font-size: 12px;
+  gap: 1px;
+  font-size: 11px;
   text-align: start;
 }
 .sale-shop-preview-contacts {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   color: var(--paint-fg-a2a2a8, #626974);
   direction: ltr;
   unicode-bidi: isolate;
@@ -3706,13 +3709,20 @@ input[data-numeric] {
   gap: 4px;
 }
 .sale-shop-preview-doc {
-  margin-top: 14px;
-  padding-top: 10px;
+  margin-top: 8px;
+  padding-top: 8px;
   border-top: 1px solid var(--paint-line-dce0e5, #dce0e5);
 }
 .sale-shop-preview-doc h3 {
-  margin: 8px 0 4px;
-  font-size: 15px;
+  margin: 4px 0 2px;
+  font-size: 16px;
+  font-weight: 800;
+}
+.sale-shop-preview-doc p {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--paint-fg-505059, #505059);
 }
 .sale-shop-preview-signature {
   display: flex;
@@ -3781,31 +3791,113 @@ input[data-numeric] {
   font-size: 11px;
   color: var(--paint-fg-6b6b75, #6b6b75);
 }
+.invoice-detail-dialog {
+  min-height: 0;
+}
+.invoice-detail-dialog .form-body.invoice-print {
+  padding-top: 12px;
+  min-height: 0;
+}
+.invoice-facts {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0 0 14px;
+  background: var(--paint-bg-f7f9f4, #f7f9f4);
+  border: 1px solid var(--paint-border-e2e5da, #e2e5da);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.invoice-facts th,
+.invoice-facts td {
+  padding: 10px 12px;
+  text-align: start;
+  vertical-align: top;
+  border-bottom: 1px solid var(--paint-border-e8ebe0, #e8ebe0);
+}
+.invoice-facts tr:last-child th,
+.invoice-facts tr:last-child td {
+  border-bottom: 0;
+}
+.invoice-facts th {
+  width: 34%;
+  max-width: 11rem;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--paint-fg-6d7268, #6d7268);
+  white-space: nowrap;
+  background: var(--paint-bg-eef2e8, #eef2e8);
+}
+.invoice-facts td {
+  font-size: 14px;
+  color: var(--paint-fg-1f2328, #1f2328);
+}
+.invoice-facts td strong {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--paint-fg-1f2328, #1f2328);
+}
+.invoice-facts td .money {
+  font-variant-numeric: tabular-nums;
+}
+.invoice-due-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+}
+.invoice-due-form input[type="date"] {
+  min-height: 34px;
+}
+.invoice-print .data-table {
+  margin-top: 4px;
+}
 .invoice-print .data-table td,
 .invoice-print .data-table th {
-  padding: 13px 9px;
+  padding: 11px 9px;
+}
+.invoice-print .data-table th {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--paint-fg-2c3338, #2c3338);
+  background: var(--paint-bg-eef2e8, #eef2e8);
 }
 .invoice-summary {
-  max-width: 320px;
-  margin: 23px 0 20px auto;
+  max-width: 340px;
+  margin: 16px 0 14px auto;
+  border: 1px solid var(--paint-border-e2e5da, #e2e5da);
+  border-radius: 10px;
+  padding: 8px 14px;
+  background: var(--paint-bg-f7f9f4, #f7f9f4);
 }
 .invoice-summary > div {
   display: flex;
   justify-content: space-between;
-  font-size: 11px;
-  color: var(--paint-fg-94949c, #94949c);
-  padding: 9px 0;
+  gap: 16px;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--paint-fg-6d7268, #6d7268);
+  padding: 8px 0;
 }
 .invoice-summary strong {
-  color: var(--paint-fg-595960, #595960);
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--paint-fg-245d89, #245d89);
+  font-variant-numeric: tabular-nums;
 }
 .invoice-summary > .invoice-due {
-  border-top: 1px solid var(--paint-border-ddd, #ddd);
-  margin-top: 8px;
-  padding-top: 16px;
-  color: var(--paint-fg-36363c, #36363c);
-  font-weight: 700;
+  border-top: 1px solid var(--paint-border-d5ddb8, #d5ddb8);
+  margin-top: 4px;
+  padding-top: 12px;
+  color: var(--paint-fg-2c3338, #2c3338);
+  font-weight: 800;
   font-size: 13px;
+}
+.invoice-summary > .invoice-due strong {
+  font-size: 16px;
+  color: var(--paint-fg-c0392b, #c0392b);
 }
 .invoice-line-specs {
   display: flex;
@@ -6884,9 +6976,14 @@ html[dir="rtl"] .sale-customer-phone .phone-field select {
   font-weight: 750;
   font-variant-numeric: tabular-nums;
 }
+.daybook-tx .panel-heading h3 {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--paint-fg-2c3338, #2c3338);
+}
 .daybook-tx .panel-heading h3 span {
-  font-weight: 500;
-  color: var(--paint-fg-8a8f84, #8a8f84);
+  font-weight: 700;
+  color: var(--paint-fg-5c6158, #5c6158);
   margin-left: 6px;
 }
 .daybook-tx-list {
@@ -6895,14 +6992,30 @@ html[dir="rtl"] .sale-customer-phone .phone-field select {
   gap: 6px;
   padding: 0 10px 10px;
 }
+.daybook-tx-cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(88px, 0.7fr) minmax(96px, 0.7fr) minmax(110px, 0.8fr);
+  gap: 10px;
+  align-items: center;
+  padding: 8px 12px 6px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--paint-fg-2c3338, #2c3338);
+}
+.daybook-tx-cols span:nth-child(3),
+.daybook-tx-cols span:nth-child(4) {
+  text-align: end;
+}
 .daybook-tx-row {
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) auto auto auto;
+  grid-template-columns: minmax(0, 1.4fr) minmax(88px, 0.7fr) minmax(96px, 0.7fr) minmax(110px, 0.8fr);
   gap: 10px;
   align-items: center;
   width: 100%;
   text-align: left;
-  padding: 8px 10px;
+  padding: 10px 12px;
   border: 1.5px solid var(--paint-border-e4e6df, #e4e6df);
   border-radius: 10px;
   background: var(--paint-bg-fff, #fff);
@@ -6955,15 +7068,20 @@ html[dir="rtl"] .sale-customer-phone .phone-field select {
   text-overflow: ellipsis;
 }
 .daybook-tx-total {
-  font-size: 13px;
+  font-size: 14px;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
+  color: var(--paint-fg-245d89, #245d89);
+  text-align: end;
+  justify-self: end;
 }
 .daybook-tx-cash {
-  font-size: 12px;
-  font-weight: 650;
+  font-size: 13px;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
   min-width: 72px;
-  text-align: right;
+  text-align: end;
+  justify-self: end;
 }
 @media (max-width: 900px) {
   .capital-split {
@@ -6995,6 +7113,9 @@ html[dir="rtl"] .sale-customer-phone .phone-field select {
   }
   .capital-history-ref {
     grid-area: ref;
+  }
+  .daybook-tx-cols {
+    display: none;
   }
   .daybook-tx-row {
     grid-template-columns: 1fr auto;
@@ -8394,5 +8515,6 @@ html[dir="rtl"] kbd {
 
 /* Qty badge stays prominent; money colors live with inventory-row-* rules above. */
 .inventory-row-meta .badge {font-size:15px;font-weight:800;padding:5px 10px;}
-.sale-shop-preview-doc {border-top:2px solid var(--border);padding-top:12px;}
+.invoice-detail-dialog.modal-wide {min-height:0;}
+.sale-shop-preview .invoice-logo {max-height:48px;max-width:56px;}
 .notification-item-copy details button {display:flex;margin-top:6px;max-width:100%;white-space:normal;}

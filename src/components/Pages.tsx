@@ -2383,6 +2383,12 @@ export function DayBookPage({ refresh, open, toast, user }: PageProps) {
               />
             </div>
             <div className="daybook-tx-list">
+              <div className="daybook-tx-cols" role="row">
+                <span>{t("documents.party")}</span>
+                <span>{t("product.type")}</span>
+                <span>{t("common.total")}</span>
+                <span>{t("daybook.netCashMovement")}</span>
+              </div>
               {data.entries.map((d: any) => (
                 <button
                   type="button"
