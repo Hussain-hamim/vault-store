@@ -6093,16 +6093,15 @@ html[dir="rtl"] .sale-customer-phone .phone-field select {
   flex: none;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 6px 10px;
+  gap: 6px;
+  padding: 8px 10px;
   background: linear-gradient(160deg, var(--paint-bg-f3f7ea, #f3f7ea) 0%, var(--paint-bg-fff, #fff) 55%);
   border-color: var(--paint-border-d7e0c0, #d7e0c0);
 }
 .bill-editor .sale-pay-panel .trade-totals {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 12px;
+  flex-direction: column;
+  gap: 8px;
   padding: 0;
   margin: 0;
   border: 0;
@@ -6110,46 +6109,135 @@ html[dir="rtl"] .sale-customer-phone .phone-field select {
   background: transparent;
   grid-template-columns: none;
 }
-.bill-editor .sale-pay-panel .trade-totals > div {
-  display: flex;
-  align-items: baseline;
-  gap: 5px;
-  padding: 0;
+.bill-editor .sale-pay-panel .trade-totals > .sale-balance-card,
+.bill-editor .sale-pay-panel .trade-totals > .sale-settle-row {
+  display: grid;
+  gap: 6px;
+  width: 100%;
   margin: 0;
-  border: 0;
-  background: transparent;
   color: inherit;
 }
-.bill-editor .sale-pay-panel .trade-totals > div span {
-  display: inline;
-  font-size: 10px;
+.bill-editor .sale-pay-panel .trade-totals > .sale-balance-card {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding: 6px;
+  border: 1px solid var(--paint-border-d5ddb8, #d5ddb8);
+  border-radius: 10px;
+  background: var(--paint-bg-eef3e4, #eef3e4);
+}
+.bill-editor .sale-pay-panel .trade-totals > .sale-settle-row {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+}
+.bill-editor .sale-pay-panel .trade-totals > .sale-settle-row--with-balance {
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.2fr);
+  align-items: end;
+}
+.bill-editor .sale-pay-panel .trade-totals > .sale-settle-row:has(.tone-rate) {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.bill-editor
+  .sale-pay-panel
+  .trade-totals
+  > .sale-settle-row--with-balance:has(.tone-rate) {
+  grid-template-columns: minmax(0, 0.75fr) minmax(0, 0.75fr) minmax(0, 1.2fr);
+  align-items: end;
+}
+.bill-editor .sale-pay-panel .trade-totals > .sale-settle-row:has(.tone-rate):not(.sale-settle-row--with-balance) > .field {
+  grid-column: 1 / -1;
+}
+.bill-editor .sale-pay-panel .trade-totals > .sale-settle-row:not(.sale-settle-row--with-balance) > .field {
+  grid-column: 1 / -1;
+}
+.bill-editor .sale-pay-panel .sale-balance-fact {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: var(--paint-bg-fff, #fff);
+  border: 1px solid var(--paint-border-e4e8da, #e4e8da);
+  border-inline-start-width: 3px;
+}
+.bill-editor .sale-pay-panel .sale-balance-fact.tone-previous {
+  border-inline-start-color: var(--paint-fg-c0392b, #c0392b);
+}
+.bill-editor .sale-pay-panel .sale-balance-fact.tone-invoice,
+.bill-editor .sale-pay-panel .sale-balance-fact.tone-total {
+  border-inline-start-color: var(--paint-fg-245d89, #245d89);
+}
+.bill-editor .sale-pay-panel .sale-balance-fact.tone-projected {
+  border-inline-start-color: var(--paint-fg-1f7a4d, #1f7a4d);
+}
+.bill-editor .sale-pay-panel .sale-balance-fact.tone-remaining {
+  border-inline-start-color: var(--paint-accent-coral, #e07a5f);
+}
+.bill-editor .sale-pay-panel .sale-balance-fact.tone-rate {
+  border-inline-start-color: var(--paint-fg-6d7268, #6d7268);
+}
+.bill-editor .sale-pay-panel .trade-totals .sale-balance-fact > span {
+  display: block;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
-  color: var(--paint-fg-8a8f84, #8a8f84);
+  color: var(--paint-fg-6d7268, #6d7268);
+  line-height: 1.2;
   margin: 0;
 }
-.bill-editor .sale-pay-panel .trade-totals > div strong,
-.bill-editor .sale-pay-panel .trade-totals > div:first-child strong {
-  display: inline;
+.bill-editor .sale-pay-panel .trade-totals .sale-balance-fact > strong {
+  display: block;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--paint-fg-245d89, #245d89);
+  line-height: 1.15;
+  unicode-bidi: isolate;
+  direction: ltr;
+  margin: 0;
+}
+.bill-editor .sale-pay-panel .sale-balance-fact.tone-previous > strong.text-red,
+.bill-editor .sale-pay-panel .sale-balance-fact.tone-projected > strong.text-red,
+.bill-editor .sale-pay-panel .sale-balance-fact.tone-remaining > strong.text-red {
+  color: var(--paint-fg-c0392b, #c0392b);
+}
+.bill-editor .sale-pay-panel .sale-balance-fact.tone-previous > strong.text-green,
+.bill-editor .sale-pay-panel .sale-balance-fact.tone-projected > strong.text-green,
+.bill-editor .sale-pay-panel .sale-balance-fact.tone-remaining > strong.text-green {
+  color: var(--paint-fg-1f7a4d, #1f7a4d);
+}
+.bill-editor .sale-pay-panel .sale-balance-fact.tone-invoice > strong,
+.bill-editor .sale-pay-panel .sale-balance-fact.tone-total > strong {
+  color: var(--paint-fg-245d89, #245d89);
+}
+.bill-editor .sale-pay-panel .sale-balance-card .sale-balance-fact {
+  background: var(--paint-bg-fbfcf7, #fbfcf7);
+}
+.bill-editor .sale-pay-panel .trade-totals > .sale-settle-row > .field {
+  grid-column: 1 / -1;
+  margin: 0;
+  min-width: 0;
+}
+.bill-editor .sale-pay-panel .trade-totals > .sale-settle-row > .field input {
+  padding: 7px 9px;
   font-size: 13px;
   font-weight: 700;
-  letter-spacing: 0;
-  color: var(--paint-fg-2f6d28, #2f6d28);
-  font-variant-numeric: tabular-nums;
 }
-.bill-editor .sale-pay-panel .trade-totals > .field {
-  flex: 1 1 140px;
-  min-width: 120px;
-  margin: 0;
-}
-.bill-editor .sale-pay-panel .trade-totals > .field input {
-  padding: 6px 8px;
-  font-size: 12px;
-}
-.bill-editor .sale-pay-panel .trade-totals > .field small {
+.bill-editor .sale-pay-panel .trade-totals > .sale-settle-row > .field small {
   font-size: 9px;
   line-height: 1.2;
   margin-top: 2px;
+}
+.bill-editor .sale-pay-panel .trade-totals > div:not(.sale-balance-card):not(.sale-settle-row) {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+}
+.bill-editor .purchase-board .sale-pay-panel .trade-totals > div:not(.sale-balance-card):not(.sale-settle-row) span {
+  font-size: 10px;
+  text-transform: uppercase;
+  color: var(--paint-fg-8a8f84, #8a8f84);
 }
 .sale-actions {
   display: flex;
