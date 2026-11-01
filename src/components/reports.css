@@ -92,6 +92,18 @@
   font-size: 10px;
   white-space: nowrap;
 }
+.report-filter {
+  min-height: 32px;
+  max-width: min(160px, 36vw);
+  padding: 6px 8px;
+  border: 1px solid var(--paint-border-d8dfcf, #d8dfcf);
+  border-radius: 9px;
+  background: var(--paint-bg-fff, #fff);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 650;
+  color: var(--paint-fg-394236, #394236);
+}
 .report-search {
   width: min(220px, 42vw);
   min-height: 32px;

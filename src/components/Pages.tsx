@@ -112,15 +112,14 @@ function Loading() {
   );
 }
 const LIST_PAGE = 10;
-const INVENTORY_CATEGORIES = [
-  ["All products", "allProducts"],
-  ["Computers", "computers"],
-  ["Mobiles", "mobiles"],
-  ["Tablets", "tablets"],
-  ["Cameras", "cameras"],
-  ["Storage", "storage"],
-  ["Accessories", "accessories"],
-] as const;
+const BUILTIN_INVENTORY_CATEGORY_KEYS: Record<string, string> = {
+  Computers: "computers",
+  Mobiles: "mobiles",
+  Tablets: "tablets",
+  Cameras: "cameras",
+  Storage: "storage",
+  Accessories: "accessories",
+};
 export function ProductsPage({
   refresh,
   open,
@@ -132,6 +131,9 @@ export function ProductsPage({
   const { t, locale } = useI18n();
   const [q, setQ] = useState(globalSearch),
     [category, setCategory] = useState(initialCategory),
+    [brand, setBrand] = useState("All companies"),
+    [categories, setCategories] = useState<string[]>([]),
+    [brands, setBrands] = useState<string[]>([]),
     [filter, setFilter] = useState("all"),
     [rows, setRows] = useState<Product[]>([]),
     [next, setNext] = useState<string | null>(null),
@@ -147,12 +149,29 @@ export function ProductsPage({
   }, [initialCategory]);
   useEffect(() => {
     let active = true;
+    Promise.all([
+      api<string[]>("productCategories"),
+      api<string[]>("productBrands"),
+    ])
+      .then(([cats, companyList]) => {
+        if (!active) return;
+        setCategories(cats.filter((c) => c && c !== "Other"));
+        setBrands(companyList);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [refresh]);
+  useEffect(() => {
+    let active = true;
     setLoading(true);
     setError("");
     setNext(null);
     api<{ rows: Product[]; next: string | null }>("products", {
       q: searchQ,
       category,
+      brand,
       filter,
       limit: LIST_PAGE,
     })
@@ -170,14 +189,21 @@ export function ProductsPage({
     return () => {
       active = false;
     };
-  }, [searchQ, category, filter, refresh]);
+  }, [searchQ, category, brand, filter, refresh]);
   async function loadMore() {
     if (!next || loadingMore) return;
     setLoadingMore(true);
     try {
       const d = await api<{ rows: Product[]; next: string | null }>(
         "products",
-        { q: searchQ, category, filter, after: next, limit: LIST_PAGE },
+        {
+          q: searchQ,
+          category,
+          brand,
+          filter,
+          after: next,
+          limit: LIST_PAGE,
+        },
       );
       setRows((prev) => {
         const seen = new Set(prev.map((p) => p.id));
@@ -216,6 +242,7 @@ export function ProductsPage({
     const rows: Product[] = await collectList(api, "products", {
       q: searchQ,
       category,
+      brand,
       filter,
     });
     const totalUnits = rows.reduce((sum, p) => sum + (p.stock || 0), 0);
@@ -223,8 +250,13 @@ export function ProductsPage({
       ? rows.reduce((sum, p) => sum + (p.cost || 0), 0)
       : 0;
     const categoryLabel =
-      INVENTORY_CATEGORIES.find(([value]) => value === category)?.[1] ||
-      "allProducts";
+      category === "All products"
+        ? t("inventory.allProducts")
+        : BUILTIN_INVENTORY_CATEGORY_KEYS[category]
+          ? t(`inventory.${BUILTIN_INVENTORY_CATEGORY_KEYS[category]}`)
+          : category;
+    const brandLabel =
+      brand === "All companies" ? t("inventory.allCompanies") : brand;
     return {
       kind: "report" as const,
       locale,
@@ -232,7 +264,8 @@ export function ProductsPage({
       source: { type: "report" as const, permission: "inventory" as const },
       subtitle: [
         t("client.allMatching", { n: rows.length }),
-        t(`inventory.${categoryLabel}`),
+        categoryLabel,
+        brandLabel,
         filter === "low" ? t("inventory.lowStock") : t("inventory.allStock"),
       ].join(" · "),
       emptyLabel: t("reports.noRows"),
@@ -322,9 +355,30 @@ export function ProductsPage({
                 value={category}
                 onChange={setCategory}
               >
-                {INVENTORY_CATEGORIES.map(([value, key]) => (
+                <option value="All products">
+                  {t("inventory.allProducts")}
+                </option>
+                {categories.map((value) => (
                   <option key={value} value={value}>
-                    {t(`inventory.${key}`)}
+                    {BUILTIN_INVENTORY_CATEGORY_KEYS[value]
+                      ? t(
+                          `inventory.${BUILTIN_INVENTORY_CATEGORY_KEYS[value]}`,
+                        )
+                      : value}
+                  </option>
+                ))}
+              </FilterSelect>
+              <FilterSelect
+                aria-label={t("inventory.company")}
+                value={brand}
+                onChange={setBrand}
+              >
+                <option value="All companies">
+                  {t("inventory.allCompanies")}
+                </option>
+                {brands.map((value) => (
+                  <option key={value} value={value}>
+                    {value}
                   </option>
                 ))}
               </FilterSelect>
@@ -351,6 +405,7 @@ export function ProductsPage({
                     const rows: Product[] = await collectList(api, "products", {
                       q: searchQ,
                       category,
+                      brand,
                       filter,
                     });
                     exportCSV(

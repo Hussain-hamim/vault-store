@@ -6,6 +6,23 @@
   flex: 1;
   min-width: 180px;
 }
+.product-detail-unit-cost {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  margin: 10px 0 6px !important;
+  font-size: 12px !important;
+  color: var(--paint-fg-6d7268, #6d7268) !important;
+}
+.product-detail-unit-cost strong {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--paint-fg-9a5b1f, #9a5b1f);
+  font-variant-numeric: tabular-nums;
+  unicode-bidi: isolate;
+  direction: ltr;
+}
 .product-stock-summary {
   margin-inline-start: auto;
   display: flex;

@@ -7067,6 +7067,10 @@ html[dir="rtl"] .sale-customer-phone .phone-field select {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.daybook-tx-row .badge {
+  justify-self: start;
+  max-width: 100%;
+}
 .daybook-tx-total {
   font-size: 14px;
   font-weight: 800;

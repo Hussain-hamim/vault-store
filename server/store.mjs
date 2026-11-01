@@ -818,6 +818,18 @@ export class Store {
     }
     return rows;
   }
+  productBrands() {
+    const seen = new Set();
+    const rows = [];
+    for (const brand of this.all(
+      "SELECT DISTINCT brand FROM products WHERE active=1 AND brand<>'' AND consignment_only=0 ORDER BY brand COLLATE NOCASE",
+    ).map((r) => r.brand)) {
+      if (!brand || seen.has(brand.toLowerCase())) continue;
+      seen.add(brand.toLowerCase());
+      rows.push(brand);
+    }
+    return rows;
+  }
   rememberProductCategory(category) {
     const name = String(category || "").trim();
     if (!name || isBuiltinCategory(name)) return;
@@ -2413,7 +2425,8 @@ export class Store {
         barcode: z.string().max(80).optional(),
         id: z.string().optional(),
         ids: z.array(z.string()).max(100).optional(),
-        category: z.string().max(30).default("All products"),
+        category: z.string().max(80).default("All products"),
+        brand: z.string().max(80).default("All companies"),
         filter: z.string().default("all"),
         after: z.string().default(""),
         limit: z.number().int().min(1).max(100).default(50),
@@ -2448,6 +2461,10 @@ export class Store {
     if (d.category !== "All products") {
       clauses.push("p.category=?");
       params.push(d.category);
+    }
+    if (d.brand !== "All companies") {
+      clauses.push("p.brand=? COLLATE NOCASE");
+      params.push(d.brand);
     }
     if (d.filter === "low")
       clauses.push("p.stock<=p.reorder_level AND p.consignment_only=0");
@@ -3655,7 +3672,7 @@ export class Store {
         if (!user.permissions.includes("view_costs"))
           throw new Error("Permission required: view_costs");
         const stock = this.all(
-          "SELECT p.id,p.name,p.sku,p.category,p.stock,p.reorder_level,p.image,COALESCE(SUM(b.remaining*b.unit_cost),0) value,MIN(CASE WHEN b.remaining>0 THEN SUBSTR(b.received_at,1,10) END) oldest FROM products p LEFT JOIN batches b ON b.product_id=p.id WHERE p.active=1 AND p.consignment_only=0 GROUP BY p.id ORDER BY value DESC LIMIT 100",
+          "SELECT p.id,p.name,p.sku,p.brand,p.category,p.stock,p.reorder_level,p.image,COALESCE(SUM(b.remaining*b.unit_cost),0) value,MIN(CASE WHEN b.remaining>0 THEN SUBSTR(b.received_at,1,10) END) oldest FROM products p LEFT JOIN batches b ON b.product_id=p.id WHERE p.active=1 AND p.consignment_only=0 GROUP BY p.id ORDER BY value DESC LIMIT 100",
         );
         const balances = (kind) =>
           this.all(
@@ -4351,6 +4368,8 @@ export class Store {
         return this.currencies();
       case "productCategories":
         return this.productCategories();
+      case "productBrands":
+        return this.productBrands();
       case "currencyCreate": {
         if (
           !user.permissions.some((p) =>

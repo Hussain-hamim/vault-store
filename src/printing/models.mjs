@@ -409,15 +409,19 @@ export function reportPrintModel(
     table(
       [
         "reports.colProduct",
+        "reports.colCategory",
+        "reports.colCompany",
         "reports.colUnitsSoldNet",
         "reports.colRevenue",
         "reports.colCogsShort",
         "reports.grossProfit",
         "reports.colMargin",
       ],
-      ["text", "number", "money", "money", "money", "percent"],
+      ["text", "text", "text", "number", "money", "money", "money", "percent"],
       data.best.map((p) => [
         p.name,
+        p.category || "",
+        p.brand || "",
         p.quantity,
         p.revenue,
         p.cost,
@@ -425,7 +429,16 @@ export function reportPrintModel(
         p.revenue ? ((p.revenue - p.cost) / p.revenue) * 100 : 0,
       ]),
       t("reports.topProductsNote"),
-      ["neutral", "blue", "blue", "amber", "positive", "positive"],
+      [
+        "neutral",
+        "neutral",
+        "neutral",
+        "blue",
+        "blue",
+        "amber",
+        "positive",
+        "positive",
+      ],
     );
     metric("reports.netSales", totals.sales);
     metric("reports.grossProfit", totals.gross, profitTone(totals.gross));
@@ -726,14 +739,18 @@ export function reportPrintModel(
     table(
       [
         "reports.colProduct",
+        "reports.colCategory",
+        "reports.colCompany",
         "reports.colQuantity",
         "reports.colInventoryValue",
         "reports.colOldestReceipt",
         "reports.colAge",
       ],
-      ["text", "number", "money", "text", "text"],
+      ["text", "text", "text", "number", "money", "text", "text"],
       rows.map((p) => [
         `${p.name} · ${p.sku}`,
+        p.category || "",
+        p.brand || "",
         p.stock,
         p.value,
         p.oldest || "—",
@@ -749,7 +766,7 @@ export function reportPrintModel(
           : "—",
       ]),
       t("reports.stockNote"),
-      ["neutral", "blue", "blue", "neutral", "amber"],
+      ["neutral", "neutral", "neutral", "blue", "blue", "neutral", "amber"],
     );
     metric(
       "reports.listedValue",
@@ -762,9 +779,7 @@ export function reportPrintModel(
       "number",
     );
   } else if (["receivables", "payables"].includes(tab)) {
-    const rows = (
-      tab === "receivables" ? inventory.customers : inventory.suppliers
-    ).filter((p) => p.balance !== 0);
+    const rows = tab === "receivables" ? inventory.customers : inventory.suppliers;
     table(
       [
         "reports.colContact",

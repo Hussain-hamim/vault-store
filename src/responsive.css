@@ -313,8 +313,11 @@ textarea {
   .docs-list .docs-list-cols span:nth-child(5) {
     display: block;
   }
+  .daybook-tx-cols,
   .daybook-tx-row {
-    grid-template-columns: minmax(0, 1.4fr) auto auto auto;
+    grid-template-columns:
+      minmax(0, 1.4fr) minmax(88px, 0.7fr) minmax(96px, 0.7fr)
+      minmax(110px, 0.8fr);
     grid-template-areas: none;
   }
   .daybook-tx-row > *,

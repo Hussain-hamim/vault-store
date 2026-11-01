@@ -87,12 +87,22 @@ export function ReportsPage({
   const [visible, setVisible] = useState(10);
   const [reload, setReload] = useState(0);
   const [search, setSearch] = useState("");
+  const [filterCategory, setFilterCategory] = useState("all");
+  const [filterCompany, setFilterCompany] = useState("all");
+  const [filterBalance, setFilterBalance] = useState<"all" | "owed" | "settled">(
+    "owed",
+  );
+  const [filterCategories, setFilterCategories] = useState<string[]>([]);
+  const [filterCompanies, setFilterCompanies] = useState<string[]>([]);
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
   useEffect(() => {
     if (isReportTab(initialTab)) setTab(initialTab);
   }, [initialTab]);
   useEffect(() => {
     setSearch("");
+    setFilterCategory("all");
+    setFilterCompany("all");
+    setFilterBalance("owed");
     setVisible(10);
   }, [tab]);
   const current = CURRENT.has(tab),
@@ -101,6 +111,29 @@ export function ReportsPage({
     !current && (!to || (!asOf && (!from || from > to)) || to > businessDate());
   const stockAlert =
     tab === "reorder" || tab === "zeroStock" || tab === "availableStock";
+  const productFilters =
+    stockAlert ||
+    tab === "inventoryVal" ||
+    tab === "stockAging" ||
+    tab === "productProfit";
+  const partyFilters = tab === "receivables" || tab === "payables";
+  useEffect(() => {
+    if (!productFilters) return;
+    let active = true;
+    Promise.all([
+      api<string[]>("productCategories"),
+      api<string[]>("productBrands"),
+    ])
+      .then(([cats, brands]) => {
+        if (!active) return;
+        setFilterCategories(cats.filter((c) => c && c !== "Other"));
+        setFilterCompanies(brands);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [productFilters, refresh]);
   const command = stockAlert
     ? "reorderReport"
     : current
@@ -192,15 +225,51 @@ export function ReportsPage({
       tones: section?.tones?.[index],
       index,
     }))
-    .filter(({ row }) =>
-      !searchQuery
-        ? true
-        : row.some((cell: unknown) =>
-            String(cell ?? "")
-              .toLowerCase()
-              .includes(searchQuery),
-          ),
-    );
+    .filter(({ row, index }) => {
+      if (
+        searchQuery &&
+        !row.some((cell: unknown) =>
+          String(cell ?? "")
+            .toLowerCase()
+            .includes(searchQuery),
+        )
+      )
+        return false;
+      if (productFilters) {
+        if (stockAlert) {
+          const source = data?.rows?.[index];
+          if (
+            filterCategory !== "all" &&
+            (source?.category || "") !== filterCategory
+          )
+            return false;
+          if (
+            filterCompany !== "all" &&
+            String(source?.brand || "").toLowerCase() !==
+              filterCompany.toLowerCase()
+          )
+            return false;
+        } else {
+          // inventoryVal / stockAging / productProfit put category & company in cols 1–2.
+          if (
+            filterCategory !== "all" &&
+            String(row[1] || "") !== filterCategory
+          )
+            return false;
+          if (
+            filterCompany !== "all" &&
+            String(row[2] || "").toLowerCase() !== filterCompany.toLowerCase()
+          )
+            return false;
+        }
+      }
+      if (partyFilters) {
+        const balance = Number(row[2] ?? 0);
+        if (filterBalance === "owed" && !(balance > 0)) return false;
+        if (filterBalance === "settled" && balance !== 0) return false;
+      }
+      return true;
+    });
   const count = matched.length;
   const rows = matched.slice(0, visible);
   const canExport =
@@ -369,6 +438,57 @@ export function ReportsPage({
             </div>
           )}
           <div className="report-toolbar-actions">
+            {productFilters && (
+              <>
+                <select
+                  className="report-filter"
+                  aria-label={t("reports.filterCategory")}
+                  value={filterCategory}
+                  onChange={(e) => {
+                    setFilterCategory(e.target.value);
+                    setVisible(10);
+                  }}
+                >
+                  <option value="all">{t("inventory.allProducts")}</option>
+                  {filterCategories.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  className="report-filter"
+                  aria-label={t("reports.filterCompany")}
+                  value={filterCompany}
+                  onChange={(e) => {
+                    setFilterCompany(e.target.value);
+                    setVisible(10);
+                  }}
+                >
+                  <option value="all">{t("inventory.allCompanies")}</option>
+                  {filterCompanies.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </>
+            )}
+            {partyFilters && (
+              <select
+                className="report-filter"
+                aria-label={t("reports.filterBalance")}
+                value={filterBalance}
+                onChange={(e) => {
+                  setFilterBalance(e.target.value as "all" | "owed" | "settled");
+                  setVisible(10);
+                }}
+              >
+                <option value="all">{t("reports.balanceAll")}</option>
+                <option value="owed">{t("reports.balanceOwed")}</option>
+                <option value="settled">{t("reports.balanceSettled")}</option>
+              </select>
+            )}
             <input
               type="search"
               className="report-search"

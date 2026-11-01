@@ -32,14 +32,7 @@ import { useI18n, useT, LOCALES } from "../i18n";
 import { ProductName, Badge, Empty, Modal } from "./ui";
 
 type PeriodId = "thisMonth" | "last7" | "today";
-type CategoryId =
-  | "all"
-  | "Computers"
-  | "Mobiles"
-  | "Tablets"
-  | "Cameras"
-  | "Storage"
-  | "Accessories";
+type CategoryId = string;
 
 const DEFAULT_WIDGETS = [
   "stock",
@@ -72,16 +65,16 @@ const allWidgetIds = [
   "payables",
 ];
 const PERIOD_IDS: PeriodId[] = ["thisMonth", "last7", "today"];
-const CATEGORY_TABS: CategoryId[] = [
-  "all",
+const BUILTIN_CATEGORY_TABS = [
   "Computers",
   "Mobiles",
   "Tablets",
   "Cameras",
   "Storage",
-];
+  "Accessories",
+] as const;
 
-const CATEGORY_I18N: Record<CategoryId, string> = {
+const CATEGORY_I18N: Record<string, string> = {
   all: "inventory.allProducts",
   Computers: "inventory.computers",
   Mobiles: "inventory.mobiles",
@@ -103,6 +96,9 @@ const API_CATEGORY_NAMES: Record<string, string> = {
 function categoryForApi(cat: CategoryId): string {
   return cat === "all" ? "All products" : cat;
 }
+function categoryTabLabel(t: ReturnType<typeof useT>, cat: string) {
+  return CATEGORY_I18N[cat] ? t(CATEGORY_I18N[cat]) : cat;
+}
 
 type Props = {
   user: User;
@@ -117,6 +113,10 @@ export function Dashboard({ user, refresh, open, navigate }: Props) {
   const [data, setData] = useState<any>(null),
     [products, setProducts] = useState<Product[]>([]),
     [category, setCategory] = useState<CategoryId>("all"),
+    [categoryTabs, setCategoryTabs] = useState<string[]>([
+      "all",
+      ...BUILTIN_CATEGORY_TABS,
+    ]),
     [period, setPeriod] = useState<PeriodId>("thisMonth"),
     [error, setError] = useState("");
   const storageKey = `dashboard-widgets-v1:${user.id}`;
@@ -178,6 +178,24 @@ export function Dashboard({ user, refresh, open, navigate }: Props) {
       active = false;
     };
   }, [refresh, period]);
+  useEffect(() => {
+    let active = true;
+    api<string[]>("productCategories")
+      .then((rows) => {
+        if (!active) return;
+        const extras = rows.filter(
+          (c) =>
+            c &&
+            c !== "Other" &&
+            !(BUILTIN_CATEGORY_TABS as readonly string[]).includes(c),
+        );
+        setCategoryTabs(["all", ...BUILTIN_CATEGORY_TABS, ...extras]);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [refresh]);
   useEffect(() => {
     let active = true;
     if (
@@ -516,13 +534,13 @@ export function Dashboard({ user, refresh, open, navigate }: Props) {
           </button>
         </div>
         <div className="category-tabs">
-          {CATEGORY_TABS.map((c) => (
+          {categoryTabs.map((c) => (
             <button
               key={c}
               className={category === c ? "active" : ""}
               onClick={() => setCategory(c)}
             >
-              {t(CATEGORY_I18N[c])}
+              {categoryTabLabel(t, c)}
             </button>
           ))}
           <button

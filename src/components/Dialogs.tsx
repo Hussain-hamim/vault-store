@@ -3935,8 +3935,11 @@ export function ProductDetail({
               {(user.permissions.includes("view_costs") ||
                 user.permissions.includes("purchases")) &&
                 product.unit_cost != null && (
-                  <p>
-                    {t("inventory.unitCost")}: {af(product.unit_cost, 2)}
+                  <p className="product-detail-unit-cost">
+                    <span>{t("inventory.unitCost")}</span>
+                    <strong className="money">
+                      {af(product.unit_cost, 2)}
+                    </strong>
                   </p>
                 )}
               {(user.permissions.includes("view_costs") ||
