@@ -38,23 +38,138 @@
 .product-detail-modal [role="tabpanel"][hidden] {
   display: none;
 }
-.product-detail-modal .spec-grid span {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.01em;
-  color: var(--paint-fg-35353a, #35353a);
+.product-detail-modal [role="tabpanel"] {
+  min-height: 145px;
+  padding-top: 4px;
 }
-.product-detail-modal .spec-grid strong {
-  overflow-wrap: anywhere;
+
+/* Label | value fact tables — clear hierarchy for company, model, SKU, specs. */
+.product-detail-facts {
+  margin: 16px 0 8px;
+}
+.product-detail-facts + .product-detail-facts {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--paint-border-e8e8e5, #e8e8e5);
+}
+.product-detail-section-title {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--paint-fg-2c3338, #2c3338);
+}
+.product-detail-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.product-detail-table th,
+.product-detail-table td {
+  padding: 10px 12px;
+  vertical-align: top;
+  border-bottom: 1px solid var(--paint-border-eef0ea, #eef0ea);
+  text-align: start;
+}
+.product-detail-table tr:last-child th,
+.product-detail-table tr:last-child td {
+  border-bottom: 0;
+}
+.product-detail-table tbody tr:nth-child(odd) {
+  background: var(--paint-bg-f7f9f4, #f7f9f4);
+}
+.product-detail-table th {
+  width: 36%;
+  max-width: 12rem;
+  font-size: 12px;
   font-weight: 650;
-  color: var(--paint-fg-55555c, #55555c);
+  color: var(--paint-fg-6d7268, #6d7268);
+  white-space: nowrap;
+}
+.product-detail-table td {
+  font-size: 14px;
+  font-weight: 750;
+  color: var(--paint-fg-1f2328, #1f2328);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.product-detail-table td bdi {
+  unicode-bidi: isolate;
+}
+
+/* Two fact columns on wider detail dialogs. */
+@media (min-width: 720px) {
+  #product-details-panel {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0 22px;
+    align-items: start;
+  }
+  #product-details-panel .product-detail-facts {
+    margin-top: 16px;
+  }
+  #product-details-panel .product-detail-facts + .product-detail-facts {
+    margin-top: 16px;
+    padding-top: 0;
+    border-top: 0;
+  }
+  #product-details-panel .product-detail-facts:only-child {
+    grid-column: 1 / -1;
+  }
+}
+
+/* Stock movement history — prominent headers and readable amounts. */
+.product-detail-modal .product-movements-heading {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--paint-fg-2c3338, #2c3338);
+  margin-top: 14px;
+  padding-bottom: 10px;
+}
+.product-detail-modal .product-movements-heading small {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--paint-fg-7a8074, #7a8074);
 }
 .product-detail-modal .table-wrap {
   overflow-x: auto;
 }
-.product-detail-modal [role="tabpanel"] {
-  min-height: 145px;
+.product-detail-modal .product-movements-table {
+  font-size: 12px;
 }
+.product-detail-modal .product-movements-table th {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--paint-fg-2c3338, #2c3338);
+  background: var(--paint-bg-eef2e8, #eef2e8);
+  padding: 12px 14px;
+  border-bottom: 2px solid var(--paint-border-d5ddb8, #d5ddb8);
+}
+.product-detail-modal .product-movements-table td {
+  font-size: 13px;
+  font-weight: 550;
+  color: var(--paint-fg-35353a, #35353a);
+  padding: 12px 14px;
+}
+.product-detail-modal .product-movements-table td.numeric,
+.product-detail-modal .product-movements-table td.numeric strong {
+  font-size: 14px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--paint-fg-245d89, #245d89);
+}
+.product-detail-modal .product-movements-table td.text-green {
+  font-weight: 800;
+  color: var(--paint-fg-1f7a4d, #1f7a4d);
+}
+.product-detail-modal .product-movements-table td.text-red {
+  font-weight: 800;
+  color: var(--paint-fg-c0392b, #c0392b);
+}
+
 @media (max-width: 600px) {
   .product-detail-modal .product-detail-top {
     gap: 14px;
@@ -63,8 +178,9 @@
     flex: 1 1 100%;
     min-width: 0;
   }
-  .product-detail-modal .spec-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .product-detail-table th {
+    width: 42%;
+    white-space: normal;
   }
 }
 
@@ -75,4 +191,6 @@
   border-radius: 10px;
   background: var(--paint-bg-fff0f0, #fff0f0);
 }
-.product-delete-confirm p { margin-bottom: 10px; }
+.product-delete-confirm p {
+  margin-bottom: 10px;
+}

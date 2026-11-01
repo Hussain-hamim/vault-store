@@ -3883,6 +3883,19 @@ export function ProductDetail({
       setBusy(false);
     }
   }
+  const identityRows = (
+    [
+      [t("productDetail.category"), product.category],
+      [t("productDetail.company"), product.brand],
+      [t("productDetail.model"), product.model],
+      ["SKU", product.sku],
+      [t("productDetail.barcode"), product.barcode],
+      [t("productDetail.location"), product.location],
+    ] as [string, string][]
+  ).filter(([, value]) => Boolean(value));
+  const specRows = Object.entries(product.attributes || {}).filter(
+    (entry): entry is [string, string] => Boolean(entry[1]),
+  );
   return (
     <>
       <Modal
@@ -4011,33 +4024,44 @@ export function ProductDetail({
             aria-labelledby="product-details-tab"
             hidden={tab !== "details"}
           >
-            <div className="spec-grid product-identity-grid">
-              {[
-                [t("productDetail.category"), product.category],
-                [t("productDetail.company"), product.brand],
-                [t("productDetail.model"), product.model],
-                ["SKU", product.sku],
-                [t("productDetail.barcode"), product.barcode],
-                [t("productDetail.location"), product.location],
-              ]
-                .filter(([, value]) => value)
-                .map(([label, value]) => (
-                  <div key={label}>
-                    <span>{label}</span>
-                    <strong>{value}</strong>
-                  </div>
-                ))}
-            </div>
-            <div className="spec-grid">
-              {Object.entries(product.attributes || {})
-                .filter(([, v]) => v)
-                .map(([k, v]) => (
-                  <div key={k}>
-                    <span>{k}</span>
-                    <strong>{v}</strong>
-                  </div>
-                ))}
-            </div>
+            {identityRows.length > 0 && (
+              <section className="product-detail-facts">
+                <h3 className="product-detail-section-title">
+                  {t("productDetail.information")}
+                </h3>
+                <table className="product-detail-table">
+                  <tbody>
+                    {identityRows.map(([label, value]) => (
+                      <tr key={label}>
+                        <th scope="row">{label}</th>
+                        <td>
+                          <bdi dir="auto">{value}</bdi>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </section>
+            )}
+            {specRows.length > 0 && (
+              <section className="product-detail-facts">
+                <h3 className="product-detail-section-title">
+                  {t("productForm.specs")}
+                </h3>
+                <table className="product-detail-table">
+                  <tbody>
+                    {specRows.map(([label, value]) => (
+                      <tr key={label}>
+                        <th scope="row">{label}</th>
+                        <td>
+                          <bdi dir="auto">{value}</bdi>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </section>
+            )}
           </section>
           <section
             role="tabpanel"
@@ -4046,12 +4070,12 @@ export function ProductDetail({
             aria-labelledby="product-movements-tab"
             hidden={tab !== "movements"}
           >
-            <div className="form-section-title">
+            <div className="form-section-title product-movements-heading">
               {t("productDetail.movementHistory")}{" "}
               <small>{t("productDetail.latest100")}</small>
             </div>
             <div className="table-wrap">
-              <table className="data-table">
+              <table className="data-table product-movements-table">
                 <thead>
                   <tr>
                     <th>{t("productDetail.colDate")}</th>
