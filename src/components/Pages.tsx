@@ -1,3 +1,4 @@
+import { collectList } from "../printing/collect-list.mjs";
 import { ShopSwitcher } from "./ShopSwitcher";
 import { OwnerRecovery } from "./OwnerRecovery";
 import { AppearanceSettings } from "../appearance";
@@ -210,7 +211,12 @@ export function ProductsPage({
     if (!p.fx_rate || (p.currency || "AED") === "AFN") return "";
     return fxRateLabel(p.fx_rate, p.currency || "AED");
   }
-  function inventoryDocument() {
+  async function inventoryDocument() {
+    const rows: Product[] = await collectList(api, "products", {
+      q: searchQ,
+      category,
+      filter,
+    });
     const totalUnits = rows.reduce((sum, p) => sum + (p.stock || 0), 0);
     const stockValue = showCost
       ? rows.reduce((sum, p) => sum + (p.cost || 0), 0)
@@ -224,7 +230,7 @@ export function ProductsPage({
       title: t("inventory.title"),
       source: { type: "report" as const, permission: "inventory" as const },
       subtitle: [
-        t("printing.loadedRows", { n: rows.length }),
+        t("client.allMatching", { n: rows.length }),
         t(`inventory.${categoryLabel}`),
         filter === "low" ? t("inventory.lowStock") : t("inventory.allStock"),
       ].join(" · "),
@@ -246,25 +252,37 @@ export function ProductsPage({
       ],
       sections: [
         {
-          note: t("printing.loadedOnly"),
+          note: t("client.fullInventory"),
           columns: [
-            { label: t("invoice.product") },
+            { label: t("invoice.product"), identity: true },
             { label: t("inventory.category") },
             { label: t("invoice.quantity"), numeric: true },
             ...(showCost
               ? [
                   { label: t("invoice.unitCostAf"), numeric: true },
                   { label: t("inventory.purchaseRate") },
+                  { label: t("client.stockValue"), numeric: true },
                 ]
               : []),
             { label: t("product.sellingPrice"), numeric: true },
           ],
           rows: rows.map((p) => [
             [
-              p.name,
-              [p.brand, p.model, p.sku].filter(Boolean).join(" · "),
-              productSpecEntries(p)
-                .map((s) => `${s.key}: ${s.value}`)
+              [
+                p.name,
+                ...[p.brand, p.model, p.attributes?.Generation].filter(
+                  (v) => v && !p.name.toLowerCase().includes(v.toLowerCase()),
+                ),
+              ]
+                .filter((v, i, a) => a.indexOf(v) === i)
+                .join(" · "),
+              [
+                p.sku,
+                ...productSpecEntries(p)
+                  .filter((s) => s.key !== "Generation")
+                  .map((s) => `${s.key}: ${s.value}`),
+              ]
+                .filter(Boolean)
                 .join(" · "),
             ]
               .filter(Boolean)
@@ -272,7 +290,11 @@ export function ProductsPage({
             p.category,
             p.stock,
             ...(showCost
-              ? [af(productUnitCost(p), 2), productPurchaseRate(p) || EM_DASH]
+              ? [
+                  af(productUnitCost(p), 2),
+                  productPurchaseRate(p) || EM_DASH,
+                  af(p.cost || 0, 2),
+                ]
               : []),
             af(p.price, 2),
           ]),
@@ -323,51 +345,65 @@ export function ProductsPage({
                 getDocument={() => inventoryDocument()}
               />
               <ExportButton
-                onClick={() => {
-                  exportCSV(
-                    "radefy-techmart-products",
-                    rows.map(
-                      ({
-                        name,
-                        sku,
-                        brand,
-                        model,
-                        category,
-                        stock,
-                        price,
-                        cost,
-                        unit_cost,
-                        currency,
-                        fx_rate,
-                        attributes,
-                      }) => ({
-                        name,
-                        sku,
-                        brand,
-                        model,
-                        category,
-                        stock,
-                        price_AF: price / 100,
-                        ...(cost !== undefined
-                          ? {
-                              unit_cost_AF:
-                                (stock ? cost / stock : unit_cost || 0) / 100,
-                              purchase_rate:
-                                fx_rate && (currency || "AED") !== "AFN"
-                                  ? fxRateLabel(fx_rate, currency || "AED")
-                                  : "",
-                            }
-                          : {}),
-                        ...Object.fromEntries(
-                          Object.entries(attributes || {}).map(([k, v]) => [
-                            k.toLowerCase(),
-                            v,
-                          ]),
-                        ),
-                      }),
-                    ),
-                  );
-                  toast(t("inventory.exported"));
+                onClick={async () => {
+                  try {
+                    const rows: Product[] = await collectList(api, "products", {
+                      q: searchQ,
+                      category,
+                      filter,
+                    });
+                    exportCSV(
+                      "radefy-techmart-products",
+                      rows.map(
+                        ({
+                          name,
+                          sku,
+                          brand,
+                          model,
+                          category,
+                          stock,
+                          price,
+                          cost,
+                          unit_cost,
+                          currency,
+                          fx_rate,
+                          attributes,
+                        }) => ({
+                          name,
+                          sku,
+                          brand,
+                          model,
+                          category,
+                          stock,
+                          price_AF: price / 100,
+                          ...(cost !== undefined
+                            ? {
+                                stock_value_AF: cost / 100,
+                                unit_cost_AF:
+                                  (stock ? cost / stock : unit_cost || 0) / 100,
+                                purchase_rate:
+                                  fx_rate && (currency || "AED") !== "AFN"
+                                    ? fxRateLabel(fx_rate, currency || "AED")
+                                    : "",
+                              }
+                            : {}),
+                          ...Object.fromEntries(
+                            Object.entries(attributes || {}).map(([k, v]) => [
+                              k.toLowerCase(),
+                              v,
+                            ]),
+                          ),
+                        }),
+                      ),
+                    );
+                    toast(t("inventory.exported"));
+                  } catch (e: any) {
+                    setError(
+                      e.message === "LIST_CHANGED"
+                        ? t("client.LIST_CHANGED")
+                        : e.message,
+                    );
+                  }
                 }}
               />
               <button
@@ -755,10 +791,7 @@ export function DocumentsPage({
                   toast(t("documents.exported"));
                 }}
               />
-              <button
-                className="button button-dark"
-                onClick={() => open(kind)}
-              >
+              <button className="button button-dark" onClick={() => open(kind)}>
                 <PlusIcon size={16} />
                 {kind === "sale"
                   ? t("documents.newSale")
@@ -1028,6 +1061,9 @@ export function PeoplePage({
   user,
 }: PageProps & { kind: "customer" | "supplier" }) {
   const { t, locale } = useI18n();
+  const [debtorFilter, setDebtorFilter] = useState("all");
+  const [sort, setSort] = useState("name");
+  const [listRevision, setListRevision] = useState<number>();
   const [q, setQ] = useState(""),
     [selected, setSelected] = useState<string | null>(null),
     [rows, setRows] = useState<Party[]>([]),
@@ -1048,14 +1084,17 @@ export function PeoplePage({
     setLoading(true);
     setError("");
     setNext(null);
-    api<{ rows: Party[]; next: string | null }>("parties", {
+    api<{ rows: Party[]; next: string | null; revision: number }>("parties", {
       kind,
       q: searchQ,
+      filter: kind === "customer" ? debtorFilter : "all",
+      sort: kind === "customer" ? sort : "id",
       limit: LIST_PAGE,
     })
       .then((d) => {
         if (!active) return;
         setRows(d.rows);
+        setListRevision(d.revision);
         setNext(d.next);
       })
       .catch((e) => {
@@ -1067,15 +1106,22 @@ export function PeoplePage({
     return () => {
       active = false;
     };
-  }, [kind, searchQ, refresh]);
+  }, [kind, searchQ, refresh, debtorFilter, sort]);
   async function loadMore() {
     if (!next || loadingMore) return;
     setLoadingMore(true);
     try {
-      const d = await api<{ rows: Party[]; next: string | null }>("parties", {
+      const d = await api<{
+        rows: Party[];
+        next: string | null;
+        revision: number;
+      }>("parties", {
         kind,
         q: searchQ,
+        filter: kind === "customer" ? debtorFilter : "all",
+        sort: kind === "customer" ? sort : "id",
         after: next,
+        revision: listRevision,
         limit: LIST_PAGE,
       });
       setRows((prev) => {
@@ -1124,7 +1170,18 @@ export function PeoplePage({
     if (tone === "credit") return t("people.credit");
     return t("people.settled");
   };
-  function contactsDocument(): PrintDocument {
+  const rowsForExport = () => rows;
+  async function contactsDocument(): Promise<PrintDocument> {
+    const rows: Party[] =
+      kind === "customer"
+        ? await collectList(api, "parties", {
+            kind,
+            q: searchQ,
+            filter: debtorFilter,
+            sort,
+          })
+        : [...rowsForExport()];
+    const total = rows.reduce((s, p) => s + p.balance, 0);
     return {
       kind: "report",
       locale,
@@ -1132,21 +1189,27 @@ export function PeoplePage({
         kind === "customer"
           ? t("people.customersTitle")
           : t("people.suppliersTitle"),
-      subtitle: t("people.showingContacts", { n: rows.length }),
+      subtitle:
+        kind === "customer"
+          ? t("client.allMatching", { n: rows.length })
+          : t("people.showingContacts", { n: rows.length }),
       source: { type: "report", permission: "people" },
       emptyLabel: t("reports.noRows"),
       summary: [
         {
           label:
             kind === "customer"
-              ? t("people.receivablesLoaded")
+              ? t("people.outstandingBalance")
               : t("people.payablesLoaded"),
           value: af(total, 2),
         },
       ],
       sections: [
         {
-          note: t("printing.loadedOnly"),
+          note:
+            kind === "customer"
+              ? t("client.allMatching", { n: rows.length })
+              : t("printing.loadedOnly"),
           columns: [
             {
               label:
@@ -1220,6 +1283,31 @@ export function PeoplePage({
                 }
               />
               <div className="toolbar-right">
+                {kind === "customer" && (
+                  <>
+                    <select
+                      aria-label={t("client.customerFilter")}
+                      value={debtorFilter}
+                      onChange={(e) => {
+                        setDebtorFilter(e.target.value);
+                        setSort(
+                          e.target.value === "debtors" ? "balance" : "name",
+                        );
+                      }}
+                    >
+                      <option value="all">{t("client.allCustomers")}</option>
+                      <option value="debtors">{t("client.debtors")}</option>
+                    </select>
+                    <select
+                      aria-label={t("client.sort")}
+                      value={sort}
+                      onChange={(e) => setSort(e.target.value)}
+                    >
+                      <option value="name">{t("client.nameSort")}</option>
+                      <option value="balance">{t("client.balanceSort")}</option>
+                    </select>
+                  </>
+                )}
                 <ReportPrintButton
                   disabled={loading || !!error || !rows.length}
                   getDocument={() => contactsDocument()}
@@ -1230,17 +1318,34 @@ export function PeoplePage({
                   getDocument={() => contactsDocument()}
                 />
                 <ExportButton
-                  onClick={() => {
-                    exportCSV(
-                      `radefy-techmart-${kind}s`,
-                      rows.map((p) => ({
-                        name: p.name,
-                        phone: p.phone,
-                        email: p.email,
-                        balance_AF: p.balance / 100,
-                      })),
-                    );
-                    toast(t("people.contactsExported"));
+                  onClick={async () => {
+                    try {
+                      const exportRows: Party[] =
+                        kind === "customer"
+                          ? await collectList(api, "parties", {
+                              kind,
+                              q: searchQ,
+                              filter: debtorFilter,
+                              sort,
+                            })
+                          : rows;
+                      exportCSV(
+                        `radefy-techmart-${kind}s`,
+                        exportRows.map((p) => ({
+                          name: p.name,
+                          phone: p.phone,
+                          email: p.email,
+                          balance_AF: p.balance / 100,
+                        })),
+                      );
+                      toast(t("people.contactsExported"));
+                    } catch (e: any) {
+                      setError(
+                        e.message === "LIST_CHANGED"
+                          ? t("client.LIST_CHANGED")
+                          : e.message,
+                      );
+                    }
                   }}
                 />
                 {kind === "customer" &&
@@ -2415,7 +2520,10 @@ export function BackupsPage({ refresh, toast }: PageProps) {
           ) : null}
         </div>
         {driveChips.length ? (
-          <div className="backup-chips" aria-label={t("backups.connectedDrives")}>
+          <div
+            className="backup-chips"
+            aria-label={t("backups.connectedDrives")}
+          >
             {driveChips.map((d) => (
               <span className="backup-chip" key={d} title={d}>
                 <HardDrivesIcon size={12} />
@@ -2812,11 +2920,7 @@ export function SettingsPage({
             />
           )}
           {tab === "store" && data && (
-            <form
-              className="settings-form"
-              onSubmit={save}
-              key={formEpoch}
-            >
+            <form className="settings-form" onSubmit={save} key={formEpoch}>
               <Field label={t("language.label")} hint={t("language.hint")}>
                 <select
                   value={language}

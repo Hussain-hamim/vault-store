@@ -8353,3 +8353,12 @@ html[dir="rtl"] kbd {
 @media (max-height: 740px) { .auth-form-container { padding-block: 24px; gap: 16px; } .auth-company-credit { padding-top: 12px; } }
 .auth-screen { height: 100dvh; overflow-y: auto; }
 .auth-form-container { min-width: 0; }
+
+/* Strong, readable stock/pricing hierarchy without widening the desktop cards. */
+.inventory-row-meta strong {font-size:17px;font-weight:800;font-variant-numeric:tabular-nums;}
+.inventory-row-cost strong {color:var(--paint-fg-55488a,#674c1b);}
+.inventory-row-price strong {color:var(--paint-fg-2c6f79,#126d67);}
+.inventory-row-meta:not(.inventory-row-cost):not(.inventory-row-price) strong {color:var(--paint-fg-2c6f79,#245d89);}
+.sale-shop-preview-doc {border-top:2px solid var(--border);padding-top:12px;}
+.notification-item-copy details button {display:flex;margin-top:6px;max-width:100%;white-space:normal;}
+.inventory-row-meta .badge {font-size:16px;font-weight:800;padding:5px 10px;}

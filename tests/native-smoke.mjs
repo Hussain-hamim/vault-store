@@ -43,6 +43,7 @@ try {
     lines: [{ product_id: product.id, quantity: 2, price: 80000 }],
   });
   await send("sale", {
+    due_date: "2099-12-31",
     party_id: customer.id,
     paid: 60000,
     request_key: randomUUID(),

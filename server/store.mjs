@@ -1,3 +1,10 @@
+import {
+  beginProductEdit,
+  reductionDevices,
+  assertShopStock,
+  stockRevision,
+} from "./product-edits.mjs";
+import { productSearch } from "../shared/product-search.mjs";
 import { discoverBackupTargets, backupDue } from "./backup-targets.mjs";
 import {
   trackedCategory,
@@ -1000,6 +1007,13 @@ export class Store {
       if (d.paid > total) throw new Error("Payment exceeds invoice total.");
       if (party.walk_in && d.paid !== total)
         throw new Error("Walk-in sales must be paid in full.");
+      if (
+        d.kind === "sale" &&
+        d.paid < total &&
+        !d.due_date &&
+        !identity.allowUndated
+      )
+        throw new Error("SALE_DUE_REQUIRED");
       if (d.due_date && d.due_date < (d.date || today()))
         throw new Error("Due date cannot be before the invoice date.");
       const doc = this.document(d.kind, user, { ...d, total, ...identity });
@@ -1236,13 +1250,20 @@ export class Store {
       if (action === "edit") {
         const updated = this.postTrade(
           user,
-          { ...input, kind: "sale", request_key: old.request_key },
+          {
+            ...input,
+            kind: "sale",
+            due_date:
+              input.due_date === undefined ? old.due_date : input.due_date,
+            request_key: old.request_key,
+          },
           {
             id: old.id,
             number: old.number,
             created_at: old.created_at,
             user_id: old.user_id,
             editDate: old.date,
+            allowUndated: !old.due_date && old.paid < old.total,
           },
         );
         this.run(
@@ -1604,7 +1625,9 @@ export class Store {
     const d = z
       .object({
         id: z.string(),
-        opening: z.object({ request_key: z.string().min(8), amount: money, date }).optional(),
+        opening: z
+          .object({ request_key: z.string().min(8), amount: money, date })
+          .optional(),
         name: text.min(2),
         phone: text.default(""),
         email: text.default(""),
@@ -1616,34 +1639,89 @@ export class Store {
       if (!p || !p.active) throw new Error("Contact not found.");
       if (p.walk_in) throw new Error("The walk-in customer cannot be edited.");
       if (d.opening) {
-        if (user.role !== "Owner") throw new Error("Only the owner can edit opening balances.");
+        if (user.role !== "Owner")
+          throw new Error("Only the owner can edit opening balances.");
         const o = d.opening;
-        const old = this.one("SELECT * FROM documents WHERE request_key=?", o.request_key);
-        if (old && (old.party_id !== p.id || old.category !== "Opening balance"))
+        const old = this.one(
+          "SELECT * FROM documents WHERE request_key=?",
+          o.request_key,
+        );
+        if (
+          old &&
+          (old.party_id !== p.id || old.category !== "Opening balance")
+        )
           throw new Error("Opening balance does not belong to this contact.");
-        if (!old && this.one("SELECT id FROM documents WHERE party_id=? AND category='Opening balance'", p.id))
-          throw new Error("Reload the contact before editing its opening balance.");
+        if (
+          !old &&
+          this.one(
+            "SELECT id FROM documents WHERE party_id=? AND category='Opening balance'",
+            p.id,
+          )
+        )
+          throw new Error(
+            "Reload the contact before editing its opening balance.",
+          );
         const closed = this.setting("closedThrough");
-        if (o.date > today()) throw new Error("Future transactions are not allowed.");
+        if (o.date > today())
+          throw new Error("Future transactions are not allowed.");
         if (closed && (o.date <= closed || (old && old.date <= closed)))
           throw new Error("This accounting period is closed.");
-        if (old && (old.paid > 0 || this.one("SELECT id FROM payment_allocations WHERE invoice_id=? LIMIT 1", old.id) || this.one("SELECT id FROM documents WHERE original_id=? LIMIT 1", old.id)))
-          throw new Error("This opening balance has linked payments or returns and cannot be edited.");
+        if (
+          old &&
+          (old.paid > 0 ||
+            this.one(
+              "SELECT id FROM payment_allocations WHERE invoice_id=? LIMIT 1",
+              old.id,
+            ) ||
+            this.one(
+              "SELECT id FROM documents WHERE original_id=? LIMIT 1",
+              old.id,
+            ))
+        )
+          throw new Error(
+            "This opening balance has linked payments or returns and cannot be edited.",
+          );
         let doc = old;
         if (old) {
           this.run("DELETE FROM journal WHERE document_id=?", old.id);
-          this.run("UPDATE documents SET total=?,date=? WHERE id=?", o.amount, o.date, old.id);
+          this.run(
+            "UPDATE documents SET total=?,date=? WHERE id=?",
+            o.amount,
+            o.date,
+            old.id,
+          );
           doc = { ...old, total: o.amount, date: o.date };
         } else if (o.amount > 0) {
-          doc = this.document(p.kind === "customer" ? "sale" : "purchase", user, {
-            party_id: p.id, total: o.amount, date: o.date, request_key: o.request_key,
-            note: "Opening balance brought forward", category: "Opening balance",
-          });
+          doc = this.document(
+            p.kind === "customer" ? "sale" : "purchase",
+            user,
+            {
+              party_id: p.id,
+              total: o.amount,
+              date: o.date,
+              request_key: o.request_key,
+              note: "Opening balance brought forward",
+              category: "Opening balance",
+            },
+          );
         }
-        if (doc && o.amount > 0) this.ledger(doc, p.kind === "customer"
-          ? [["receivables", o.amount, 0, p.id], ["equity", 0, o.amount]]
-          : [["equity", o.amount, 0], ["payables", 0, o.amount, p.id]]);
-        this.audit(user, "Edit opening balance", p.id, { previous: old?.total || 0, amount: o.amount });
+        if (doc && o.amount > 0)
+          this.ledger(
+            doc,
+            p.kind === "customer"
+              ? [
+                  ["receivables", o.amount, 0, p.id],
+                  ["equity", 0, o.amount],
+                ]
+              : [
+                  ["equity", o.amount, 0],
+                  ["payables", 0, o.amount, p.id],
+                ],
+          );
+        this.audit(user, "Edit opening balance", p.id, {
+          previous: old?.total || 0,
+          amount: o.amount,
+        });
       }
       this.run(
         "UPDATE parties SET name=?,phone=?,email=?,address=? WHERE id=?",
@@ -2341,6 +2419,12 @@ export class Store {
         limit: z.number().int().min(1).max(100).default(50),
       })
       .parse(args);
+    const revision = this.one("SELECT COALESCE(MAX(id),0) n FROM audit").n;
+    if (
+      args.revision !== undefined &&
+      z.number().int().parse(args.revision) !== revision
+    )
+      throw Error("LIST_CHANGED");
     let clauses = ["p.active=1"],
       params = [];
     if (d.ids?.length) {
@@ -2357,11 +2441,9 @@ export class Store {
       clauses.push("p.barcode=? COLLATE NOCASE");
       params.push(d.barcode.trim());
     } else if (d.q) {
-      clauses.push(
-        "(p.name LIKE ? ESCAPE '\\' OR p.sku LIKE ? ESCAPE '\\' OR p.barcode=? COLLATE NOCASE OR p.barcode LIKE ? ESCAPE '\\')",
-      );
-      const q = d.q.replace(/[\\%_]/g, "\\$&") + "%";
-      params.push(q, q, d.q.trim(), q);
+      const search = productSearch(d.q);
+      clauses.push(search.sql);
+      params.push(...search.params);
     }
     if (d.category !== "All products") {
       clauses.push("p.category=?");
@@ -2409,6 +2491,7 @@ export class Store {
       !user?.permissions.includes("view_costs") &&
       !user?.permissions.includes("purchases");
     for (const p of rows) {
+      p.stock_revision = stockRevision(this, p.id);
       p.attributes = JSON.parse(p.attributes);
       p.consignment_stock = consignmentById.get(p.id) || 0;
       if (hideCosts) {
@@ -2420,7 +2503,7 @@ export class Store {
         p.cost = costById.get(p.id) || 0;
       }
     }
-    return { rows, next: more ? rows.at(-1)?.sku : null };
+    return { rows, revision, next: more ? rows.at(-1)?.sku : null };
   }
   dateRange(input = {}) {
     return z
@@ -2960,24 +3043,72 @@ export class Store {
       .object({
         kind: z.enum(["customer", "supplier"]),
         q: z.string().max(100).default(""),
-        after: z.string().default(""),
+        after: z.string().max(2000).default(""),
         limit: z.number().int().min(1).max(100).default(100),
+        filter: z.enum(["all", "debtors"]).default("all"),
+        sort: z.enum(["id", "name", "balance"]).default("id"),
+        revision: z.number().int().optional(),
       })
       .parse(input);
+    const revision = this.one("SELECT COALESCE(MAX(id),0) n FROM audit").n;
+    if (d.revision !== undefined && revision !== d.revision)
+      throw Error("LIST_CHANGED");
     const account = d.kind === "customer" ? "receivables" : "payables";
-    const like = d.q ? "%" + d.q.replace(/[\\%_]/g, "\\$&") + "%" : "%";
+    const signed = d.kind === "customer" ? "debit-credit" : "credit-debit";
+    const like = "%" + d.q.replace(/[\\%_]/g, "\\$&") + "%";
+    const clauses = ["1"],
+      params = [account, d.kind, like, like];
+    if (d.filter === "debtors") clauses.push("balance>0 AND walk_in=0");
+    if (d.after) {
+      if (d.sort === "id") {
+        clauses.push("id>?");
+        params.push(d.after);
+      } else {
+        const c = JSON.parse(d.after);
+        if (
+          !Array.isArray(c) ||
+          c.length !== 2 ||
+          typeof c[1] !== "string" ||
+          (d.sort === "name"
+            ? typeof c[0] !== "string"
+            : !Number.isSafeInteger(c[0]))
+        )
+          throw Error("Invalid list cursor.");
+        if (d.sort === "name") {
+          clauses.push("(LOWER(name)>? OR (LOWER(name)=? AND id>?))");
+          params.push(c[0], c[0], c[1]);
+        } else {
+          clauses.push("(balance<? OR (balance=? AND id>?))");
+          params.push(c[0], c[0], c[1]);
+        }
+      }
+    }
+    const order =
+      d.sort === "name"
+        ? "LOWER(name),id"
+        : d.sort === "balance"
+          ? "balance DESC,id"
+          : "id";
     const rows = this.all(
-      `SELECT p.*,COALESCE((SELECT SUM(${d.kind === "customer" ? "debit-credit" : "credit-debit"}) FROM party_totals j WHERE j.party_id=p.id AND j.account=?),0) balance FROM parties p WHERE p.kind=? AND COALESCE(p.active,1)=1 AND (p.name LIKE ? ESCAPE '\\' OR p.phone LIKE ? ESCAPE '\\') AND p.id>? ORDER BY p.id LIMIT ?`,
-      account,
-      d.kind,
-      like,
-      like,
-      d.after,
+      `WITH contacts AS (SELECT p.*,LOWER(p.name) sort_name,COALESCE((SELECT SUM(${signed}) FROM party_totals j WHERE j.party_id=p.id AND j.account=?),0) balance FROM parties p WHERE p.kind=? AND COALESCE(p.active,1)=1 AND (p.name LIKE ? ESCAPE '\\' OR p.phone LIKE ? ESCAPE '\\')) SELECT * FROM contacts WHERE ${clauses.join(" AND ")} ORDER BY ${order} LIMIT ?`,
+      ...params,
       d.limit + 1,
     );
     const more = rows.length > d.limit;
-    rows.length = Math.min(rows.length, d.limit);
-    return { rows, next: more ? rows.at(-1).id : null };
+    if (more) rows.pop();
+    const last = rows.at(-1);
+    return {
+      rows,
+      revision,
+      next: more
+        ? d.sort === "id"
+          ? last.id
+          : JSON.stringify([
+              d.sort === "name" ? last.sort_name : last.balance,
+              last.id,
+            ])
+        : null,
+    };
   }
   async createBackup(
     user,
@@ -3226,6 +3357,7 @@ export class Store {
       openingBalance: "finance",
       adjust: "inventory",
       sale: "sales",
+      saleDueDate: "sales",
       purchase: "purchases",
       parties: "people",
       partyCreate: "people",
@@ -3341,6 +3473,10 @@ export class Store {
         return this.createProduct(user, args);
       case "productDelete":
         return this.transaction(() => {
+          const op = args.write_off
+            ? beginProductEdit(this, user, args, "delete")
+            : null;
+          if (op?.cached) return op.cached;
           const product = this.one(
             "SELECT * FROM products WHERE id=?",
             args.id,
@@ -3350,7 +3486,26 @@ export class Store {
             "SELECT COALESCE(SUM(remaining),0) n FROM batches WHERE product_id=?",
             product.id,
           ).n;
-          if (product.stock !== 0 || remaining !== 0)
+          if (args.write_off) assertShopStock(this, product);
+          if (args.write_off && product.stock > 0) {
+            for (
+              let remaining = product.stock, part = 0;
+              remaining > 0;
+              part++
+            ) {
+              const quantity = product.serialized
+                ? Math.min(remaining, 1000)
+                : remaining;
+              this.adjust(user, {
+                product_id: product.id,
+                quantity: -quantity,
+                unit_ids: reductionDevices(this, product, quantity, null, true),
+                note: "Product deletion stock write-off",
+                request_key: args.request_key + ":" + part,
+              });
+              remaining -= quantity;
+            }
+          } else if (product.stock !== 0 || remaining !== 0)
             throw new Error(
               "Stock remains. This product cannot be deleted until its quantity is zero.",
             );
@@ -3361,7 +3516,7 @@ export class Store {
               name: product.name,
             });
           }
-          return { id: product.id };
+          return op ? op.finish({ id: product.id }) : { id: product.id };
         });
       case "productUpdate": {
         const d = productSchema.parse(args);
@@ -3375,6 +3530,16 @@ export class Store {
         if (d.minimum > d.price)
           throw new Error("Minimum price cannot exceed selling price.");
         return this.transaction(() => {
+          const op =
+            args.stock_target !== undefined
+              ? beginProductEdit(this, user, args, "update")
+              : null;
+          if (op?.cached) return op.cached;
+          const stockTarget =
+            args.stock_target === undefined
+              ? undefined
+              : z.number().int().min(0).max(100000).parse(args.stock_target);
+
           const productPhoto = saveProductPhoto(this, {
             ...d,
             image: args.image === undefined ? existing.image : d.image,
@@ -3444,15 +3609,42 @@ export class Store {
                 "migration",
               );
           }
+          if (stockTarget !== undefined && stockTarget !== existing.stock) {
+            assertShopStock(this, existing);
+            const delta = stockTarget - existing.stock;
+            const currentProduct = this.one(
+              "SELECT * FROM products WHERE id=?",
+              existing.id,
+            );
+            const selected =
+              delta < 0
+                ? reductionDevices(this, currentProduct, -delta, args.unit_ids)
+                : undefined;
+            for (let offset = 0, part = 0; offset < Math.abs(delta); part++) {
+              const quantity = currentProduct.serialized
+                ? Math.min(1000, Math.abs(delta) - offset)
+                : Math.abs(delta);
+              this.adjust(user, {
+                product_id: existing.id,
+                quantity: Math.sign(delta) * quantity,
+                cost: delta > 0 ? unitCost : 0,
+                unit_ids: selected?.slice(offset, offset + quantity),
+                note: "Stock corrected in Edit Product",
+                request_key: args.request_key + ":" + part,
+              });
+              offset += quantity;
+            }
+          }
           this.audit(user, "Update product", existing.id, {
             name: d.name,
             price: d.price,
           });
-          return {
+          const result = {
             id: existing.id,
             product: this.listProducts({ id: existing.id, limit: 1 }, user)
               .rows[0],
           };
+          return op ? op.finish(result) : result;
         });
       }
       case "reorderReport":
@@ -3553,14 +3745,10 @@ export class Store {
         );
         const canPeople = user.permissions.includes("people");
         if (canProducts) {
+          const search = productSearch(q);
           const products = this.all(
-            `SELECT p.* FROM products p WHERE p.active=1 AND p.consignment_only=0 AND (p.name LIKE ? ESCAPE '\\' OR p.sku LIKE ? ESCAPE '\\' OR p.brand LIKE ? ESCAPE '\\' OR p.model LIKE ? ESCAPE '\\' OR p.barcode=? COLLATE NOCASE OR IFNULL(p.barcode,'') LIKE ? ESCAPE '\\') ORDER BY p.name LIMIT ?`,
-            contains,
-            prefix,
-            contains,
-            contains,
-            q.trim(),
-            contains,
+            `SELECT p.* FROM products p WHERE p.active=1 AND p.consignment_only=0 AND ${search.sql} ORDER BY p.name LIMIT ?`,
+            ...search.params,
             d.limit,
           );
           for (const p of products) {
@@ -3645,6 +3833,13 @@ export class Store {
         return {
           product: {
             ...p,
+            stock_revision: stockRevision(this, p.id),
+            cost: user.permissions.includes("view_costs")
+              ? this.one(
+                  "SELECT COALESCE(SUM(remaining*unit_cost),0) n FROM batches WHERE product_id=? AND owner_id IS NULL",
+                  p.id,
+                ).n
+              : undefined,
             unit_cost:
               user.permissions.includes("view_costs") ||
               user.permissions.includes("purchases")
@@ -3667,6 +3862,41 @@ export class Store {
           doc.lines = doc.lines.map(({ cost, owner_unit_amount, ...l }) => l);
         }
         return doc;
+      }
+      case "saleDueDate": {
+        const d = z
+          .object({
+            id: z.string(),
+            revision: z.number().int().nonnegative(),
+            due_date: date,
+          })
+          .parse(args);
+        return this.transaction(() => {
+          const doc = this.getDocument(d.id);
+          if (doc.kind !== "sale" || !["Owner", "Manager"].includes(user.role))
+            throw Error("Only an owner or manager can change a sale due date.");
+          if (doc.revision !== d.revision)
+            throw Error("This invoice changed. Reload it before continuing.");
+          const closed = this.setting("closedThrough");
+          if (closed && doc.date <= closed)
+            throw Error("This accounting period is closed.");
+          if (d.due_date < doc.date)
+            throw Error("Due date cannot be before the invoice date.");
+          this.run(
+            "UPDATE documents SET due_date=? WHERE id=?",
+            d.due_date,
+            d.id,
+          );
+          this.run(
+            "INSERT INTO invoice_revisions VALUES (?,?) ON CONFLICT(document_id) DO UPDATE SET revision=excluded.revision",
+            d.id,
+            doc.revision + 1,
+          );
+          this.audit(user, "Change sale due date", d.id, {
+            due_date: d.due_date,
+          });
+          return { id: d.id };
+        });
       }
       case "saleEdit":
         return this.mutateSale(user, args, "edit");
@@ -3738,7 +3968,11 @@ export class Store {
       case "customerSalesHistory":
       case "partyInvoiceHistory": {
         const d = z
-          .object({ id: z.string(), start: date.optional(), end: date.optional() })
+          .object({
+            id: z.string(),
+            start: date.optional(),
+            end: date.optional(),
+          })
           .parse(args);
         if (d.start && d.end && d.start > d.end)
           throw new Error("Start date must be before end date.");
@@ -4538,6 +4772,7 @@ export class Store {
         if (p.stock <= 0) continue;
         this.postTrade(user, {
           kind: "sale",
+          due_date: today(),
           party_id: s % 2 ? c1 : walk,
           date: `${today().slice(0, 8)}${String(day).padStart(2, "0")}`,
           paid: s % 2 ? Math.floor(p.price * 0.7) : p.price,

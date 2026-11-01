@@ -10,10 +10,10 @@ export function invoiceWhen(doc) {
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
-    hour12: false,
+    hour12: doc.kind === "sale",
   }).formatToParts(d);
   const grab = (type) => parts.find((part) => part.type === type)?.value || "";
-  return `${grab("year")}-${grab("month")}-${grab("day")} ${grab("hour")}:${grab("minute")}`;
+  return `${grab("year")}-${grab("month")}-${grab("day")} ${grab("hour")}:${grab("minute")}${doc.kind === "sale" ? " " + grab("dayPeriod").toUpperCase() : ""}`;
 }
 
 export function invoicePrintModel(
@@ -65,6 +65,25 @@ export function invoicePrintModel(
           [doc.party_name, doc.party_phone].filter(Boolean).join(" · ") || "—",
       },
       { label: t("invoice.recordedBy"), value: doc.user_name || "—" },
+      ...(doc.kind === "sale" && doc.returned > 0
+        ? [
+            {
+              label: t("invoice.returned"),
+              value: money(doc.returned, 2),
+              numeric: true,
+              essential: true,
+            },
+          ]
+        : []),
+      ...(doc.kind === "sale" && doc.due_date
+        ? [
+            {
+              label: t("invoice.dueDate"),
+              value: doc.due_date,
+              essential: true,
+            },
+          ]
+        : []),
       ...([
         "purchase",
         "sale",
@@ -88,6 +107,7 @@ export function invoicePrintModel(
               ),
               value: `${foreignMoney(doc.paid_foreign)} → ${money(Math.round((doc.paid_foreign * doc.fx_rate) / 10000), 2)}`,
               numeric: true,
+              essential: true,
             },
           ]
         : []),
@@ -101,6 +121,7 @@ export function invoicePrintModel(
               label: t("currencies.exchangeRate"),
               value: rate(doc.fx_rate),
               numeric: true,
+              essential: true,
             },
           ]
         : []),
@@ -159,61 +180,98 @@ export function invoicePrintModel(
         ? `${t("invoice.discount")}: ${money(l.discount, 2)}`
         : "",
     })),
-    summary: ["consignment_receipt", "consignment_return"].includes(doc.kind)
-      ? []
-      : ["sale_return", "purchase_return"].includes(doc.kind)
+    summary:
+      doc.kind === "sale"
         ? [
-            { key: "total", label: t("invoice.total"), value: money(doc.total, 2) },
             {
-              key: "returnCredit",
-              label: t("currencies.returnCredit"),
-              value: money(doc.total - doc.paid, 2),
+              key: "total",
+              label: t("invoice.total"),
+              value: money(doc.total - (doc.returned || 0), 2),
             },
             {
-              key: doc.kind === "purchase_return" ? "refundReceived" : "refundPaid",
-              label: t(
-                doc.kind === "purchase_return"
-                  ? "currencies.refundReceived"
-                  : "currencies.refundPaid",
-              ),
+              key: "paid",
+              label: t("invoice.paid"),
               value: money(doc.paid, 2),
             },
-          ]
-        : [
-            { key: "total", label: t("invoice.total"), value: money(doc.total, 2) },
-            {
-              key: "returned",
-              label: t("invoice.returned"),
-              value: money(doc.returned || 0, 2),
-            },
-            { key: "paid", label: t("invoice.paid"), value: money(doc.paid, 2) },
             {
               key: "outstanding",
-              label: t("invoice.outstanding"),
+              label: t("client.balance"),
               value: money(
                 Math.max(0, doc.total - (doc.returned || 0) - doc.paid),
                 2,
               ),
             },
-            ...(doc.kind === "sale" && doc.previous_balance
-              ? [
-                  {
-                    key: "previous",
-                    label: t("sales.previousBalance"),
-                    value: money(doc.previous_balance, 2),
-                  },
-                ]
-              : []),
-            ...(doc.kind === "sale" && doc.new_balance != null
-              ? [
-                  {
-                    key: "newBalance",
-                    label: t("sales.totalBalance"),
-                    value: money(doc.new_balance, 2),
-                  },
-                ]
-              : []),
-          ],
+          ]
+        : ["consignment_receipt", "consignment_return"].includes(doc.kind)
+          ? []
+          : ["sale_return", "purchase_return"].includes(doc.kind)
+            ? [
+                {
+                  key: "total",
+                  label: t("invoice.total"),
+                  value: money(doc.total, 2),
+                },
+                {
+                  key: "returnCredit",
+                  label: t("currencies.returnCredit"),
+                  value: money(doc.total - doc.paid, 2),
+                },
+                {
+                  key:
+                    doc.kind === "purchase_return"
+                      ? "refundReceived"
+                      : "refundPaid",
+                  label: t(
+                    doc.kind === "purchase_return"
+                      ? "currencies.refundReceived"
+                      : "currencies.refundPaid",
+                  ),
+                  value: money(doc.paid, 2),
+                },
+              ]
+            : [
+                {
+                  key: "total",
+                  label: t("invoice.total"),
+                  value: money(doc.total, 2),
+                },
+                {
+                  key: "returned",
+                  label: t("invoice.returned"),
+                  value: money(doc.returned || 0, 2),
+                },
+                {
+                  key: "paid",
+                  label: t("invoice.paid"),
+                  value: money(doc.paid, 2),
+                },
+                {
+                  key: "outstanding",
+                  label: t("invoice.outstanding"),
+                  value: money(
+                    Math.max(0, doc.total - (doc.returned || 0) - doc.paid),
+                    2,
+                  ),
+                },
+                ...(doc.kind === "sale" && doc.previous_balance
+                  ? [
+                      {
+                        key: "previous",
+                        label: t("sales.previousBalance"),
+                        value: money(doc.previous_balance, 2),
+                      },
+                    ]
+                  : []),
+                ...(doc.kind === "sale" && doc.new_balance != null
+                  ? [
+                      {
+                        key: "newBalance",
+                        label: t("sales.totalBalance"),
+                        value: money(doc.new_balance, 2),
+                      },
+                    ]
+                  : []),
+              ],
     note: [
       doc.note,
       ...(["consignment_receipt", "consignment_return"].includes(doc.kind)

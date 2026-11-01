@@ -1,3 +1,4 @@
+import { enableDueReminders } from "./api";
 import { OwnerRecovery } from "./components/OwnerRecovery";
 import { CompanyCredit } from "./components/CompanyCredit";
 import { useUserTheme } from "./appearance";
@@ -231,6 +232,17 @@ export function App() {
     [saleSeed, setSaleSeed] = useState<Product | undefined>();
   useUserTheme(user?.id);
   const notifications = useNotificationSummary(user, refresh);
+  useEffect(() => {
+    if (user) void enableDueReminders(locale)?.catch(() => {});
+  }, [user?.id, locale]);
+  useEffect(
+    () =>
+      window.vault?.onOpenDue?.((tab) => {
+        if (user?.permissions.includes("people"))
+          setModal({ name: "notifications", data: { initialTab: tab } });
+      }),
+    [user],
+  );
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const workspaceRef = useRef<HTMLDivElement>(null);
   const partyDetailUi = useRef<{
@@ -1127,6 +1139,7 @@ export function App() {
           close={close}
           open={open}
           changed={notifications.reload}
+          initialTab={modal.data?.initialTab}
         />
       )}
       {modal?.name === "lowStock" && (

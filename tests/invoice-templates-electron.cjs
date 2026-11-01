@@ -41,17 +41,15 @@ app
       metadata: [
         { label: "Customer / پېرودونکی", value: "Sample customer" },
         { label: "Recorded by", value: "Sample owner" },
+        { label: "Due date", value: "2026-11-01", essential: true },
       ],
       companyCredit: {
         label: "Built by Radefy Systems",
       },
       summary: [
         { key: "total", label: "Total", value: "AF 111,000.00" },
-        { key: "returned", label: "Returned", value: "AF 0.00" },
         { key: "paid", label: "Paid", value: "AF 50,000.00" },
         { key: "outstanding", label: "Balance", value: "AF 61,000.00" },
-        { key: "previous", label: "Previous balance", value: "AF 10,000.00" },
-        { key: "newBalance", label: "Total balance", value: "AF 71,000.00" },
       ],
       lines: [
         {

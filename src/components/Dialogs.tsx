@@ -177,7 +177,16 @@ export function TradeForm({
             setNext(d.next);
           })
           .catch((e) => {
-            if (active) setError(e.message);
+            if (active)
+              setError(
+                [
+                  "SALE_DUE_REQUIRED",
+                  "STOCK_CHANGED",
+                  "SELECT_STOCK_DEVICES",
+                ].includes(e.message)
+                  ? t(`client.${e.message}`)
+                  : e.message,
+              );
           })
           .finally(() => {
             if (active) setSearching(false);
@@ -204,7 +213,13 @@ export function TradeForm({
       });
       setNext(d.next);
     } catch (e: any) {
-      setError(e.message);
+      setError(
+        ["SALE_DUE_REQUIRED", "STOCK_CHANGED", "SELECT_STOCK_DEVICES"].includes(
+          e.message,
+        )
+          ? t(`client.${e.message}`)
+          : e.message,
+      );
     } finally {
       setLoadingMore(false);
     }
@@ -221,7 +236,16 @@ export function TradeForm({
         chooseParty(d.rows[0]);
       })
       .catch((e) => {
-        if (active) setError(e.message);
+        if (active)
+          setError(
+            [
+              "SALE_DUE_REQUIRED",
+              "STOCK_CHANGED",
+              "SELECT_STOCK_DEVICES",
+            ].includes(e.message)
+              ? t(`client.${e.message}`)
+              : e.message,
+          );
       });
     return () => {
       active = false;
@@ -260,7 +284,7 @@ export function TradeForm({
             price: String(line.price / 100),
             discount: String(line.discount / 100),
             costAed:
-              line.cost_foreign ?? line.cost_aed
+              (line.cost_foreign ?? line.cost_aed)
                 ? moneyInput(line.cost_foreign ?? line.cost_aed)
                 : "0",
             cargoRent: line.cargo_rent ? moneyInput(line.cargo_rent) : "0",
@@ -311,7 +335,16 @@ export function TradeForm({
         }
       })
       .catch((e) => {
-        if (active) setError(e.message);
+        if (active)
+          setError(
+            [
+              "SALE_DUE_REQUIRED",
+              "STOCK_CHANGED",
+              "SELECT_STOCK_DEVICES",
+            ].includes(e.message)
+              ? t(`client.${e.message}`)
+              : e.message,
+          );
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -404,7 +437,13 @@ export function TradeForm({
       setScanCode("");
       barcodeRef.current?.focus();
     } catch (e: any) {
-      setError(e.message);
+      setError(
+        ["SALE_DUE_REQUIRED", "STOCK_CHANGED", "SELECT_STOCK_DEVICES"].includes(
+          e.message,
+        )
+          ? t(`client.${e.message}`)
+          : e.message,
+      );
       barcodeRef.current?.select();
     } finally {
       setScanBusy(false);
@@ -518,11 +557,12 @@ export function TradeForm({
           }
         })()
       : 0;
-  const totalForeign = saleFxScaled
-    ? foreignFromAfn(total, saleFxScaled)
-    : 0;
+  const totalForeign = saleFxScaled ? foreignFromAfn(total, saleFxScaled) : 0;
   const previousBalance =
-    !purchase && customerMode === "existing" && selectedParty && !selectedParty.walk_in
+    !purchase &&
+    customerMode === "existing" &&
+    selectedParty &&
+    !selectedParty.walk_in
       ? selectedParty.balance || 0
       : 0;
   const projectedBalance = previousBalance + total - payment;
@@ -559,9 +599,7 @@ export function TradeForm({
           match.phone = phone;
         } catch (error: any) {
           // Sale continues, but the phone change was not stored.
-          setError(
-            error?.message || t("sales.phoneUpdateFailed"),
-          );
+          setError(error?.message || t("sales.phoneUpdateFailed"));
         }
       }
       chooseParty(match);
@@ -610,9 +648,7 @@ export function TradeForm({
             );
         }
         const cargo_rent =
-          purchase && (l.cargoRent || "").trim()
-            ? toMoney(l.cargoRent!)
-            : 0;
+          purchase && (l.cargoRent || "").trim() ? toMoney(l.cargoRent!) : 0;
         return {
           product_id: l.product.id,
           ...(l.product.serialized && purchase
@@ -648,7 +684,7 @@ export function TradeForm({
           paid: payment,
           ...(paymentInForeign ? { paid_foreign: enteredPaid } : {}),
           date: f.get("date"),
-          due_date: null,
+          due_date: purchase ? null : f.get("due_date") || null,
           note: "",
           ...(purchase || paymentInForeign ? { currency, fx_rate: rate } : {}),
           request_key: key.current,
@@ -669,7 +705,13 @@ export function TradeForm({
         },
       );
     } catch (e: any) {
-      setError(e.message);
+      setError(
+        ["SALE_DUE_REQUIRED", "STOCK_CHANGED", "SELECT_STOCK_DEVICES"].includes(
+          e.message,
+        )
+          ? t(`client.${e.message}`)
+          : e.message,
+      );
     } finally {
       setBusy(false);
     }
@@ -1291,7 +1333,9 @@ export function TradeForm({
                               <span>{t("sales.newBalance")}</span>
                               <strong
                                 className={
-                                  projectedBalance > 0 ? "text-red" : "text-green"
+                                  projectedBalance > 0
+                                    ? "text-red"
+                                    : "text-green"
                                 }
                               >
                                 {af(Math.max(0, projectedBalance), 2)}
@@ -1362,6 +1406,23 @@ export function TradeForm({
                         />
                       </Field>
                     </div>
+                    {!purchase && (total > payment || initial?.due_date) && (
+                      <Field label={t("invoice.dueDate")}>
+                        <input
+                          type="date"
+                          name="due_date"
+                          defaultValue={initial?.due_date || ""}
+                          required={
+                            total > payment &&
+                            !(
+                              initial &&
+                              !initial.due_date &&
+                              initial.paid < initial.total
+                            )
+                          }
+                        />
+                      </Field>
+                    )}
                     {purchase && !paymentInForeign && (
                       <button
                         type="button"
@@ -1718,7 +1779,10 @@ export function TradeForm({
                                 />
                               </Field>
                             </div>
-                            <div className="form-grid three" style={{ marginTop: 4 }}>
+                            <div
+                              className="form-grid three"
+                              style={{ marginTop: 4 }}
+                            >
                               <Field label={t("sales.landedCostAf")}>
                                 <NumericInput
                                   min="0"
@@ -1979,11 +2043,15 @@ export function PartyForm({
           phone,
           email: draft.email,
           address: draft.address,
-          ...(draft.opening_request_key && canOpening ? { opening: {
-            request_key: draft.opening_request_key,
-            amount: toMoney(draft.opening_balance || "0"),
-            date: draft.opening_date || businessDate(),
-          }} : {}),
+          ...(draft.opening_request_key && canOpening
+            ? {
+                opening: {
+                  request_key: draft.opening_request_key,
+                  amount: toMoney(draft.opening_balance || "0"),
+                  date: draft.opening_date || businessDate(),
+                },
+              }
+            : {}),
         });
         const opening = toMoney(draft.opening_balance || "0");
         if (opening > 0 && canOpening && !draft.opening_request_key) {
@@ -1997,7 +2065,9 @@ export function PartyForm({
         saved = {
           ...draft,
           phone,
-          opening_balance: draft.opening_request_key ? draft.opening_balance : "0",
+          opening_balance: draft.opening_request_key
+            ? draft.opening_balance
+            : "0",
         };
         if (cursor >= 0)
           setHistory((rows) =>
@@ -2055,7 +2125,13 @@ export function PartyForm({
         close();
       }
     } catch (e: any) {
-      setError(e.message);
+      setError(
+        ["SALE_DUE_REQUIRED", "STOCK_CHANGED", "SELECT_STOCK_DEVICES"].includes(
+          e.message,
+        )
+          ? t(`client.${e.message}`)
+          : e.message,
+      );
     } finally {
       setBusy(false);
     }
@@ -2263,7 +2339,16 @@ export function ExpenseForm({ close, done }: DialogProps) {
         newDraft.current = blankExpense(id);
       })
       .catch((e) => {
-        if (active) setError(e.message);
+        if (active)
+          setError(
+            [
+              "SALE_DUE_REQUIRED",
+              "STOCK_CHANGED",
+              "SELECT_STOCK_DEVICES",
+            ].includes(e.message)
+              ? t(`client.${e.message}`)
+              : e.message,
+          );
       });
     return () => {
       active = false;
@@ -2302,7 +2387,13 @@ export function ExpenseForm({ close, done }: DialogProps) {
       setAdding(false);
       setAccountName("");
     } catch (e: any) {
-      setError(e.message);
+      setError(
+        ["SALE_DUE_REQUIRED", "STOCK_CHANGED", "SELECT_STOCK_DEVICES"].includes(
+          e.message,
+        )
+          ? t(`client.${e.message}`)
+          : e.message,
+      );
     } finally {
       setAccountBusy(false);
     }
@@ -2345,9 +2436,7 @@ export function ExpenseForm({ close, done }: DialogProps) {
         });
       }
       if (mode === "next") {
-        const fresh = blankExpense(
-          draft.account_id || defaultAccount.current,
-        );
+        const fresh = blankExpense(draft.account_id || defaultAccount.current);
         newDraft.current = fresh;
         loadDraft(fresh);
         setNotice(t("entry.savedExpenseNext"));
@@ -2358,16 +2447,20 @@ export function ExpenseForm({ close, done }: DialogProps) {
         close();
       }
     } catch (e: any) {
-      setError(e.message);
+      setError(
+        ["SALE_DUE_REQUIRED", "STOCK_CHANGED", "SELECT_STOCK_DEVICES"].includes(
+          e.message,
+        )
+          ? t(`client.${e.message}`)
+          : e.message,
+      );
     } finally {
       setBusy(false);
     }
   }
   return (
     <Modal
-      title={
-        editing ? t("expense.recordAn") : t("expense.recordAn")
-      }
+      title={editing ? t("expense.recordAn") : t("expense.recordAn")}
       subtitle={
         cursor >= 0
           ? t("entry.previousExpense", { number: cursor + 1 })
@@ -2564,7 +2657,13 @@ export function PaymentForm({
           : t("payment.paySaved"),
       );
     } catch (e: any) {
-      setError(e.message);
+      setError(
+        ["SALE_DUE_REQUIRED", "STOCK_CHANGED", "SELECT_STOCK_DEVICES"].includes(
+          e.message,
+        )
+          ? t(`client.${e.message}`)
+          : e.message,
+      );
     } finally {
       setBusy(false);
     }
@@ -2813,7 +2912,13 @@ export function InvoiceDialog({
         print: printReturn === true,
       });
     } catch (e: any) {
-      setError(e.message);
+      setError(
+        ["SALE_DUE_REQUIRED", "STOCK_CHANGED", "SELECT_STOCK_DEVICES"].includes(
+          e.message,
+        )
+          ? t(`client.${e.message}`)
+          : e.message,
+      );
     } finally {
       setBusy(false);
     }
@@ -2863,7 +2968,10 @@ export function InvoiceDialog({
                       alt=""
                     />
                   ) : (
-                    <span className="sale-shop-preview-spacer" aria-hidden="true" />
+                    <span
+                      className="sale-shop-preview-spacer"
+                      aria-hidden="true"
+                    />
                   )}
                 </div>
                 {store?.services ? (
@@ -2896,6 +3004,14 @@ export function InvoiceDialog({
                       );
                     })}
                 </div>
+                {(store?.address || store?.phone) && (
+                  <p className="business-info">
+                    <span dir="auto">{store?.address}</span>{" "}
+                    <bdi dir="ltr">
+                      {normalizeDigits(String(store?.phone || ""))}
+                    </bdi>
+                  </p>
+                )}
                 <div className="sale-shop-preview-doc">
                   <Badge tone="gray">{kindTitle.toUpperCase()}</Badge>
                   <h3>{doc.number}</h3>
@@ -2932,6 +3048,12 @@ export function InvoiceDialog({
               </div>
             )}
             <div className="invoice-meta">
+              {doc.kind === "sale" && doc.returned > 0 && (
+                <div>
+                  <span>{t("invoice.returned")}</span>
+                  <strong className="money">{af(doc.returned, 2)}</strong>
+                </div>
+              )}
               <div>
                 <span>
                   {["purchase", "purchase_return", "payment"].includes(doc.kind)
@@ -2954,6 +3076,44 @@ export function InvoiceDialog({
               <div>
                 <span>{t("invoice.dueDate")}</span>
                 <strong>{doc.due_date || "—"}</strong>
+                {doc.kind === "sale" &&
+                  user.permissions.includes("sales") &&
+                  ["Owner", "Manager"].includes(user.role) && (
+                    <form
+                      onSubmit={async (e) => {
+                        e.preventDefault();
+                        const date = new FormData(e.currentTarget).get(
+                          "due_date",
+                        );
+                        setBusy(true);
+                        setError("");
+                        try {
+                          await api("saleDueDate", {
+                            id: doc.id,
+                            revision: doc.revision,
+                            due_date: date,
+                          });
+                          setDoc(await api("document", { id: doc.id }));
+                        } catch (error: any) {
+                          setError(error.message);
+                        } finally {
+                          setBusy(false);
+                        }
+                      }}
+                    >
+                      <input
+                        type="date"
+                        name="due_date"
+                        aria-label={t("invoice.dueDate")}
+                        defaultValue={doc.due_date || ""}
+                        min={doc.date}
+                        required
+                      />
+                      <button className="button" disabled={busy}>
+                        {t("common.save")}
+                      </button>
+                    </form>
+                  )}
               </div>
               {["purchase", "purchase_return", "sale", "sale_return"].includes(
                 doc.kind,
@@ -3118,25 +3278,34 @@ export function InvoiceDialog({
             <div className="invoice-summary">
               <div>
                 <span>{t("invoice.total")}</span>
-                <strong className="money">{af(doc.total, 2)}</strong>
-              </div>
-              <div>
-                <span>
-                  {t(
-                    ["sale_return", "purchase_return"].includes(doc.kind)
-                      ? "currencies.returnCredit"
-                      : "invoice.returned",
-                  )}
-                </span>
                 <strong className="money">
                   {af(
-                    ["sale_return", "purchase_return"].includes(doc.kind)
-                      ? doc.total - doc.paid
-                      : doc.returned || 0,
+                    doc.kind === "sale"
+                      ? doc.total - (doc.returned || 0)
+                      : doc.total,
                     2,
                   )}
                 </strong>
               </div>
+              {doc.kind !== "sale" && (
+                <div>
+                  <span>
+                    {t(
+                      ["sale_return", "purchase_return"].includes(doc.kind)
+                        ? "currencies.returnCredit"
+                        : "invoice.returned",
+                    )}
+                  </span>
+                  <strong className="money">
+                    {af(
+                      ["sale_return", "purchase_return"].includes(doc.kind)
+                        ? doc.total - doc.paid
+                        : doc.returned || 0,
+                      2,
+                    )}
+                  </strong>
+                </div>
+              )}
               <div>
                 <span>
                   {t(
@@ -3151,7 +3320,13 @@ export function InvoiceDialog({
               </div>
               {!["sale_return", "purchase_return"].includes(doc.kind) && (
                 <div className="invoice-due">
-                  <span>{t("invoice.outstanding")}</span>
+                  <span>
+                    {t(
+                      doc.kind === "sale"
+                        ? "client.balance"
+                        : "invoice.outstanding",
+                    )}
+                  </span>
                   <strong className="money">
                     {af(
                       Math.max(0, doc.total - (doc.returned || 0) - doc.paid),
@@ -3159,24 +3334,6 @@ export function InvoiceDialog({
                     )}
                   </strong>
                 </div>
-              )}
-              {doc.kind === "sale" && doc.previous_balance != null && (
-                <>
-                  {doc.previous_balance ? (
-                    <div>
-                      <span>{t("sales.previousBalance")}</span>
-                      <strong className="money">
-                        {af(doc.previous_balance, 2)}
-                      </strong>
-                    </div>
-                  ) : null}
-                  <div>
-                    <span>{t("sales.totalBalance")}</span>
-                    <strong className="money text-red">
-                      {af(doc.new_balance ?? doc.party_balance ?? 0, 2)}
-                    </strong>
-                  </div>
-                </>
               )}
             </div>
             {doc.note && <p className="invoice-note">{doc.note}</p>}
@@ -3403,9 +3560,12 @@ export function InvoiceDialog({
               </button>
             </>
           )}
-        {["receipt", "payment", "consignment_payment", "consignment_recovery"].includes(
-          doc?.kind,
-        ) &&
+        {[
+          "receipt",
+          "payment",
+          "consignment_payment",
+          "consignment_recovery",
+        ].includes(doc?.kind) &&
           ["Owner", "Manager"].includes(user.role) &&
           user.permissions.includes("finance") && (
             <>
@@ -3509,7 +3669,16 @@ export function DeleteInvoiceDialog({
         if (active) setDoc(d);
       })
       .catch((e) => {
-        if (active) setError(e.message);
+        if (active)
+          setError(
+            [
+              "SALE_DUE_REQUIRED",
+              "STOCK_CHANGED",
+              "SELECT_STOCK_DEVICES",
+            ].includes(e.message)
+              ? t(`client.${e.message}`)
+              : e.message,
+          );
       });
     return () => {
       active = false;
@@ -3560,7 +3729,15 @@ export function DeleteInvoiceDialog({
                   : t("deleteInvoice.deletedSale"),
             );
           } catch (e: any) {
-            setError(e.message);
+            setError(
+              [
+                "SALE_DUE_REQUIRED",
+                "STOCK_CHANGED",
+                "SELECT_STOCK_DEVICES",
+              ].includes(e.message)
+                ? t(`client.${e.message}`)
+                : e.message,
+            );
           } finally {
             setBusy(false);
           }
@@ -3583,10 +3760,7 @@ export function DeleteInvoiceDialog({
           <button className="button" type="button" onClick={close}>
             {t("common.cancel")}
           </button>
-          <button
-            className="button button-danger"
-            disabled={busy || !doc}
-          >
+          <button className="button button-danger" disabled={busy || !doc}>
             {busy
               ? t("deleteInvoice.deleting")
               : settlement
@@ -3616,6 +3790,7 @@ export function ProductDetail({
   const [adjustQty, setAdjustQty] = useState("1");
   const [adjustUnits, setAdjustUnits] = useState<Device[]>([]);
   const [receiveUnits, setReceiveUnits] = useState<DeviceDetails[]>([]);
+  const deleteRequest = useRef(requestKey());
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [labelDoc, setLabelDoc] = useState<PrintDocument | null>(null);
   const [labelCopies, setLabelCopies] = useState(1);
@@ -3637,7 +3812,16 @@ export function ProductDetail({
         if (active) setData(result);
       })
       .catch((e) => {
-        if (active) setError(e.message);
+        if (active)
+          setError(
+            [
+              "SALE_DUE_REQUIRED",
+              "STOCK_CHANGED",
+              "SELECT_STOCK_DEVICES",
+            ].includes(e.message)
+              ? t(`client.${e.message}`)
+              : e.message,
+          );
       });
     return () => {
       active = false;
@@ -3671,438 +3855,472 @@ export function ProductDetail({
       });
       done(t("productDetail.adjustmentPosted"));
     } catch (e: any) {
-      setError(e.message);
+      setError(
+        ["SALE_DUE_REQUIRED", "STOCK_CHANGED", "SELECT_STOCK_DEVICES"].includes(
+          e.message,
+        )
+          ? t(`client.${e.message}`)
+          : e.message,
+      );
     } finally {
       setBusy(false);
     }
   }
   return (
     <>
-    <Modal
-      title={product.name}
-      subtitle={`${product.sku} · ${product.brand} · ${product.model}`}
-      onClose={close}
-      wide
-      className="product-detail-modal"
-    >
-      <div className="form-body">
-        <div className="product-detail-top">
-          <ProductPhoto product={product} alt={product.name} eager />
-          <div className="product-detail-identity">
-            <p>{t("inventory.sellingPrice")}</p>
-            <h2>{af(product.price)}</h2>
-            <p>
-              {product.condition} ·{" "}
-              {product.warranty || t("productDetail.noWarranty")}
-            </p>
-            {(user.permissions.includes("view_costs") ||
-              user.permissions.includes("purchases")) &&
-              product.unit_cost != null && (
-                <p>
-                  {t("inventory.unitCost")}: {af(product.unit_cost, 2)}
-                </p>
-              )}
-            {(user.permissions.includes("view_costs") ||
-              user.permissions.includes("purchases")) &&
-            (product.cost_foreign || product.cost_aed || product.fx_rate) ? (
+      <Modal
+        title={product.name}
+        subtitle={`${product.sku} · ${product.brand} · ${product.model}`}
+        onClose={close}
+        wide
+        className="product-detail-modal"
+      >
+        <div className="form-body">
+          <div className="product-detail-top">
+            <ProductPhoto product={product} alt={product.name} eager />
+            <div className="product-detail-identity">
+              <p>{t("inventory.sellingPrice")}</p>
+              <h2>{af(product.price)}</h2>
               <p>
-                <CurrencyFlag code={product.currency || "AED"} />{" "}
-                {t("productDetail.dubaiCost", {
-                  aed: foreignMoney(
-                    product.cost_foreign ?? product.cost_aed ?? 0,
-                    product.currency || "AED",
-                  ),
-                  rate: fxRateLabel(
-                    product.fx_rate || 0,
-                    product.currency || "AED",
-                  ),
-                  afn: af(product.unit_cost || 0, 2),
-                })}
+                {product.condition} ·{" "}
+                {product.warranty || t("productDetail.noWarranty")}
               </p>
-            ) : null}
-          </div>
-          <section
-            className="product-stock-summary"
-            aria-label={t("productDetail.currentStock")}
-            aria-live="polite"
-          >
-            <span>{t("productDetail.currentStock")}</span>
-            <strong className="numeric">{data ? product.stock : "—"}</strong>
-            <small>{t("productDetail.remainingNow")}</small>
-            <Badge
-              tone={
-                product.stock === 0
-                  ? "red"
-                  : product.stock <= product.reorder_level
-                    ? "yellow"
-                    : "green"
-              }
-            >
-              {!data
-                ? error
-                  ? t("productDetail.stockUnavailable")
-                  : t("common.loading")
-                : product.stock === 0
-                  ? t("productDetail.zeroStock")
-                  : product.stock <= product.reorder_level
-                    ? t("productDetail.lowStock")
-                    : t("productDetail.available")}
-            </Badge>
-            <small>
-              {t("productDetail.reorderAt", { n: product.reorder_level })}
-            </small>
-          </section>
-        </div>
-        <div
-          className="report-tabs product-detail-tabs"
-          role="tablist"
-          aria-label={t("productDetail.information")}
-        >
-          {(["details", "movements"] as const).map((id) => (
-            <button
-              key={id}
-              type="button"
-              role="tab"
-              id={`product-${id}-tab`}
-              aria-selected={tab === id}
-              aria-controls={`product-${id}-panel`}
-              tabIndex={tab === id ? 0 : -1}
-              className={tab === id ? "active" : ""}
-              onClick={() => setTab(id)}
-              onKeyDown={(event) => {
-                if (
-                  ["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)
-                ) {
-                  event.preventDefault();
-                  const next =
-                    event.key === "Home"
-                      ? "details"
-                      : event.key === "End"
-                        ? "movements"
-                        : id === "details"
-                          ? "movements"
-                          : "details";
-                  setTab(next);
-                  document.getElementById(`product-${next}-tab`)?.focus();
-                }
-              }}
-            >
-              {t(
-                id === "details"
-                  ? "productDetail.details"
-                  : "productDetail.movementHistory",
-              )}
-            </button>
-          ))}
-        </div>
-        <section
-          role="tabpanel"
-          tabIndex={0}
-          id="product-details-panel"
-          aria-labelledby="product-details-tab"
-          hidden={tab !== "details"}
-        >
-          <div className="spec-grid product-identity-grid">
-            {[
-              [t("productDetail.category"), product.category],
-              [t("productDetail.company"), product.brand],
-              [t("productDetail.model"), product.model],
-              ["SKU", product.sku],
-              [t("productDetail.barcode"), product.barcode],
-              [t("productDetail.location"), product.location],
-            ]
-              .filter(([, value]) => value)
-              .map(([label, value]) => (
-                <div key={label}>
-                  <span>{label}</span>
-                  <strong>{value}</strong>
-                </div>
-              ))}
-          </div>
-          <div className="spec-grid">
-            {Object.entries(product.attributes || {})
-              .filter(([, v]) => v)
-              .map(([k, v]) => (
-                <div key={k}>
-                  <span>{k}</span>
-                  <strong>{v}</strong>
-                </div>
-              ))}
-          </div>
-        </section>
-        <section
-          role="tabpanel"
-          tabIndex={0}
-          id="product-movements-panel"
-          aria-labelledby="product-movements-tab"
-          hidden={tab !== "movements"}
-        >
-          <div className="form-section-title">
-            {t("productDetail.movementHistory")}{" "}
-            <small>{t("productDetail.latest100")}</small>
-          </div>
-          <div className="table-wrap">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>{t("productDetail.colDate")}</th>
-                  <th>{t("productDetail.colReference")}</th>
-                  <th>{t("productDetail.colType")}</th>
-                  <th>{t("productDetail.colQuantity")}</th>
-                  <th>{t("productDetail.remainingAfter")}</th>
-                  {user.permissions.includes("view_costs") && (
-                    <th>{t("productDetail.colCostMove")}</th>
-                  )}
-                </tr>
-              </thead>
-              <tbody>
-                {movements.map((m: any) => (
-                  <tr key={m.id}>
-                    <td>{m.date}</td>
-                    <td>{m.number}</td>
-                    <td>{m.kind.replaceAll("_", " ")}</td>
-                    <td className={m.quantity > 0 ? "text-green" : "text-red"}>
-                      {m.quantity > 0 ? "+" : ""}
-                      {m.quantity}
-                    </td>
-                    <td className="numeric">
-                      <strong>{m.remaining}</strong>
-                    </td>
-                    {user.permissions.includes("view_costs") && (
-                      <td>{af(m.cost)}</td>
-                    )}
-                  </tr>
-                ))}
-                {!movements.length && (
-                  <tr>
-                    <td
-                      colSpan={user.permissions.includes("view_costs") ? 6 : 5}
-                    >
-                      {!data
-                        ? error || t("common.loading")
-                        : t("productDetail.noMovements")}
-                    </td>
-                  </tr>
+              {(user.permissions.includes("view_costs") ||
+                user.permissions.includes("purchases")) &&
+                product.unit_cost != null && (
+                  <p>
+                    {t("inventory.unitCost")}: {af(product.unit_cost, 2)}
+                  </p>
                 )}
-              </tbody>
-            </table>
+              {(user.permissions.includes("view_costs") ||
+                user.permissions.includes("purchases")) &&
+              (product.cost_foreign || product.cost_aed || product.fx_rate) ? (
+                <p>
+                  <CurrencyFlag code={product.currency || "AED"} />{" "}
+                  {t("productDetail.dubaiCost", {
+                    aed: foreignMoney(
+                      product.cost_foreign ?? product.cost_aed ?? 0,
+                      product.currency || "AED",
+                    ),
+                    rate: fxRateLabel(
+                      product.fx_rate || 0,
+                      product.currency || "AED",
+                    ),
+                    afn: af(product.unit_cost || 0, 2),
+                  })}
+                </p>
+              ) : null}
+            </div>
+            <section
+              className="product-stock-summary"
+              aria-label={t("productDetail.currentStock")}
+              aria-live="polite"
+            >
+              <span>{t("productDetail.currentStock")}</span>
+              <strong className="numeric">{data ? product.stock : "—"}</strong>
+              <small>{t("productDetail.remainingNow")}</small>
+              <Badge
+                tone={
+                  product.stock === 0
+                    ? "red"
+                    : product.stock <= product.reorder_level
+                      ? "yellow"
+                      : "green"
+                }
+              >
+                {!data
+                  ? error
+                    ? t("productDetail.stockUnavailable")
+                    : t("common.loading")
+                  : product.stock === 0
+                    ? t("productDetail.zeroStock")
+                    : product.stock <= product.reorder_level
+                      ? t("productDetail.lowStock")
+                      : t("productDetail.available")}
+              </Badge>
+              <small>
+                {t("productDetail.reorderAt", { n: product.reorder_level })}
+              </small>
+            </section>
           </div>
-        </section>
-        {adjust && (
-          <form onSubmit={submit} className="adjust-form">
-            <div className="form-section-title">
-              {t("productDetail.adjust")}
-            </div>
-            <div className="form-grid">
-              <Field
-                label={t("productDetail.qtyChange")}
-                hint={t("productDetail.adjustHint")}
-              >
-                <NumericInput
-                  kind="signed-integer"
-                  name="quantity"
-                  value={adjustQty}
-                  onChange={(e) => setAdjustQty(e.target.value)}
-                  required
-                />
-              </Field>
-              <Field label={t("productDetail.unitCostAdd")}>
-                <NumericInput
-                  name="cost"
-                  min="0"
-                  step="0.01"
-                  defaultValue="0"
-                />
-              </Field>
-            </div>
-            <Field label={t("productDetail.reason")}>
-              <input
-                name="note"
-                minLength={3}
-                required
-                placeholder={t("productDetail.reasonPh")}
-              />
-            </Field>
-            {user.role === "Owner" && product.stock === 0 && (
-              <label className="checkbox-field">
-                <input name="opening" type="checkbox" />
-                <span>
-                  <strong>{t("productDetail.openingForward")}</strong>
-                  <small>{t("productDetail.openingForwardHint")}</small>
-                </span>
-              </label>
-            )}
-            {!!product.serialized &&
-              (Number(adjustQty) < 0 ? (
-                <DeviceSelection
-                  product={product}
-                  selected={adjustUnits}
-                  onChange={setAdjustUnits}
-                />
-              ) : (
-                <ReceiveDevices
-                  quantity={Number(adjustQty)}
-                  values={receiveUnits}
-                  onChange={setReceiveUnits}
-                />
-              ))}
-            <p className="help-note">{t("productDetail.adjustHelp")}</p>
-            <ErrorMessage error={error} />
-            <button className="button button-dark" disabled={busy}>
-              {busy ? t("common.saving") : t("productDetail.postAdjust")}
-            </button>
-          </form>
-        )}
-        {confirmDelete && (
-          <div className="product-delete-confirm" role="alert">
-            <p>{t("productDetail.deleteConfirm")}</p>
-            <div className="heading-actions">
+          <div
+            className="report-tabs product-detail-tabs"
+            role="tablist"
+            aria-label={t("productDetail.information")}
+          >
+            {(["details", "movements"] as const).map((id) => (
               <button
-                className="button"
-                disabled={busy}
-                onClick={() => setConfirmDelete(false)}
-              >
-                {t("common.cancel")}
-              </button>
-              <button
-                className="button button-danger"
-                disabled={busy}
-                onClick={async () => {
-                  setBusy(true);
-                  setError("");
-                  try {
-                    await api("productDelete", { id: product.id });
-                    done(t("productDetail.deleted"));
-                  } catch (e: any) {
-                    setError(e.message);
-                    setConfirmDelete(false);
-                  } finally {
-                    setBusy(false);
+                key={id}
+                type="button"
+                role="tab"
+                id={`product-${id}-tab`}
+                aria-selected={tab === id}
+                aria-controls={`product-${id}-panel`}
+                tabIndex={tab === id ? 0 : -1}
+                className={tab === id ? "active" : ""}
+                onClick={() => setTab(id)}
+                onKeyDown={(event) => {
+                  if (
+                    ["ArrowLeft", "ArrowRight", "Home", "End"].includes(
+                      event.key,
+                    )
+                  ) {
+                    event.preventDefault();
+                    const next =
+                      event.key === "Home"
+                        ? "details"
+                        : event.key === "End"
+                          ? "movements"
+                          : id === "details"
+                            ? "movements"
+                            : "details";
+                    setTab(next);
+                    document.getElementById(`product-${next}-tab`)?.focus();
                   }
                 }}
               >
-                <TrashIcon size={15} />
-                {t("common.delete")}
+                {t(
+                  id === "details"
+                    ? "productDetail.details"
+                    : "productDetail.movementHistory",
+                )}
               </button>
-            </div>
+            ))}
           </div>
-        )}
-        <ErrorMessage error={!adjust ? error : ""} />
-      </div>
-      <div className="modal-actions">
-        {user.permissions.includes("inventory") && (
-          <button
-            className="button button-danger"
-            disabled={busy || !data}
-            onClick={() => {
-              setAdjust(false);
-              if (product.stock !== 0) {
-                setError(
-                  t("productDetail.deleteStockRemaining", { n: product.stock }),
-                );
-                return;
-              }
-              setError("");
-              setConfirmDelete(true);
-            }}
+          <section
+            role="tabpanel"
+            tabIndex={0}
+            id="product-details-panel"
+            aria-labelledby="product-details-tab"
+            hidden={tab !== "details"}
           >
-            <TrashIcon size={15} />
-            {t("common.delete")}
-          </button>
-        )}
-        {sell && user.permissions.includes("sales") && (
-          <button className="button button-dark" onClick={sell}>
-            {t("productDetail.sell")} <ArrowRightIcon size={15} />
-          </button>
-        )}
-        {user.permissions.includes("inventory") && (
-          <button className="button" onClick={edit}>
-            {t("productDetail.edit")}
-          </button>
-        )}
-        {user.permissions.includes("inventory") && (
-          <button
-            className="button"
-            disabled={busy}
-            onClick={async () => {
-              setError("");
-              let code = String(product.barcode || "").trim();
-              if (!code || !canEncodeQr(code)) {
-                setBusy(true);
-                try {
-                  code = generateProductBarcode();
-                  const result = await api<{ product: Product }>(
-                    "productUpdate",
-                    {
-                      id: product.id,
-                      name: product.name,
-                      brand: product.brand,
-                      model: product.model,
-                      sku: product.sku,
-                      barcode: code,
-                      category: product.category,
-                      price: product.price,
-                      minimum: product.minimum ?? 0,
-                      location: product.location || "",
-                      reorder_level: product.reorder_level,
-                      condition: product.condition || "New",
-                      warranty: product.warranty || "",
-                      attributes: product.attributes || {},
-                      currency: product.currency || "AED",
-                      cost_foreign:
-                        product.cost_foreign ?? product.cost_aed ?? 0,
-                      cost_aed: product.cost_aed ?? 0,
-                      cargo_rent: product.cargo_rent ?? 0,
-                      fx_rate: product.fx_rate ?? 0,
-                      unit_cost: product.unit_cost,
-                    },
-                  );
-                  setData((current: any) =>
-                    current
-                      ? { ...current, product: result.product }
-                      : { product: result.product, movements: [] },
-                  );
-                } catch (e: any) {
-                  setError(e.message);
-                  return;
-                } finally {
-                  setBusy(false);
+            <div className="spec-grid product-identity-grid">
+              {[
+                [t("productDetail.category"), product.category],
+                [t("productDetail.company"), product.brand],
+                [t("productDetail.model"), product.model],
+                ["SKU", product.sku],
+                [t("productDetail.barcode"), product.barcode],
+                [t("productDetail.location"), product.location],
+              ]
+                .filter(([, value]) => value)
+                .map(([label, value]) => (
+                  <div key={label}>
+                    <span>{label}</span>
+                    <strong>{value}</strong>
+                  </div>
+                ))}
+            </div>
+            <div className="spec-grid">
+              {Object.entries(product.attributes || {})
+                .filter(([, v]) => v)
+                .map(([k, v]) => (
+                  <div key={k}>
+                    <span>{k}</span>
+                    <strong>{v}</strong>
+                  </div>
+                ))}
+            </div>
+          </section>
+          <section
+            role="tabpanel"
+            tabIndex={0}
+            id="product-movements-panel"
+            aria-labelledby="product-movements-tab"
+            hidden={tab !== "movements"}
+          >
+            <div className="form-section-title">
+              {t("productDetail.movementHistory")}{" "}
+              <small>{t("productDetail.latest100")}</small>
+            </div>
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>{t("productDetail.colDate")}</th>
+                    <th>{t("productDetail.colReference")}</th>
+                    <th>{t("productDetail.colType")}</th>
+                    <th>{t("productDetail.colQuantity")}</th>
+                    <th>{t("productDetail.remainingAfter")}</th>
+                    {user.permissions.includes("view_costs") && (
+                      <th>{t("productDetail.colCostMove")}</th>
+                    )}
+                  </tr>
+                </thead>
+                <tbody>
+                  {movements.map((m: any) => (
+                    <tr key={m.id}>
+                      <td>{m.date}</td>
+                      <td>{m.number}</td>
+                      <td>{m.kind.replaceAll("_", " ")}</td>
+                      <td
+                        className={m.quantity > 0 ? "text-green" : "text-red"}
+                      >
+                        {m.quantity > 0 ? "+" : ""}
+                        {m.quantity}
+                      </td>
+                      <td className="numeric">
+                        <strong>{m.remaining}</strong>
+                      </td>
+                      {user.permissions.includes("view_costs") && (
+                        <td>{af(m.cost)}</td>
+                      )}
+                    </tr>
+                  ))}
+                  {!movements.length && (
+                    <tr>
+                      <td
+                        colSpan={
+                          user.permissions.includes("view_costs") ? 6 : 5
+                        }
+                      >
+                        {!data
+                          ? error || t("common.loading")
+                          : t("productDetail.noMovements")}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+          {adjust && (
+            <form onSubmit={submit} className="adjust-form">
+              <div className="form-section-title">
+                {t("productDetail.adjust")}
+              </div>
+              <div className="form-grid">
+                <Field
+                  label={t("productDetail.qtyChange")}
+                  hint={t("productDetail.adjustHint")}
+                >
+                  <NumericInput
+                    kind="signed-integer"
+                    name="quantity"
+                    value={adjustQty}
+                    onChange={(e) => setAdjustQty(e.target.value)}
+                    required
+                  />
+                </Field>
+                <Field label={t("productDetail.unitCostAdd")}>
+                  <NumericInput
+                    name="cost"
+                    min="0"
+                    step="0.01"
+                    defaultValue="0"
+                  />
+                </Field>
+              </div>
+              <Field label={t("productDetail.reason")}>
+                <input
+                  name="note"
+                  minLength={3}
+                  required
+                  placeholder={t("productDetail.reasonPh")}
+                />
+              </Field>
+              {user.role === "Owner" && product.stock === 0 && (
+                <label className="checkbox-field">
+                  <input name="opening" type="checkbox" />
+                  <span>
+                    <strong>{t("productDetail.openingForward")}</strong>
+                    <small>{t("productDetail.openingForwardHint")}</small>
+                  </span>
+                </label>
+              )}
+              {!!product.serialized &&
+                (Number(adjustQty) < 0 ? (
+                  <DeviceSelection
+                    product={product}
+                    selected={adjustUnits}
+                    onChange={setAdjustUnits}
+                  />
+                ) : (
+                  <ReceiveDevices
+                    quantity={Number(adjustQty)}
+                    values={receiveUnits}
+                    onChange={setReceiveUnits}
+                  />
+                ))}
+              <p className="help-note">{t("productDetail.adjustHelp")}</p>
+              <ErrorMessage error={error} />
+              <button className="button button-dark" disabled={busy}>
+                {busy ? t("common.saving") : t("productDetail.postAdjust")}
+              </button>
+            </form>
+          )}
+          {confirmDelete && (
+            <div className="product-delete-confirm" role="alert">
+              <p>{t("productDetail.deleteConfirm")}</p>
+              <p>
+                {t("client.deleteStock", {
+                  qty: product.stock,
+                  value: product.cost === undefined ? "—" : af(product.cost, 2),
+                })}
+              </p>
+              <div className="heading-actions">
+                <button
+                  className="button"
+                  disabled={busy}
+                  onClick={() => setConfirmDelete(false)}
+                >
+                  {t("common.cancel")}
+                </button>
+                <button
+                  className="button button-danger"
+                  disabled={busy}
+                  onClick={async () => {
+                    setBusy(true);
+                    setError("");
+                    try {
+                      await api("productDelete", {
+                        id: product.id,
+                        write_off: true,
+                        expected_stock: product.stock,
+                        expected_revision: product.stock_revision ?? 0,
+                        request_key: deleteRequest.current,
+                      });
+                      done(t("productDetail.deleted"));
+                    } catch (e: any) {
+                      setError(
+                        [
+                          "SALE_DUE_REQUIRED",
+                          "STOCK_CHANGED",
+                          "SELECT_STOCK_DEVICES",
+                        ].includes(e.message)
+                          ? t(`client.${e.message}`)
+                          : e.message,
+                      );
+                      setConfirmDelete(false);
+                    } finally {
+                      setBusy(false);
+                    }
+                  }}
+                >
+                  <TrashIcon size={15} />
+                  {t("common.delete")}
+                </button>
+              </div>
+            </div>
+          )}
+          <ErrorMessage error={!adjust ? error : ""} />
+        </div>
+        <div className="modal-actions">
+          {user.permissions.includes("inventory") && (
+            <button
+              className="button button-danger"
+              disabled={busy || !data}
+              onClick={() => {
+                setAdjust(false);
+                setError("");
+                setConfirmDelete(true);
+              }}
+            >
+              <TrashIcon size={15} />
+              {t("common.delete")}
+            </button>
+          )}
+          {sell && user.permissions.includes("sales") && (
+            <button className="button button-dark" onClick={sell}>
+              {t("productDetail.sell")} <ArrowRightIcon size={15} />
+            </button>
+          )}
+          {user.permissions.includes("inventory") && (
+            <button className="button" onClick={edit}>
+              {t("productDetail.edit")}
+            </button>
+          )}
+          {user.permissions.includes("inventory") && (
+            <button
+              className="button"
+              disabled={busy}
+              onClick={async () => {
+                setError("");
+                let code = String(product.barcode || "").trim();
+                if (!code || !canEncodeQr(code)) {
+                  setBusy(true);
+                  try {
+                    code = generateProductBarcode();
+                    const result = await api<{ product: Product }>(
+                      "productUpdate",
+                      {
+                        id: product.id,
+                        name: product.name,
+                        brand: product.brand,
+                        model: product.model,
+                        sku: product.sku,
+                        barcode: code,
+                        category: product.category,
+                        price: product.price,
+                        minimum: product.minimum ?? 0,
+                        location: product.location || "",
+                        reorder_level: product.reorder_level,
+                        condition: product.condition || "New",
+                        warranty: product.warranty || "",
+                        attributes: product.attributes || {},
+                        currency: product.currency || "AED",
+                        cost_foreign:
+                          product.cost_foreign ?? product.cost_aed ?? 0,
+                        cost_aed: product.cost_aed ?? 0,
+                        cargo_rent: product.cargo_rent ?? 0,
+                        fx_rate: product.fx_rate ?? 0,
+                        unit_cost: product.unit_cost,
+                      },
+                    );
+                    setData((current: any) =>
+                      current
+                        ? { ...current, product: result.product }
+                        : { product: result.product, movements: [] },
+                    );
+                  } catch (e: any) {
+                    setError(
+                      [
+                        "SALE_DUE_REQUIRED",
+                        "STOCK_CHANGED",
+                        "SELECT_STOCK_DEVICES",
+                      ].includes(e.message)
+                        ? t(`client.${e.message}`)
+                        : e.message,
+                    );
+                    return;
+                  } finally {
+                    setBusy(false);
+                  }
                 }
-              }
-              const suggested = product.stock > 0 ? product.stock : 1;
-              setLabelCopies(suggested);
-              setLabelDoc(
-                barcodeLabelDocument([product], {
-                  t,
-                  locale,
-                  copies: suggested,
-                }) as PrintDocument,
-              );
-            }}
-          >
-            <BarcodeIcon size={15} />
-            {t("barcode.printShort")}
+                const suggested = product.stock > 0 ? product.stock : 1;
+                setLabelCopies(suggested);
+                setLabelDoc(
+                  barcodeLabelDocument([product], {
+                    t,
+                    locale,
+                    copies: suggested,
+                  }) as PrintDocument,
+                );
+              }}
+            >
+              <BarcodeIcon size={15} />
+              {t("barcode.printShort")}
+            </button>
+          )}
+          {user.permissions.includes("inventory") && (
+            <button className="button" onClick={() => setAdjust(!adjust)}>
+              {adjust
+                ? t("productDetail.cancelAdjust")
+                : t("productDetail.adjust")}
+            </button>
+          )}
+          <button className="button" onClick={close}>
+            {t("productDetail.done")}
           </button>
-        )}
-        {user.permissions.includes("inventory") && (
-          <button className="button" onClick={() => setAdjust(!adjust)}>
-            {adjust
-              ? t("productDetail.cancelAdjust")
-              : t("productDetail.adjust")}
-          </button>
-        )}
-        <button className="button" onClick={close}>
-          {t("productDetail.done")}
-        </button>
-      </div>
-    </Modal>
-    {labelDoc && (
-      <PrintDialog
-        document={labelDoc}
-        defaultCopies={labelCopies}
-        onClose={() => setLabelDoc(null)}
-      />
-    )}
+        </div>
+      </Modal>
+      {labelDoc && (
+        <PrintDialog
+          document={labelDoc}
+          defaultCopies={labelCopies}
+          onClose={() => setLabelDoc(null)}
+        />
+      )}
     </>
   );
 }
@@ -4188,7 +4406,16 @@ export function PartyDetailDialog({
         if (active) setDetail(d);
       })
       .catch((e) => {
-        if (active) setError(e.message);
+        if (active)
+          setError(
+            [
+              "SALE_DUE_REQUIRED",
+              "STOCK_CHANGED",
+              "SELECT_STOCK_DEVICES",
+            ].includes(e.message)
+              ? t(`client.${e.message}`)
+              : e.message,
+          );
       });
     return () => {
       active = false;
@@ -4226,7 +4453,9 @@ export function PartyDetailDialog({
             <div className="people-ledger-balance">
               <span>{t("partyDetail.outstanding")}</span>
               <strong
-                className={(current.balance || 0) > 0 ? "text-red" : "text-green"}
+                className={
+                  (current.balance || 0) > 0 ? "text-red" : "text-green"
+                }
               >
                 {af(current.balance || 0)}
               </strong>
@@ -4307,7 +4536,15 @@ export function PartyDetailDialog({
                       );
                       close();
                     } catch (e: any) {
-                      setError(e.message);
+                      setError(
+                        [
+                          "SALE_DUE_REQUIRED",
+                          "STOCK_CHANGED",
+                          "SELECT_STOCK_DEVICES",
+                        ].includes(e.message)
+                          ? t(`client.${e.message}`)
+                          : e.message,
+                      );
                       setConfirmDelete(false);
                     } finally {
                       setBusy(false);
@@ -4355,7 +4592,10 @@ export function PartyDetailDialog({
               )}
             </div>
           )}
-          <div className="owner-ledger-tabs customer-detail-tabs" role="tablist">
+          <div
+            className="owner-ledger-tabs customer-detail-tabs"
+            role="tablist"
+          >
             <button
               className="button"
               role="tab"
@@ -4385,7 +4625,9 @@ export function PartyDetailDialog({
               <button
                 className="button"
                 role="tab"
-                aria-selected={detailTab === "ledger" && ledgerView === "resale"}
+                aria-selected={
+                  detailTab === "ledger" && ledgerView === "resale"
+                }
                 onClick={() => {
                   setDetailTab("ledger");
                   setLedgerView("resale");
@@ -4407,145 +4649,147 @@ export function PartyDetailDialog({
             />
           ) : (
             <>
-          <div className="panel-heading party-ledger-heading">
-            <h3>
-              {t(
-                ledgerView === "resale"
-                  ? "resale.ownerLedger"
-                  : "partyDetail.ledgerTitle",
+              <div className="panel-heading party-ledger-heading">
+                <h3>
+                  {t(
+                    ledgerView === "resale"
+                      ? "resale.ownerLedger"
+                      : "partyDetail.ledgerTitle",
+                  )}
+                </h3>
+                {detail && (
+                  <div className="inline-actions">
+                    <ReportPrintButton
+                      getDocument={() =>
+                        partyLedgerPrintDocument({
+                          party: detail.party,
+                          entries: detail.entries,
+                          pageStartBalance: detail.page_start_balance,
+                          kind,
+                          locale,
+                          t,
+                          money: af,
+                          foreignMoney,
+                          labelFor: (e: any) =>
+                            partyLedgerLabel(t, e) || e.kind || "",
+                        }) as PrintDocument
+                      }
+                    />
+                    <ReportPrintButton
+                      intent="pdf"
+                      getDocument={() =>
+                        partyLedgerPrintDocument({
+                          party: detail.party,
+                          entries: detail.entries,
+                          pageStartBalance: detail.page_start_balance,
+                          kind,
+                          locale,
+                          t,
+                          money: af,
+                          foreignMoney,
+                          labelFor: (e: any) =>
+                            partyLedgerLabel(t, e) || e.kind || "",
+                        }) as PrintDocument
+                      }
+                    />
+                  </div>
+                )}
+              </div>
+              {!detail ? (
+                <p className="muted">{t("partyDetail.loadingLedger")}</p>
+              ) : (
+                <>
+                  <div className="table-wrap">
+                    <table className="data-table ledger-table">
+                      <thead>
+                        <tr>
+                          <th className="ledger-col-date">
+                            {t("common.date")}
+                          </th>
+                          <th className="ledger-col-ref">
+                            {t("ledger.reference")}
+                          </th>
+                          <th className="numeric ledger-col-debit">
+                            {t("partyDetail.debit")}
+                          </th>
+                          <th className="numeric ledger-col-credit">
+                            {t("partyDetail.credit")}
+                          </th>
+                          <th className="numeric ledger-col-balance">
+                            {t("partyDetail.balance")}
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {ledgerRows.map((e: any) => (
+                          <tr
+                            key={e.id}
+                            onClick={() =>
+                              open("invoice", {
+                                id: e.document_id,
+                                kind: e.kind,
+                              })
+                            }
+                          >
+                            <td className="ledger-col-date">
+                              <bdi dir="ltr">{e.date}</bdi>
+                            </td>
+                            <td className="ledger-col-ref">
+                              <strong>{e.label}</strong>
+                              {e.number ? (
+                                <small className="block muted">
+                                  <bdi dir="ltr">{e.number}</bdi>
+                                </small>
+                              ) : null}
+                            </td>
+                            <td
+                              className={`money ledger-col-debit ${e.debit ? (kind === "customer" && ledgerView !== "resale" ? "text-red" : "text-green") : "muted"}`}
+                            >
+                              <strong>{e.debit ? af(e.debit) : "—"}</strong>
+                            </td>
+                            <td
+                              className={`money ledger-col-credit ${e.credit ? (kind === "customer" && ledgerView !== "resale" ? "text-green" : "text-red") : "muted"}`}
+                            >
+                              <strong>{e.credit ? af(e.credit) : "—"}</strong>
+                            </td>
+                            <td
+                              className={`money ledger-col-balance ${e.running > 0 ? "text-red" : "text-green"}`}
+                            >
+                              <strong>{af(e.running)}</strong>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  {!detail.entries.length && (
+                    <p className="muted">{t("partyDetail.noActivity")}</p>
+                  )}
+                  <div className="pagination ledger-pagination">
+                    <span>{t("ui.perPage", { n: 25 })}</span>
+                    <button
+                      className="button"
+                      disabled={!ledgerHistory.length}
+                      onClick={() => {
+                        setLedgerAfter(ledgerHistory.at(-1) || "");
+                        setLedgerHistory((h) => h.slice(0, -1));
+                      }}
+                    >
+                      {t("ui.newer")}
+                    </button>
+                    <button
+                      className="button"
+                      disabled={!detail.next}
+                      onClick={() => {
+                        setLedgerHistory((h) => [...h, ledgerAfter]);
+                        setLedgerAfter(detail.next || "");
+                      }}
+                    >
+                      {t("ui.older")}
+                    </button>
+                  </div>
+                </>
               )}
-            </h3>
-            {detail && (
-              <div className="inline-actions">
-                <ReportPrintButton
-                  getDocument={() =>
-                    partyLedgerPrintDocument({
-                      party: detail.party,
-                      entries: detail.entries,
-                      pageStartBalance: detail.page_start_balance,
-                      kind,
-                      locale,
-                      t,
-                      money: af,
-                      foreignMoney,
-                      labelFor: (e: any) =>
-                        partyLedgerLabel(t, e) || e.kind || "",
-                    }) as PrintDocument
-                  }
-                />
-                <ReportPrintButton
-                  intent="pdf"
-                  getDocument={() =>
-                    partyLedgerPrintDocument({
-                      party: detail.party,
-                      entries: detail.entries,
-                      pageStartBalance: detail.page_start_balance,
-                      kind,
-                      locale,
-                      t,
-                      money: af,
-                      foreignMoney,
-                      labelFor: (e: any) =>
-                        partyLedgerLabel(t, e) || e.kind || "",
-                    }) as PrintDocument
-                  }
-                />
-              </div>
-            )}
-          </div>
-          {!detail ? (
-            <p className="muted">{t("partyDetail.loadingLedger")}</p>
-          ) : (
-            <>
-              <div className="table-wrap">
-                <table className="data-table ledger-table">
-                  <thead>
-                    <tr>
-                      <th className="ledger-col-date">{t("common.date")}</th>
-                      <th className="ledger-col-ref">
-                        {t("ledger.reference")}
-                      </th>
-                      <th className="numeric ledger-col-debit">
-                        {t("partyDetail.debit")}
-                      </th>
-                      <th className="numeric ledger-col-credit">
-                        {t("partyDetail.credit")}
-                      </th>
-                      <th className="numeric ledger-col-balance">
-                        {t("partyDetail.balance")}
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {ledgerRows.map((e: any) => (
-                      <tr
-                        key={e.id}
-                        onClick={() =>
-                          open("invoice", {
-                            id: e.document_id,
-                            kind: e.kind,
-                          })
-                        }
-                      >
-                        <td className="ledger-col-date">
-                          <bdi dir="ltr">{e.date}</bdi>
-                        </td>
-                        <td className="ledger-col-ref">
-                          <strong>{e.label}</strong>
-                          {e.number ? (
-                            <small className="block muted">
-                              <bdi dir="ltr">{e.number}</bdi>
-                            </small>
-                          ) : null}
-                        </td>
-                        <td
-                          className={`money ledger-col-debit ${e.debit ? (kind === "customer" && ledgerView !== "resale" ? "text-red" : "text-green") : "muted"}`}
-                        >
-                          <strong>{e.debit ? af(e.debit) : "—"}</strong>
-                        </td>
-                        <td
-                          className={`money ledger-col-credit ${e.credit ? (kind === "customer" && ledgerView !== "resale" ? "text-green" : "text-red") : "muted"}`}
-                        >
-                          <strong>{e.credit ? af(e.credit) : "—"}</strong>
-                        </td>
-                        <td
-                          className={`money ledger-col-balance ${e.running > 0 ? "text-red" : "text-green"}`}
-                        >
-                          <strong>{af(e.running)}</strong>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              {!detail.entries.length && (
-                <p className="muted">{t("partyDetail.noActivity")}</p>
-              )}
-              <div className="pagination ledger-pagination">
-                <span>{t("ui.perPage", { n: 25 })}</span>
-                <button
-                  className="button"
-                  disabled={!ledgerHistory.length}
-                  onClick={() => {
-                    setLedgerAfter(ledgerHistory.at(-1) || "");
-                    setLedgerHistory((h) => h.slice(0, -1));
-                  }}
-                >
-                  {t("ui.newer")}
-                </button>
-                <button
-                  className="button"
-                  disabled={!detail.next}
-                  onClick={() => {
-                    setLedgerHistory((h) => [...h, ledgerAfter]);
-                    setLedgerAfter(detail.next || "");
-                  }}
-                >
-                  {t("ui.older")}
-                </button>
-              </div>
-            </>
-          )}
             </>
           )}
         </div>
@@ -4585,7 +4829,13 @@ export function UserForm({ close, done, user }: DialogProps & { user?: User }) {
       });
       done(user ? t("userForm.accessUpdated") : t("userForm.created"));
     } catch (e: any) {
-      setError(e.message);
+      setError(
+        ["SALE_DUE_REQUIRED", "STOCK_CHANGED", "SELECT_STOCK_DEVICES"].includes(
+          e.message,
+        )
+          ? t(`client.${e.message}`)
+          : e.message,
+      );
     } finally {
       setBusy(false);
     }
@@ -4701,7 +4951,13 @@ export function OwnerMovement({ close, done }: DialogProps) {
       });
       done(t("owner.cashSaved"));
     } catch (e: any) {
-      setError(e.message);
+      setError(
+        ["SALE_DUE_REQUIRED", "STOCK_CHANGED", "SELECT_STOCK_DEVICES"].includes(
+          e.message,
+        )
+          ? t(`client.${e.message}`)
+          : e.message,
+      );
     } finally {
       setBusy(false);
     }
@@ -4776,7 +5032,13 @@ export function OpeningBalanceForm({
       });
       done(t("opening.savedEquity"));
     } catch (e: any) {
-      setError(e.message);
+      setError(
+        ["SALE_DUE_REQUIRED", "STOCK_CHANGED", "SELECT_STOCK_DEVICES"].includes(
+          e.message,
+        )
+          ? t(`client.${e.message}`)
+          : e.message,
+      );
     } finally {
       setBusy(false);
     }

@@ -14,6 +14,8 @@ import { Modal, Empty, ErrorMessage } from "./ui";
 import "./notifications.css";
 type Data = {
   summary: {
+    due: number;
+    overdue: number;
     stock: number;
     zero: number;
     customers: number;
@@ -22,6 +24,7 @@ type Data = {
   };
   permissions: { stock: boolean; customers: boolean };
   revision: number;
+  asOf: string;
   rows: any[];
   next: string | null;
 };
@@ -117,19 +120,21 @@ export function NotificationsDialog({
   close,
   open,
   changed,
+  initialTab,
 }: {
   user: User;
   refresh: number;
   close: () => void;
   open: (name: string, data?: any) => void;
   changed: () => void;
+  initialTab?: "due" | "overdue";
 }) {
   const { t } = useI18n();
   const stockAllowed = user.permissions.some((p) =>
     ["inventory", "sales", "purchases"].includes(p),
   );
-  const [tab, setTab] = useState<"stock" | "customers">(
-    stockAllowed ? "stock" : "customers",
+  const [tab, setTab] = useState<"stock" | "customers" | "due" | "overdue">(
+    initialTab || (stockAllowed ? "stock" : "customers"),
   );
   const [data, setData] = useState<Data | null>(null),
     [error, setError] = useState(""),
@@ -161,7 +166,7 @@ export function NotificationsDialog({
   async function view(row: any) {
     setError("");
     try {
-      if (tab === "customers") {
+      if (tab !== "stock") {
         open("partyDetail", row);
         return;
       }
@@ -188,6 +193,7 @@ export function NotificationsDialog({
         kind: tab,
         cursor: data.next,
         revision: data.revision,
+        asOf: data.asOf,
       });
       if (version.current === current)
         setData((previous) =>
@@ -260,6 +266,17 @@ export function NotificationsDialog({
               <span>{data?.summary.customers ?? "—"}</span>
             </button>
           )}
+          {user.permissions.includes("people") &&
+            (["due", "overdue"] as const).map((kind) => (
+              <button
+                key={kind}
+                role="tab"
+                aria-selected={tab === kind}
+                onClick={() => setTab(kind)}
+              >
+                {t(`client.${kind}`)} <span>{data?.summary[kind] ?? "—"}</span>
+              </button>
+            ))}
           <button
             className="notification-refresh"
             onClick={() => setEpoch((v) => v + 1)}
@@ -277,7 +294,9 @@ export function NotificationsDialog({
           aria-label={t(
             tab === "stock"
               ? "notifications.stock"
-              : "notifications.customerBalances",
+              : tab === "customers"
+                ? "notifications.customerBalances"
+                : `client.${tab}`,
           )}
           aria-busy={busy}
         >
@@ -319,9 +338,26 @@ export function NotificationsDialog({
                       )
                     : t("notifications.balanceHint")}
                 </p>
+                {row.invoices && (
+                  <details>
+                    <summary>
+                      {t("client.dueInvoiceCount", { n: row.invoices.length })}
+                    </summary>
+                    {row.invoices.map((invoice: any) => (
+                      <button
+                        key={invoice.id}
+                        className="button"
+                        onClick={() => open("invoice", { id: invoice.id })}
+                      >
+                        {invoice.number} · {invoice.due_date} ·{" "}
+                        <bdi dir="ltr">{af(invoice.balance, 2)}</bdi>
+                      </button>
+                    ))}
+                  </details>
+                )}
               </div>
               <div className="notification-item-action">
-                {tab === "customers" && (
+                {tab !== "stock" && (
                   <strong className="text-red">
                     <bdi dir="ltr">{af(row.balance, 2)}</bdi>
                   </strong>

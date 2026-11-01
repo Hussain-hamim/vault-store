@@ -20,7 +20,7 @@ export type PrintSource =
 export type PrintSection = {
   title?: string;
   note?: string;
-  columns: { label: string; numeric?: boolean }[];
+  columns: { label: string; numeric?: boolean; identity?: boolean }[];
   rows: (string | number)[][];
   tones?: string[][];
   rawRows?: (string | number)[][];
@@ -55,7 +55,12 @@ export type PrintDocument = {
     owner2_phone?: string;
     bill_footer?: string;
   };
-  metadata?: { label: string; value: string | number; numeric?: boolean }[];
+  metadata?: {
+    label: string;
+    value: string | number;
+    numeric?: boolean;
+    essential?: boolean;
+  }[];
   sections?: PrintSection[];
   summary?: {
     key?: string;

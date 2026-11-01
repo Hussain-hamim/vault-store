@@ -8,6 +8,7 @@ const {
   shell,
   safeStorage,
   nativeImage,
+  Notification,
 } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
@@ -458,6 +459,31 @@ async function start() {
     }
     throw Error("Unknown operation.");
   });
+  let remindersReady = false;
+  const reminders = require("./due-reminders.cjs").createDueReminders({
+    directory: app.getPath("userData"),
+    Notification,
+    request: (...args) => db.request(...args),
+    getToken: () => accounts.token(),
+    active: () => remindersReady && !!licensing.state.active,
+    open: (tab) => {
+      if (mainWindow?.isMinimized()) mainWindow.restore();
+      mainWindow?.show();
+      mainWindow?.focus();
+      mainWindow?.webContents.send("vault:open-due", tab);
+    },
+  });
+  ipcMain.handle("vault:due-reminders", async (event, locale, token) => {
+    trusted(event);
+    licensing.assertActive();
+    await db.request("me", {}, token);
+    reminders.setLocale(locale);
+    remindersReady = true;
+    void reminders.check(token);
+    return true;
+  });
+  const dueTimer = setInterval(() => void reminders.check(), 60000);
+  dueTimer.unref();
   ipcMain.handle("vault:command", async (event, command, args, token) => {
     trusted(event);
     if (typeof command !== "string" || command.startsWith("_"))
@@ -470,7 +496,10 @@ async function start() {
         recoveryRequested = false;
       }
       if (command === "me" && token) accounts.remember(result, token);
-      if (command === "logout") accounts.logout(token);
+      if (command === "logout") {
+        accounts.logout(token);
+        remindersReady = false;
+      } else if (token) void reminders.check(token);
       if (["setup", "saveSettings"].includes(command)) {
         const status = await db.request("status");
         const entry = profiles.find(
@@ -770,7 +799,9 @@ async function start() {
   });
   if (process.platform === "darwin") {
     // Electron's Dock API accepts PNG; the packaged app keeps its native ICNS.
-    const dockIcon = nativeImage.createFromPath(path.join(app.getAppPath(), "build/icon.png"));
+    const dockIcon = nativeImage.createFromPath(
+      path.join(app.getAppPath(), "build/icon.png"),
+    );
     if (!dockIcon.isEmpty()) app.dock?.setIcon(dockIcon);
   }
   Menu.setApplicationMenu(

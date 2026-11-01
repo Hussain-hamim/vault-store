@@ -18,6 +18,7 @@ export type Product = {
   minimum: number;
   reorder_level: number;
   stock: number;
+  stock_revision?: number;
   serialized?: number;
   consignment_stock?: number;
   image: string;
@@ -96,6 +97,8 @@ export function productDetailLine(product: {
 declare global {
   interface Window {
     vault?: {
+      dueReminders?: (locale: string, token: string) => Promise<boolean>;
+      onOpenDue?: (callback: (tab: "due" | "overdue") => void) => () => void;
       accounts?: (action: string, id?: string) => Promise<any>;
       recovery?: (
         action: string,
@@ -296,4 +299,8 @@ export async function sendPrintJob(job: unknown) {
   if (!window.vault?.renderPrint)
     throw new Error("Desktop print service is unavailable.");
   return window.vault.renderPrint(job, token);
+}
+
+export function enableDueReminders(locale: string) {
+  return window.vault?.dueReminders?.(locale, getToken());
 }
