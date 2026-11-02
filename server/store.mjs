@@ -206,7 +206,7 @@ const productSchema = z
     name: text.min(2),
     brand: text.min(1),
     model: text.min(1),
-    sku: text.min(1),
+    sku: text.max(80).default(""),
     barcode: text.default(""),
     category: text.min(2).max(80),
     price: money,
@@ -405,6 +405,7 @@ export class Store {
       ).n;
       this.run("INSERT INTO sequences VALUES ('sale_documents',?)", sold);
     }
+    this.ensureProductSkuSequence();
     if (!this.setting("productSnapshotsReady"))
       this.transaction(() => {
         this.db.exec(
@@ -839,6 +840,51 @@ export class Store {
     if (rows.length >= 100) return;
     this.saveSetting("product_categories", [...rows, name]);
   }
+  ensureProductSkuSequence() {
+    if (this.one("SELECT value FROM sequences WHERE name='product_sku'")) return;
+    const max = this.one(
+      `SELECT COALESCE(MAX(CAST(sku AS INTEGER)),0) n FROM products
+       WHERE sku GLOB '[1-9]*' AND sku NOT GLOB '*[^0-9]*'`,
+    ).n;
+    this.run("INSERT INTO sequences(name,value) VALUES ('product_sku',?)", max);
+  }
+  peekProductSku() {
+    this.ensureProductSkuSequence();
+    return String(
+      this.one("SELECT value FROM sequences WHERE name='product_sku'").value + 1,
+    );
+  }
+  allocateProductSku() {
+    this.ensureProductSkuSequence();
+    return String(
+      this.one(
+        "UPDATE sequences SET value=value+1 WHERE name='product_sku' RETURNING value",
+      ).value,
+    );
+  }
+  bumpProductSkuSequence(sku) {
+    if (!/^[1-9]\d*$/.test(String(sku || ""))) return;
+    this.ensureProductSkuSequence();
+    const n = Number(sku);
+    const cur = this.one(
+      "SELECT value FROM sequences WHERE name='product_sku'",
+    ).value;
+    if (n > cur)
+      this.run("UPDATE sequences SET value=? WHERE name='product_sku'", n);
+  }
+  resolveProductSku(requested) {
+    let sku = String(requested || "").trim();
+    if (!sku || this.one("SELECT id FROM products WHERE sku=? COLLATE NOCASE", sku)) {
+      sku = this.allocateProductSku();
+      while (
+        this.one("SELECT id FROM products WHERE sku=? COLLATE NOCASE", sku)
+      )
+        sku = this.allocateProductSku();
+      return sku;
+    }
+    this.bumpProductSkuSequence(sku);
+    return sku;
+  }
   categoryImages() {
     const rows = this.setting("category_images");
     if (!rows || typeof rows !== "object" || Array.isArray(rows)) return {};
@@ -917,11 +963,12 @@ export class Store {
         : (d.unit_cost ?? 0);
     return this.transaction(() => {
       const pid = id();
+      const sku = this.resolveProductSku(d.sku);
       const productPhoto = saveProductPhoto(this, d);
       this.run(
         "INSERT INTO products(id,sku,barcode,name,brand,model,category,price,minimum,reorder_level,location,condition,warranty,attributes,serialized,image,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         pid,
-        d.sku,
+        sku,
         d.barcode,
         d.name,
         d.brand,
@@ -3592,6 +3639,7 @@ export class Store {
         this.validateCurrency(d.currency, d.fx_rate);
         const existing = this.one("SELECT * FROM products WHERE id=?", args.id);
         if (!existing) throw new Error("Product not found.");
+        if (!d.sku.trim()) throw new Error("Enter a SKU.");
         if (existing.serialized && !trackedCategory(d.category))
           throw new Error(
             "A device model cannot be changed into quantity-based accessories.",
@@ -3613,6 +3661,7 @@ export class Store {
             ...d,
             image: args.image === undefined ? existing.image : d.image,
           });
+          this.bumpProductSkuSequence(d.sku);
           this.run(
             "UPDATE products SET sku=?,barcode=?,name=?,brand=?,model=?,category=?,price=?,minimum=?,reorder_level=?,location=?,condition=?,warranty=?,attributes=?,image=? WHERE id=?",
             d.sku,
@@ -4422,6 +4471,10 @@ export class Store {
         return this.productCategories();
       case "categoryImages":
         return this.categoryImages();
+      case "productSkuNext":
+        if (!user.permissions.includes("inventory"))
+          throw new Error("Permission required: inventory");
+        return { sku: this.peekProductSku() };
       case "productBrands":
         return this.productBrands();
       case "currencyCreate": {

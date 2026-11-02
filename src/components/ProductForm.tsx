@@ -50,10 +50,7 @@ import {
   specFieldLabel,
 } from "./product-fields";
 import { trackedCategory } from "../../shared/product-categories.mjs";
-import {
-  generateProductBarcode,
-  generateProductSku,
-} from "../barcode/generate.mjs";
+import { generateProductBarcode } from "../barcode/generate.mjs";
 import { canEncodeQr } from "../barcode/qrcode.mjs";
 import { barcodeLabelDocument } from "../printing/barcode-label.mjs";
 import { PrintDialog } from "../printing/PrintDialog";
@@ -165,7 +162,7 @@ function empty(common?: Values): Entry {
     brand: common?.brand || "Dell",
     brandOther: common?.brandOther || "",
     model: "",
-    sku: generateProductSku(),
+    sku: "",
     barcode: "",
     accessory: "Keyboard",
     accessoryOther: "",
@@ -276,6 +273,25 @@ export function ProductForm({
       active = false;
     };
   }, []);
+  async function fillNextSku(force = false) {
+    if (editing) return;
+    try {
+      const { sku } = await api<{ sku: string }>("productSkuNext");
+      setEntry((e) => {
+        if (e.original) return e;
+        if (!force && e.data.sku.trim()) return e;
+        const data = { ...e.data, sku };
+        const next = { ...e, data };
+        next.baseline = e.data.sku.trim() ? e.baseline : signature(next);
+        return next;
+      });
+    } catch {
+      /* Keep typed SKU if the preview call fails offline mid-entry. */
+    }
+  }
+  useEffect(() => {
+    if (!editing && !d.sku.trim()) void fillNextSku(true);
+  }, [editing, epoch]);
   function value(name: string, value: string) {
     setEntry((e) => ({ ...e, data: { ...e.data, [name]: value } }));
     setNotice("");
@@ -422,7 +438,7 @@ export function ProductForm({
       name: d.name,
       brand,
       model: d.model,
-      sku: d.sku.trim() || generateProductSku(),
+      sku: d.sku.trim(),
       barcode: d.barcode,
       category,
       serialized,
@@ -849,7 +865,7 @@ export function ProductForm({
                             aria-label={t("barcode.generate")}
                             tabIndex={-1}
                             disabled={busy || photoBusy}
-                            onClick={() => value("sku", generateProductSku())}
+                            onClick={() => void fillNextSku(true)}
                           >
                             <ArrowsClockwiseIcon size={15} aria-hidden="true" />
                             {t("barcode.generateShort")}
