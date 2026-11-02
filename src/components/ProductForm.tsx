@@ -50,7 +50,10 @@ import {
   specFieldLabel,
 } from "./product-fields";
 import { trackedCategory } from "../../shared/product-categories.mjs";
-import { generateProductBarcode } from "../barcode/generate.mjs";
+import {
+  generateProductBarcode,
+  generateProductSku,
+} from "../barcode/generate.mjs";
 import { canEncodeQr } from "../barcode/qrcode.mjs";
 import { barcodeLabelDocument } from "../printing/barcode-label.mjs";
 import { PrintDialog } from "../printing/PrintDialog";
@@ -162,7 +165,7 @@ function empty(common?: Values): Entry {
     brand: common?.brand || "Dell",
     brandOther: common?.brandOther || "",
     model: "",
-    sku: "",
+    sku: generateProductSku(),
     barcode: "",
     accessory: "Keyboard",
     accessoryOther: "",
@@ -419,7 +422,7 @@ export function ProductForm({
       name: d.name,
       brand,
       model: d.model,
-      sku: d.sku,
+      sku: d.sku.trim() || generateProductSku(),
       barcode: d.barcode,
       category,
       serialized,
@@ -827,7 +830,33 @@ export function ProductForm({
                       }}
                     />
                     {text("model", t("product.model"), true)}
-                    {text("sku", t("product.sku"), true)}
+                    <Field label={t("product.sku")} icon={TagIcon}>
+                      <div className="entry-barcode-row">
+                        <input
+                          name="sku"
+                          value={d.sku}
+                          required
+                          onChange={(e) => value("sku", e.target.value)}
+                          placeholder={t("product.sku")}
+                          dir="ltr"
+                          autoComplete="off"
+                        />
+                        {!editing && (
+                          <button
+                            type="button"
+                            className="button"
+                            title={t("barcode.generate")}
+                            aria-label={t("barcode.generate")}
+                            tabIndex={-1}
+                            disabled={busy || photoBusy}
+                            onClick={() => value("sku", generateProductSku())}
+                          >
+                            <ArrowsClockwiseIcon size={15} aria-hidden="true" />
+                            {t("barcode.generateShort")}
+                          </button>
+                        )}
+                      </div>
+                    </Field>
                     <Field label={t("product.barcode")} icon={BarcodeIcon}>
                       <div className="entry-barcode-row">
                         <input
@@ -919,6 +948,7 @@ export function ProductForm({
                       <SpecInput
                         key={a}
                         name={a}
+                        category={resolvedCategory}
                         label={specFieldLabel(t, a)}
                         value={d[a] || ""}
                         onChange={(v) => value(a, v)}
@@ -1359,15 +1389,36 @@ function SpecInput({
   label,
   value,
   onChange,
+  category = "",
 }: {
   name: string;
   label: string;
   value: string;
   onChange: (value: string) => void;
+  category?: string;
 }) {
+  const computerStorage = [
+    "128 GB SSD",
+    "256 GB SSD",
+    "500 GB SSD",
+    "512 GB SSD",
+    "1 TB SSD",
+    "2 TB SSD",
+    "4 TB SSD",
+    "128 GB HDD",
+    "256 GB HDD",
+    "500 GB HDD",
+    "512 GB HDD",
+    "1 TB HDD",
+    "2 TB HDD",
+    "4 TB HDD",
+  ];
   const suggestionMap: Record<string, string[]> = {
     RAM: ["4 GB", "8 GB", "16 GB", "32 GB", "64 GB", "128 GB"],
-    Storage: ["128 GB", "256 GB", "512 GB", "1 TB", "2 TB", "4 TB"],
+    Storage:
+      category === "Computers"
+        ? computerStorage
+        : ["128 GB", "256 GB", "512 GB", "1 TB", "2 TB", "4 TB"],
     Generation: [
       ...Array.from({ length: 13 }, (_, i) =>
         normalizeGeneration(String(i + 2)),
