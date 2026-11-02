@@ -50,7 +50,10 @@ export function saveProductPhoto(s, product) {
       data,
       new Date().toISOString(),
     );
-    return "photo:" + id;
+    const image = "photo:" + id;
+    // First/updated upload on a custom category becomes that category's default.
+    s.rememberCategoryImage?.(product.category, image);
+    return image;
   }
   if (isStoredPhoto(product.image)) {
     if (
@@ -59,7 +62,8 @@ export function saveProductPhoto(s, product) {
       throw new Error("Product photo was not found. Upload it again.");
     return product.image;
   }
-  return automaticProductPhoto(product).src;
+  const categoryImage = s.categoryPhoto?.(product.category) || "";
+  return automaticProductPhoto(product, categoryImage).src;
 }
 export function readProductPhoto(s, ref) {
   if (!isStoredPhoto(ref)) throw new Error("Invalid product photo reference.");

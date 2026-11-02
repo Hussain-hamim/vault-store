@@ -105,6 +105,16 @@ export function stripCustomPhotosFromBackup(file) {
       db.exec("DELETE FROM product_photos");
       compact = true;
     }
+    // Custom category defaults point at photo blobs; clear them with the blobs.
+    const categoryImages = db
+      .prepare("SELECT value FROM settings WHERE key='category_images'")
+      .get();
+    if (categoryImages) {
+      db.prepare("UPDATE settings SET value=? WHERE key='category_images'").run(
+        "{}",
+      );
+      compact = true;
+    }
     db.exec("COMMIT");
   } catch (error) {
     try {

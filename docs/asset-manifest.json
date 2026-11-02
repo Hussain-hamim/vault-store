@@ -61,6 +61,10 @@
     {
       "path": "public/assets/speaker.jpg",
       "prompt": "Square studio catalog photograph of a compact cylindrical portable Bluetooth speaker in matte black, pale neutral gray background."
+    },
+    {
+      "path": "public/assets/printer.jpg",
+      "prompt": "Clean product studio photograph of a modern desktop laser printer, centered, soft white seamless studio background, soft even lighting, no text, no logos, no people, minimal shadows, commercial catalog style, front three-quarter view."
     }
   ],
   "icons": {

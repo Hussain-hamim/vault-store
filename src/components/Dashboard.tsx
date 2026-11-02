@@ -70,6 +70,7 @@ const BUILTIN_CATEGORY_TABS = [
   "Mobiles",
   "Tablets",
   "Cameras",
+  "Printers",
   "Storage",
   "Accessories",
 ] as const;
@@ -80,6 +81,7 @@ const CATEGORY_I18N: Record<string, string> = {
   Mobiles: "inventory.mobiles",
   Tablets: "inventory.tablets",
   Cameras: "inventory.cameras",
+  Printers: "inventory.printers",
   Storage: "inventory.storage",
   Accessories: "inventory.accessories",
 };
@@ -89,6 +91,7 @@ const API_CATEGORY_NAMES: Record<string, string> = {
   Mobiles: "inventory.mobiles",
   Tablets: "inventory.tablets",
   Cameras: "inventory.cameras",
+  Printers: "inventory.printers",
   Storage: "inventory.storage",
   Accessories: "inventory.accessories",
 };

@@ -19,6 +19,7 @@ import {
 } from "./inventory-units.mjs";
 import { productDraftCommand } from "./product-drafts.mjs";
 import { saveProductPhoto, readProductPhoto } from "./product-photos.mjs";
+import { isStoredPhoto } from "./product-images.mjs";
 import { stripCustomPhotosFromBackup } from "./backup-photos.mjs";
 import {
   DEFAULT_CURRENCIES,
@@ -837,6 +838,41 @@ export class Store {
     if (rows.some((c) => c.toLowerCase() === name.toLowerCase())) return;
     if (rows.length >= 100) return;
     this.saveSetting("product_categories", [...rows, name]);
+  }
+  categoryImages() {
+    const rows = this.setting("category_images");
+    if (!rows || typeof rows !== "object" || Array.isArray(rows)) return {};
+    const out = {};
+    for (const [key, value] of Object.entries(rows)) {
+      if (typeof key === "string" && key.trim() && isStoredPhoto(value))
+        out[key.trim()] = value;
+    }
+    return out;
+  }
+  categoryPhoto(category) {
+    const name = String(category || "").trim();
+    if (!name || isBuiltinCategory(name)) return "";
+    const images = this.categoryImages();
+    if (images[name]) return images[name];
+    const hit = Object.entries(images).find(
+      ([key]) => key.toLowerCase() === name.toLowerCase(),
+    );
+    return hit?.[1] || "";
+  }
+  rememberCategoryImage(category, image) {
+    const name = String(category || "").trim();
+    if (!name || isBuiltinCategory(name) || !isStoredPhoto(image)) return;
+    const images = this.categoryImages();
+    const existingKey = Object.keys(images).find(
+      (key) => key.toLowerCase() === name.toLowerCase(),
+    );
+    if (existingKey && existingKey !== name) delete images[existingKey];
+    images[name] = image;
+    const keys = Object.keys(images);
+    if (keys.length > 100) {
+      for (const key of keys.slice(0, keys.length - 100)) delete images[key];
+    }
+    this.saveSetting("category_images", images);
   }
   validateCurrency(currency, rate) {
     if (!this.currencies().some((c) => c.code === currency))
@@ -3526,12 +3562,28 @@ export class Store {
             throw new Error(
               "Stock remains. This product cannot be deleted until its quantity is zero.",
             );
-          if (product.active) {
-            this.run("UPDATE products SET active=0 WHERE id=?", product.id);
-            this.audit(user, "Delete product", product.id, {
-              sku: product.sku,
-              name: product.name,
-            });
+          // Soft-delete keeps the row for invoices/returns/reports, but frees
+          // SKU and barcode so a replacement catalog product can reuse them.
+          // Invoice lines keep the original identity via document_product_snapshots.
+          const freedSku = product.sku.startsWith("~del:")
+            ? product.sku
+            : `~del:${product.id}`;
+          if (
+            product.active ||
+            product.sku !== freedSku ||
+            (product.barcode || "") !== ""
+          ) {
+            this.run(
+              "UPDATE products SET active=0, sku=?, barcode='' WHERE id=?",
+              freedSku,
+              product.id,
+            );
+            if (product.active)
+              this.audit(user, "Delete product", product.id, {
+                sku: product.sku,
+                barcode: product.barcode || "",
+                name: product.name,
+              });
           }
           return op ? op.finish({ id: product.id }) : { id: product.id };
         });
@@ -4368,6 +4420,8 @@ export class Store {
         return this.currencies();
       case "productCategories":
         return this.productCategories();
+      case "categoryImages":
+        return this.categoryImages();
       case "productBrands":
         return this.productBrands();
       case "currencyCreate": {

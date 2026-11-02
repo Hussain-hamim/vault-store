@@ -4,6 +4,7 @@ export const BUILTIN_PRODUCT_CATEGORIES = [
   "Mobiles",
   "Tablets",
   "Cameras",
+  "Printers",
   "Storage",
   "Accessories",
 ];
@@ -84,6 +85,8 @@ export function specOrder(category, type) {
       "Battery",
     ];
   }
+  if (category === "Printers")
+    return ["Type", "PrintTechnology", "Color", "Connectivity", "PaperSize"];
   if (category === "Storage") return ["Storage", "Interface"];
   if (category === "Accessories") return ["Type"];
   if (category) return ["Type", "Color", "Compatibility"];
@@ -127,6 +130,8 @@ export function editableSpecKeys(category, type) {
       "Battery",
     ];
   }
+  if (category === "Printers")
+    return ["Type", "PrintTechnology", "Color", "Connectivity", "PaperSize"];
   if (category === "Storage") return ["Storage", "Interface"];
   if (category === "Accessories") return ["Compatibility", "Wattage", "Color"];
   return ["Type", "Color", "Compatibility"];

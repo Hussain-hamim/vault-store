@@ -7671,6 +7671,14 @@ html[dir="rtl"] .sale-customer-phone .phone-field select {
   border-color: var(--paint-border-b5add4, #b5add4);
   border-left-color: var(--paint-border-7a6bb5, #7a6bb5);
 }
+.inventory-row.cat-printers {
+  border-left-color: var(--paint-border-4a6f9a, #4a6f9a);
+  background: linear-gradient(90deg, var(--paint-bg-f2f5f9, #f2f5f9) 0%, var(--paint-bg-fff, #fff) 42%);
+}
+.inventory-row.cat-printers:hover {
+  border-color: var(--paint-border-9bb0c8, #9bb0c8);
+  border-left-color: var(--paint-border-4a6f9a, #4a6f9a);
+}
 .inventory-row.cat-default {
   border-left-color: var(--paint-border-9ba76e, #9ba76e);
   background: linear-gradient(90deg, var(--paint-bg-f6f8f0, #f6f8f0) 0%, var(--paint-bg-fff, #fff) 42%);
@@ -7790,6 +7798,10 @@ html[dir="rtl"] .sale-customer-phone .phone-field select {
   border-color: var(--paint-border-d5cee8, #d5cee8);
   background: var(--paint-bg-faf8fd, #faf8fd);
 }
+.cat-printers .inventory-spec {
+  border-color: var(--paint-border-c2d0e0, #c2d0e0);
+  background: var(--paint-bg-f5f8fb, #f5f8fb);
+}
 .inventory-chip {
   display: inline-flex;
   align-items: center;
@@ -7832,6 +7844,11 @@ html[dir="rtl"] .sale-customer-phone .phone-field select {
   background: var(--paint-bg-eeeaf8, #eeeaf8);
   color: var(--paint-fg-55488a, #55488a);
   border-color: var(--paint-border-d5cee8, #d5cee8);
+}
+.cat-printers .category-chip {
+  background: var(--paint-bg-e8eef5, #e8eef5);
+  color: var(--paint-fg-3a5678, #3a5678);
+  border-color: var(--paint-border-c2d0e0, #c2d0e0);
 }
 .cat-default .category-chip {
   background: var(--paint-bg-eef2e0, #eef2e0);
@@ -8052,18 +8069,32 @@ html[dir="rtl"] .sale-customer-phone .phone-field select {
 }
 .global-search-copy strong {
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .global-search-copy small,
-.global-search-meta small {
+.global-search-meta small,
+.global-search-subtitle {
   font-size: 11px;
+  font-weight: 500;
   color: var(--paint-fg-888, #888);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.global-search-details {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--paint-fg-2f2f33, #2f2f33);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.global-search-meta .global-search-details {
+  font-size: 12px;
+  color: var(--paint-fg-245d89, #245d89);
 }
 .global-search-meta {
   display: flex;

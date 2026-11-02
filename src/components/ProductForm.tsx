@@ -37,6 +37,7 @@ import {
 import { useI18n, useT } from "../i18n";
 import { Modal, Field as BaseField, NumericInput, ErrorMessage } from "./ui";
 import { ProductPhotoPicker, type PhotoValue } from "./ProductPhotoPicker";
+import { invalidateCategoryPhotos } from "../category-photos";
 import { CurrencyPicker } from "./CurrencyPicker";
 import {
   brandChoices,
@@ -562,6 +563,7 @@ export function ProductForm({
         p = r.product;
       }
       committed = true;
+      if (data.photo_data) invalidateCategoryPhotos();
       const savedEntry = existing(p);
       if (editing && cursor >= 0)
         setHistory((rows) =>
@@ -1314,9 +1316,9 @@ function SuggestField({
                   (i + (e.key === "ArrowDown" ? 1 : -1) + suggestions.length) %
                   suggestions.length,
               );
-            } else if (e.key === "Enter" && open && active >= 0) {
+            } else if (e.key === "Enter" && open) {
               e.preventDefault();
-              choose(suggestions[active]);
+              choose(suggestions[active >= 0 ? active : 0]);
             } else if (e.key === "Escape" && open) {
               e.preventDefault();
               e.stopPropagation();
@@ -1339,7 +1341,7 @@ function SuggestField({
               key={opt.value}
               id={`${listId}-${i}`}
               role="option"
-              aria-selected={active === i}
+              aria-selected={active === i || (active < 0 && i === 0)}
               tabIndex={-1}
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => choose(opt)}
@@ -1492,9 +1494,9 @@ function SpecInput({
                   (i + (e.key === "ArrowDown" ? 1 : -1) + suggestions.length) %
                   suggestions.length,
               );
-            } else if (e.key === "Enter" && open && active >= 0) {
+            } else if (e.key === "Enter" && open) {
               e.preventDefault();
-              choose(suggestions[active]);
+              choose(suggestions[active >= 0 ? active : 0]);
             } else if (e.key === "Escape" && open) {
               e.preventDefault();
               e.stopPropagation();
@@ -1517,7 +1519,7 @@ function SpecInput({
               key={s}
               id={`${listId}-${i}`}
               role="option"
-              aria-selected={active === i}
+              aria-selected={active === i || (active < 0 && i === 0)}
               tabIndex={-1}
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => choose(s)}

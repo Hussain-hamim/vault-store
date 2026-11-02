@@ -117,6 +117,7 @@ const BUILTIN_INVENTORY_CATEGORY_KEYS: Record<string, string> = {
   Mobiles: "mobiles",
   Tablets: "tablets",
   Cameras: "cameras",
+  Printers: "printers",
   Storage: "storage",
   Accessories: "accessories",
 };
@@ -223,6 +224,7 @@ export function ProductsPage({
       Mobiles: "cat-mobiles",
       Tablets: "cat-tablets",
       Cameras: "cat-cameras",
+      Printers: "cat-printers",
       Storage: "cat-storage",
       Accessories: "cat-accessories",
     })[c] || "cat-default";

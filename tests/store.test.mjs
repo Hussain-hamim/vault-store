@@ -3317,14 +3317,48 @@ test("product deletion requires zero stock and preserves invoices; returns resto
   );
   const doc = sale(f, 2, 0);
   const before = f.s.totals();
+  f.s.run("UPDATE products SET barcode=? WHERE id=?", "RTM-SSD-01", f.product);
+  const original = f.s.one(
+    "SELECT sku,barcode,name FROM products WHERE id=?",
+    f.product,
+  );
   await f.s.dispatch("productDelete", { id: f.product }, f.token);
   await f.s.dispatch("productDelete", { id: f.product }, f.token);
+  const deleted = f.s.one(
+    "SELECT active,sku,barcode FROM products WHERE id=?",
+    f.product,
+  );
+  assert.equal(deleted.active, 0);
+  assert.equal(deleted.sku, `~del:${f.product}`);
+  assert.equal(deleted.barcode, "");
   assert.equal(
-    (await f.s.dispatch("catalog", { q: "SSD-01" }, f.token)).rows.length,
+    (await f.s.dispatch("catalog", { q: original.sku }, f.token)).rows.length,
     0,
   );
   assert.equal(f.s.getDocument(doc.id).lines.length, 1);
+  assert.equal(f.s.getDocument(doc.id).lines[0].sku, original.sku);
   assert.deepEqual(f.s.totals().gross, before.gross);
+  const replacement = await f.s.dispatch(
+    "productCreate",
+    {
+      name: "Replacement drive",
+      brand: "Samsung",
+      model: "870",
+      sku: original.sku,
+      barcode: original.barcode,
+      category: "Storage",
+      price: 15000,
+      unit_cost: 10000,
+      opening_quantity: 1,
+    },
+    f.token,
+  );
+  const reused = f.s.one(
+    "SELECT sku,barcode FROM products WHERE id=?",
+    replacement.id,
+  );
+  assert.equal(reused.sku, original.sku);
+  assert.equal(reused.barcode, original.barcode);
   f.s.returnTrade(f.u, {
     original_id: doc.id,
     lines: [{ line_id: doc.lines[0].id, quantity: 1 }],
@@ -3336,8 +3370,18 @@ test("product deletion requires zero stock and preserves invoices; returns resto
     1,
   );
   assert.equal(
-    (await f.s.dispatch("catalog", { q: "SSD-01" }, f.token)).rows[0].stock,
+    f.s.one("SELECT stock,sku FROM products WHERE id=?", f.product).stock,
     1,
+  );
+  assert.equal(
+    f.s.one("SELECT sku FROM products WHERE id=?", f.product).sku,
+    `~del:${f.product}`,
+  );
+  assert.equal(
+    (await f.s.dispatch("catalog", { q: original.name }, f.token)).rows.some(
+      (row) => row.id === f.product,
+    ),
+    true,
   );
   await assert.rejects(
     f.s.dispatch("productDelete", { id: f.product }, f.token),

@@ -105,7 +105,7 @@ test("automatic photos use clean studio category illustrations", () => {
       model: "Case",
       attributes: { Type: "Case" },
     }).src,
-    "/assets/case.jpg",
+    "/assets/headphones.png",
   );
   assert.equal(
     automaticProductPhoto({
@@ -114,7 +114,39 @@ test("automatic photos use clean studio category illustrations", () => {
       model: "K380",
       attributes: { Type: "Keyboard" },
     }).src,
-    "/assets/keyboard.jpg",
+    "/assets/headphones.png",
+  );
+  assert.equal(
+    automaticProductPhoto({
+      brand: "Canon",
+      category: "Cameras",
+      model: "EOS",
+      attributes: { Type: "DSLR" },
+    }).src,
+    "/assets/webcam.jpg",
+  );
+  assert.equal(
+    automaticProductPhoto({
+      brand: "HP",
+      category: "Printers",
+      model: "LaserJet",
+    }).src,
+    "/assets/printer.jpg",
+  );
+  assert.equal(
+    automaticProductPhoto({
+      brand: "Store",
+      category: "Networking",
+      model: "Router",
+    }).src,
+    "/assets/adapter.png",
+  );
+  assert.equal(
+    automaticProductPhoto(
+      { brand: "Store", category: "Networking", model: "Router" },
+      "photo:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    ).src,
+    "photo:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   );
   const legacy = productPhotoSelection({
     brand: "Samsung",
@@ -139,6 +171,7 @@ test("bundled studio and reference photo files stay local and attributable", () 
     "/assets/laptop.png",
     "/assets/tablet.png",
     "/assets/storage.png",
+    "/assets/printer.jpg",
     "/assets/keyboard.jpg",
   ]) {
     const path = new URL("../public" + src, import.meta.url);
@@ -187,6 +220,56 @@ test("uploads reject non-images, forged mime types and oversized content", () =>
     /oversized/,
   );
   assert.equal(decodeProductPhoto(data(jpg, "jpeg")).mime, "image/jpeg");
+});
+test("custom category uploads become the default image for that category", async (t) => {
+  const f = fixture(t);
+  const first = await f.s.dispatch(
+    "productCreate",
+    product({
+      name: "PoE switch",
+      brand: "TP-Link",
+      model: "SG108",
+      category: "Networking",
+      photo_data: data(png, "png"),
+    }),
+    f.token,
+  );
+  const images = await f.s.dispatch("categoryImages", {}, f.token);
+  const firstImage = f.s.one(
+    "SELECT image FROM products WHERE id=?",
+    first.id,
+  ).image;
+  assert.equal(images.Networking, firstImage);
+  const categoryImage = images.Networking;
+  assert.ok(categoryImage.startsWith("photo:"));
+  const second = await f.s.dispatch(
+    "productCreate",
+    product({
+      name: "Access point",
+      brand: "TP-Link",
+      model: "EAP",
+      category: "Networking",
+    }),
+    f.token,
+  );
+  assert.equal(
+    f.s.one("SELECT image FROM products WHERE id=?", second.id).image,
+    categoryImage,
+  );
+  assert.equal(
+    productPhotoSelection(
+      { category: "Networking", image: "/assets/adapter.png" },
+      categoryImage,
+    ).src,
+    categoryImage,
+  );
+  assert.equal(
+    productPhotoSelection(
+      { category: "Networking", image: categoryImage },
+      categoryImage,
+    ).kind,
+    "category",
+  );
 });
 test("custom photos are separate from fast catalog rows, deduplicated, and reused only for the same company/model", async (t) => {
   const f = fixture(t);

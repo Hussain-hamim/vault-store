@@ -100,9 +100,7 @@ export function CustomerSalesHistory({
     row.lines
       .map(
         (line) =>
-          [line.name, line.brand, line.model, line.sku]
-            .filter(Boolean)
-            .join(" · ") +
+          [line.name, line.brand, line.model].filter(Boolean).join(" · ") +
           " × " +
           line.quantity,
       )

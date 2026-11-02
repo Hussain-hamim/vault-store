@@ -187,11 +187,27 @@ export function GlobalSearch({
                 </span>
                 <span className="global-search-copy">
                   <strong>{hit.title}</strong>
-                  <small>{hit.subtitle}</small>
+                  {hit.subtitle ? (
+                    <strong
+                      className={
+                        hit.type === "product"
+                          ? "global-search-details"
+                          : "global-search-subtitle"
+                      }
+                    >
+                      {hit.subtitle}
+                    </strong>
+                  ) : null}
                 </span>
                 <span className="global-search-meta">
                   <span className="global-search-kind">{label}</span>
-                  <small>{meta}</small>
+                  <small
+                    className={
+                      hit.type === "product" ? "global-search-details" : undefined
+                    }
+                  >
+                    {meta}
+                  </small>
                 </span>
               </button>
             );

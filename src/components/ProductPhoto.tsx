@@ -6,12 +6,17 @@ import {
   DeviceTabletIcon,
   HardDriveIcon,
   PackageIcon,
+  PrinterIcon,
 } from "@phosphor-icons/react";
 import { api } from "../api";
 import {
   productPhotoSelection,
   isStoredPhoto,
 } from "../../server/product-images.mjs";
+import {
+  categoryPhotoFor,
+  ensureCategoryPhotos,
+} from "../category-photos";
 import { useI18n } from "../i18n";
 export type PhotoProduct = {
   name?: string;
@@ -26,6 +31,7 @@ const icons: Record<string, typeof PackageIcon> = {
   Mobiles: DeviceMobileIcon,
   Tablets: DeviceTabletIcon,
   Cameras: CameraIcon,
+  Printers: PrinterIcon,
   Storage: HardDriveIcon,
 };
 // Bounded, in-flight-deduplicated cache. Blobs are fetched only when a thumbnail is near view.
@@ -61,7 +67,20 @@ export function ProductPhoto({
   preview?: string;
 }) {
   const { t } = useI18n();
-  const selected = productPhotoSelection(product),
+  const [, setMapTick] = useState(0);
+  useEffect(() => {
+    let active = true;
+    ensureCategoryPhotos().then(() => {
+      if (active) setMapTick((n) => n + 1);
+    });
+    return () => {
+      active = false;
+    };
+  }, [product.category]);
+  const selected = productPhotoSelection(
+      product,
+      categoryPhotoFor(product.category),
+    ),
     ref = preview || selected.src;
   const [loaded, setLoaded] = useState<{ ref: string; src: string } | null>(
       null,
@@ -116,9 +135,7 @@ export function ProductPhoto({
     preview || selected.kind === "custom"
       ? t("photos.custom")
       : selected.kind === "category" && selected.photo
-        ? product.category === "Accessories" && product.attributes?.Type
-          ? t("photos.accessory", { type: product.attributes.Type })
-          : t("photos.category", { category: product.category || "" })
+        ? t("photos.category", { category: product.category || "" })
         : selected.photo
           ? t(selected.kind === "exact" ? "photos.exact" : "photos.reference", {
               model: selected.photo.brand + " " + selected.photo.model,

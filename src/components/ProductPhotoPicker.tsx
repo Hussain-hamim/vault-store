@@ -13,6 +13,10 @@ import {
   normalizeImageText,
   productPhotoSelection,
 } from "../../server/product-images.mjs";
+import {
+  categoryPhotoFor,
+  ensureCategoryPhotos,
+} from "../category-photos";
 import { ProductPhoto, PhotoProduct } from "./ProductPhoto";
 import { Modal, ErrorMessage } from "./ui";
 import "./product-photos.css";
@@ -60,15 +64,29 @@ export function ProductPhotoPicker({
   // A manual upload belongs to this form, even while product details change.
   const upload = uploaded?.src || "";
   const useAuto = automatic;
+  const [, setMapTick] = useState(0);
+  useEffect(() => {
+    let active = true;
+    ensureCategoryPhotos().then(() => {
+      if (active) setMapTick((n) => n + 1);
+    });
+    return () => {
+      active = false;
+    };
+  }, [product.category]);
+  const categoryImage = categoryPhotoFor(product.category);
   const savedRef = !useAuto
     ? upload
       ? ""
       : originalPhoto || (saved?.identity === identity ? saved.src : "")
     : "";
-  const selection = productPhotoSelection({
-    ...product,
-    image: savedRef || undefined,
-  });
+  const selection = productPhotoSelection(
+    {
+      ...product,
+      image: savedRef || undefined,
+    },
+    categoryImage,
+  );
   const image = selection.src;
   useEffect(() => {
     onChange(
@@ -134,9 +152,7 @@ export function ProductPhotoPicker({
   const label = custom
     ? t("photos.custom")
     : selection.kind === "category" && selection.photo
-      ? product.category === "Accessories" && product.attributes?.Type
-        ? t("photos.accessory", { type: product.attributes.Type })
-        : t("photos.category", { category: product.category || "" })
+      ? t("photos.category", { category: product.category || "" })
       : selection.photo
         ? t(selection.kind === "exact" ? "photos.exact" : "photos.reference", {
             model: selection.photo.brand + " " + selection.photo.model,

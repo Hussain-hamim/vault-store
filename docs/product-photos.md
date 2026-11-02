@@ -1,8 +1,10 @@
 # Offline product photos
 
-Product forms automatically show a clean studio category or accessory illustration (laptop, phone, tablet, storage, keyboard, and similar). These files ship inside the desktop app; no image request goes to the internet while using the app.
+Product forms automatically show one clean studio illustration per builtin category (laptop, phone, tablet, camera, printer, storage, accessories). These files ship inside the desktop app; no image request goes to the internet while using the app.
 
-Automatic photos are illustrations for the category or accessory type, not phone snapshots of a specific model. Upload a JPG/PNG/WebP for the exact item when you have one. The form labels studio category photos, accessory photos and saved custom photos.
+When you create a custom store category and upload a photo with it, that photo becomes the default for every product in that category. Later products in the same category reuse it automatically until you upload a different product-specific photo. Builtin categories keep their studio assets.
+
+Automatic photos are category illustrations, not phone snapshots of a specific model. Upload a JPG/PNG/WebP for the exact item when you have one. The form labels studio category photos and saved custom photos.
 
 Use Choose photo in Add/Edit product or new resale intake for the exact item. JPG, PNG and WebP are resized locally to a maximum 640-pixel edge and adaptively compressed as JPEG to at most 150,000 bytes. Existing saved photos are not recompressed. The source file limit is 12 MiB. After saving, another product with the same category, company and model can reuse that uploaded photo. Use automatic photo resets the current selection.
 
