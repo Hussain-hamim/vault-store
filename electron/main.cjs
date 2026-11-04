@@ -380,6 +380,7 @@ async function start() {
     if (action === "list")
       return {
         users: accounts.list(),
+        preferredUsername: accounts.preferredUsername(),
         profiles: profiles
           .filter((p) => !p.hidden)
           .map(({ directory, ...p }) => p),
@@ -887,7 +888,30 @@ app
     dialog.showErrorBox(brand.name + " could not start", e.message);
     app.exit(1);
   });
+let quittingClean = false;
+async function signOutOnQuit() {
+  if (!accounts) return;
+  const token = accounts.token();
+  if (token && db) {
+    try {
+      await db.request("logout", {}, token);
+    } catch {
+      /* Session may already be gone; still clear the local remember file. */
+    }
+  }
+  accounts.signOutLocal();
+}
+app.on("before-quit", (event) => {
+  if (quittingClean || backupMode) return;
+  event.preventDefault();
+  signOutOnQuit()
+    .catch(() => {})
+    .finally(() => {
+      quittingClean = true;
+      db?.close();
+      app.quit();
+    });
+});
 app.on("window-all-closed", () => {
-  db?.close();
   app.quit();
 });

@@ -40,11 +40,23 @@ class Accounts {
       if (user.token === token) user.token = "";
     this.save();
   }
+  /** Clear saved sessions on this shop but keep usernames for the login form. */
+  signOutLocal() {
+    for (const user of this.state.users) user.token = "";
+    this.save();
+  }
   select(id) {
     if (!this.state.users.some((u) => u.id === id))
       throw Error("Unknown account.");
     this.state.active = id;
     this.save();
+  }
+  preferredUsername() {
+    return (
+      this.state.users.find((u) => u.id === this.state.active)?.username ||
+      this.state.users[0]?.username ||
+      ""
+    );
   }
   list() {
     return this.state.users.map(({ token, ...user }) => ({

@@ -23,6 +23,7 @@ test("desktop accounts survive restart, switch independently, and logout retains
   );
   a = new Accounts(dir, safe);
   assert.equal(a.token(), "secret-two");
+  assert.equal(a.preferredUsername(), "employee");
   a.select("one");
   assert.equal(a.token(), "secret-one");
   a.logout("secret-one");
@@ -35,6 +36,10 @@ test("desktop accounts survive restart, switch independently, and logout retains
   assert.equal(a.token(), "secret-two");
   assert.throws(() => a.select("unknown"));
   assert.equal(fs.readFileSync(a.file).includes("secret-two"), false);
+  a.signOutLocal();
+  assert.equal(a.token(), "");
+  assert.equal(a.preferredUsername(), "employee");
+  assert.equal(a.list().every((u) => !u.signedIn), true);
   const other = fs.mkdtempSync(path.join(os.tmpdir(), "accounts-other-"));
   t.after(() => fs.rmSync(other, { recursive: true, force: true }));
   assert.equal(new Accounts(other, safe).token(), "");
