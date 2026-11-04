@@ -1251,11 +1251,20 @@ function Auth({
       .then((saved) => {
         setRemembered(saved);
         if (saved.recovery) setRecover(true);
+        if (!setup) {
+          const preferred =
+            saved.preferredUsername ||
+            saved.users?.find((u: any) => !u.signedIn)?.username ||
+            saved.users?.[0]?.username ||
+            ownerUsername ||
+            "";
+          if (preferred) setSelectedUsername(preferred);
+        }
       })
       .catch((e) => {
         setError(e?.message || t("auth.rememberedLoadFailed"));
       });
-  }, [t]);
+  }, [t, setup, ownerUsername]);
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
@@ -1480,6 +1489,7 @@ function Auth({
                 required
                 minLength={setup ? 10 : 1}
                 autoComplete={setup ? "new-password" : "current-password"}
+                autoFocus={!setup && !!selectedUsername}
               />
             </Field>
             <label>

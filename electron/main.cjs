@@ -380,6 +380,7 @@ async function start() {
     if (action === "list")
       return {
         users: accounts.list(),
+        preferredUsername: accounts.preferredUsername(),
         profiles: profiles
           .filter((p) => !p.hidden)
           .map(({ directory, ...p }) => p),
@@ -887,29 +888,30 @@ app
     dialog.showErrorBox(brand.name + " could not start", e.message);
     app.exit(1);
   });
-let shuttingDown = false;
-async function shutdown() {
-  if (shuttingDown) return;
-  shuttingDown = true;
-  try {
-    const token = accounts?.token?.() || "";
-    accounts?.clearTokens?.();
-    if (token && db) await db.request("logout", {}, token);
-  } catch {
-    /* best-effort sign-out on quit */
+let quittingClean = false;
+async function signOutOnQuit() {
+  if (!accounts) return;
+  const token = accounts.token();
+  if (token && db) {
+    try {
+      await db.request("logout", {}, token);
+    } catch {
+      /* Session may already be gone; still clear the local remember file. */
+    }
   }
-  try {
-    db?.close();
-  } catch {
-    /* ignore */
-  }
-  app.quit();
+  accounts.signOutLocal();
 }
 app.on("before-quit", (event) => {
-  if (shuttingDown || backupMode) return;
+  if (quittingClean || backupMode) return;
   event.preventDefault();
-  void shutdown();
+  signOutOnQuit()
+    .catch(() => {})
+    .finally(() => {
+      quittingClean = true;
+      db?.close();
+      app.quit();
+    });
 });
 app.on("window-all-closed", () => {
-  void shutdown();
+  app.quit();
 });

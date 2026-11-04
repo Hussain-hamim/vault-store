@@ -22,6 +22,7 @@ test("desktop accounts keep names across restart but drop tokens; logout retains
     "secret-two",
   );
   assert.equal(a.token(), "secret-two");
+  assert.equal(a.preferredUsername(), "employee");
   a.select("one");
   assert.equal(a.token(), "secret-one");
   // Simulates full app quit / PC restart: a new process must not resume login.
@@ -43,6 +44,10 @@ test("desktop accounts keep names across restart but drop tokens; logout retains
   assert.equal(a.list()[1].signedIn, false);
   assert.throws(() => a.select("unknown"));
   assert.equal(fs.readFileSync(a.file).includes("secret-two"), false);
+  a.signOutLocal();
+  assert.equal(a.token(), "");
+  assert.equal(a.preferredUsername(), "employee");
+  assert.equal(a.list().every((u) => !u.signedIn), true);
   const other = fs.mkdtempSync(path.join(os.tmpdir(), "accounts-other-"));
   t.after(() => fs.rmSync(other, { recursive: true, force: true }));
   assert.equal(new Accounts(other, safe).token(), "");

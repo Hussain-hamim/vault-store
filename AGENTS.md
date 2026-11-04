@@ -132,7 +132,7 @@ Desktop testing: keep `npm run dev` running, then use `npm run desktop:dev` (not
 
 - Manually uploaded or previously saved custom product photos persist when category, brand, model or accessory type changes. Only choosing a replacement upload or explicitly using the automatic-photo action may replace them. Product edits that omit image fields preserve the existing photo.
 
-- Remember previously used desktop shops and accounts on this computer. Closing the app retains the selected account session; explicit sign-out revokes that account session but preserves its chooser entry. Switching shops keeps SQLite, activation, recovery identity and protected sessions isolated per profile. Launch the last explicitly selected shop by default; never redirect scheduled backups to another shop.
+- Remember previously used desktop shops and accounts on this computer. Closing the desktop app signs out the current shop (revokes the SQLite session and clears the saved token) but keeps the username for the next login screen so only the password is needed. Explicit sign-out does the same while preserving the chooser entry. Switching shops keeps SQLite, activation, recovery identity and protected sessions isolated per profile. Launch the last explicitly selected shop by default; never redirect scheduled backups to another shop.
 
 - Hide the remembered-user picker when only one user is remembered. Hide the shop picker when only one shop is available, and hide the profile-menu switch action when neither has alternatives.
 
