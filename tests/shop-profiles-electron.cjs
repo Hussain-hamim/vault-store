@@ -148,6 +148,17 @@ const js = (code) => win.webContents.executeJavaScript(code);
       "PASS: imported shop requires activation; activation screen switches back to original shop.",
     );
   } else {
+    await wait(() => js('!!document.querySelector(".auth-form")'));
+    await js(`
+      (async () => {
+        const session = await window.vault.request("login", {
+          username: "rahmat",
+          password: "synthetic-password",
+        });
+        sessionStorage.setItem("vault-session", session.token);
+        location.reload();
+      })()
+    `);
     await wait(() => js('!!document.querySelector(".app-shell")'));
     const before = await js('window.vault.accounts("list")');
     const identity = fs.readFileSync(

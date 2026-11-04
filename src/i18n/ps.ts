@@ -809,6 +809,7 @@ export const ps: MessageTree = {
     accessories: "لوازم",
     noBrand: "برند / ماډل نشته",
     fifoAvg: "FIFO اوسط په لاس کې",
+    latestCost: "وروستی لګښت",
     lastBuy: "وروستی پیرود",
     noMatchTitle: "مطابق توکي نشته",
     noMatchText: "بل لټون وکړئ، یا نوی توکی زیات کړئ.",

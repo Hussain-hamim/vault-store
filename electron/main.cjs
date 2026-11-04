@@ -887,7 +887,29 @@ app
     dialog.showErrorBox(brand.name + " could not start", e.message);
     app.exit(1);
   });
-app.on("window-all-closed", () => {
-  db?.close();
+let shuttingDown = false;
+async function shutdown() {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  try {
+    const token = accounts?.token?.() || "";
+    accounts?.clearTokens?.();
+    if (token && db) await db.request("logout", {}, token);
+  } catch {
+    /* best-effort sign-out on quit */
+  }
+  try {
+    db?.close();
+  } catch {
+    /* ignore */
+  }
   app.quit();
+}
+app.on("before-quit", (event) => {
+  if (shuttingDown || backupMode) return;
+  event.preventDefault();
+  void shutdown();
+});
+app.on("window-all-closed", () => {
+  void shutdown();
 });

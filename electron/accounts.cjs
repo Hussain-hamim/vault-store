@@ -11,14 +11,21 @@ class Accounts {
         this.safe.decryptString(fs.readFileSync(this.file)),
       );
     } catch {}
+    // Session tokens are process-lifetime only (full app quit / PC restart
+    // must return to the login screen). Keep usernames for the account chooser.
+    for (const user of this.state.users || []) user.token = "";
   }
   save() {
     if (!this.safe.isEncryptionAvailable())
       throw Error("Protected account storage is unavailable.");
     const temp = this.file + ".tmp";
+    const persisted = {
+      active: this.state.active,
+      users: this.state.users.map(({ token: _token, ...user }) => user),
+    };
     fs.writeFileSync(
       temp,
-      this.safe.encryptString(JSON.stringify(this.state)),
+      this.safe.encryptString(JSON.stringify(persisted)),
       { mode: 0o600 },
     );
     fs.renameSync(temp, this.file);
@@ -38,6 +45,10 @@ class Accounts {
   logout(token) {
     for (const user of this.state.users)
       if (user.token === token) user.token = "";
+    this.save();
+  }
+  clearTokens() {
+    for (const user of this.state.users) user.token = "";
     this.save();
   }
   select(id) {

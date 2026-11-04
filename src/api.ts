@@ -126,13 +126,16 @@ declare global {
     };
   }
 }
+let clearedLegacySession = false;
 function readStoredToken() {
   try {
-    return (
-      localStorage.getItem("vault-session") ||
-      sessionStorage.getItem("vault-session") ||
-      ""
-    );
+    // Session-only: survives in-app reloads, not full app quit / PC restart.
+    // Drop any legacy persistent localStorage session from older builds.
+    if (!clearedLegacySession) {
+      localStorage.removeItem("vault-session");
+      clearedLegacySession = true;
+    }
+    return sessionStorage.getItem("vault-session") || "";
   } catch {
     return "";
   }
@@ -145,13 +148,9 @@ export function setToken(value: string) {
   if (token !== value) window.dispatchEvent(new Event("radefy-photos-reset"));
   token = value;
   try {
-    if (value) {
-      localStorage.setItem("vault-session", value);
-      sessionStorage.removeItem("vault-session");
-    } else {
-      localStorage.removeItem("vault-session");
-      sessionStorage.removeItem("vault-session");
-    }
+    localStorage.removeItem("vault-session");
+    if (value) sessionStorage.setItem("vault-session", value);
+    else sessionStorage.removeItem("vault-session");
   } catch {
     /* private mode / storage blocked */
   }

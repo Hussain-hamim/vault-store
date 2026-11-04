@@ -86,6 +86,18 @@ const timer = setTimeout(() => {
     return win && !win.webContents.isLoading();
   });
   const js = (code) => win.webContents.executeJavaScript(code);
+  // Tokens must not survive process start; disk only keeps the account chooser.
+  await wait(() => js('!!document.querySelector(".auth-form")'));
+  await js(`
+    (async () => {
+      const session = await window.vault.request("login", {
+        username: "owner",
+        password: "synthetic-password",
+      });
+      sessionStorage.setItem("vault-session", session.token);
+      location.reload();
+    })()
+  `);
   await wait(() => js('!!document.querySelector(".app-shell")'));
   app.quit = () => {};
   await js(
@@ -114,9 +126,9 @@ const timer = setTimeout(() => {
   );
   assert.equal(result.profiles.length, 2);
   await js(
-    'window.vault.request("logout",{},localStorage.getItem("vault-session"))',
+    'window.vault.request("logout",{},sessionStorage.getItem("vault-session"))',
   );
-  await js("localStorage.clear(); location.reload()");
+  await js("localStorage.clear(); sessionStorage.clear(); location.reload()");
   await wait(() => js('!!document.querySelector(".auth-form")'));
   assert.equal(
     await js('document.querySelector("input[name=username]").value'),
@@ -172,7 +184,7 @@ const timer = setTimeout(() => {
     /only saved shop/,
   );
   console.log(
-    "PASS: main-process saved session restores with empty renderer storage; logout revokes and retains account chooser.",
+    "PASS: cold start requires login; in-process resume works with empty renderer storage; logout revokes and retains account chooser.",
   );
   clearTimeout(timer);
   win.destroy();

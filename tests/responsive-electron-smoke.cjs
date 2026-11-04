@@ -105,7 +105,7 @@ app
     await win.loadURL("http://127.0.0.1:4173/");
     await wait('!!document.querySelector(".auth-form")');
     await js(
-      'localStorage.setItem("vault-session",' +
+      'sessionStorage.setItem("vault-session",' +
         JSON.stringify(auth.token) +
         ');localStorage.setItem("vault-locale","en")',
     );

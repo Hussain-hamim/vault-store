@@ -62,9 +62,13 @@
     "@vitejs/plugin-react": "5.0.4",
     "electron": "44.9.0",
     "electron-builder": "^26.0.12",
+    "esbuild": "npm:esbuild-wasm@0.25.12",
     "prettier": "^3.9.10",
     "typescript": "^5.9.3",
     "vite": "6.4.2"
+  },
+  "overrides": {
+    "esbuild": "npm:esbuild-wasm@0.25.12"
   },
   "build": {
     "appId": "com.vault.store",

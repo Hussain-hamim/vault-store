@@ -234,7 +234,7 @@ export function ProductsPage({
     return productSpecEntries(p);
   }
   function productUnitCost(p: Product) {
-    return p.stock ? (p.cost || 0) / p.stock : p.unit_cost || 0;
+    return p.unit_cost || 0;
   }
   function productPurchaseRate(p: Product) {
     if (!p.fx_rate || (p.currency || "AED") === "AFN") return "";
@@ -437,8 +437,7 @@ export function ProductsPage({
                           ...(cost !== undefined
                             ? {
                                 stock_value_AF: cost / 100,
-                                unit_cost_AF:
-                                  (stock ? cost / stock : unit_cost || 0) / 100,
+                                unit_cost_AF: (unit_cost || 0) / 100,
                                 purchase_rate:
                                   fx_rate && (currency || "AED") !== "AFN"
                                     ? fxRateLabel(fx_rate, currency || "AED")
@@ -490,12 +489,9 @@ export function ProductsPage({
             <div className="inventory-list-scroll" role="list">
               {rows.map((p) => {
                 const tone = stockTone(p);
-                const unitCost = p.stock
-                  ? (p.cost || 0) / p.stock
-                  : p.unit_cost || 0;
-                const qtyCost = p.stock
-                  ? p.cost || unitCost * p.stock
-                  : 0;
+                const unitCost = p.unit_cost || 0;
+                const stockUnit = p.stock ? (p.cost || 0) / p.stock : unitCost;
+                const qtyCost = p.stock ? p.cost || 0 : 0;
                 const specs = productSpecs(p);
                 return (
                   <button
@@ -516,7 +512,6 @@ export function ProductsPage({
                             {[p.brand, p.model, p.sku]
                               .filter(Boolean)
                               .join(" · ") || t("inventory.noBrand")}
-                            {p.barcode ? ` · ⌗ ${p.barcode}` : ""}
                           </small>
                           <span className="inventory-chip category-chip">
                             {p.category}
@@ -545,11 +540,7 @@ export function ProductsPage({
                               {productPurchaseRate(p)}
                             </small>
                           ) : null}
-                          <small>
-                            {p.stock
-                              ? t("inventory.fifoAvg")
-                              : t("inventory.lastBuy")}
-                          </small>
+                          <small>{t("inventory.latestCost")}</small>
                         </div>
                       )}
                       {showCost && (
@@ -557,7 +548,7 @@ export function ProductsPage({
                           <strong>{af(qtyCost, 2)}</strong>
                           <small>
                             {p.stock
-                              ? `${p.stock} × ${af(unitCost, 2)}`
+                              ? `${p.stock} × ${af(stockUnit, 2)}`
                               : t("inventory.qtyCostEmpty")}
                           </small>
                         </div>
