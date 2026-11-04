@@ -459,7 +459,7 @@ kbd {
   color: var(--paint-fg-7a8b9e, #7a8b9e);
 }
 .sidebar-collapsed .sidebar-brand {
-  padding-inline: 12px;
+  padding-inline: 0;
 }
 .sidebar-collapsed .brand-wordmark,
 .sidebar-collapsed .sidebar-command span,
@@ -599,7 +599,8 @@ kbd {
   flex-shrink: 0;
 }
 .sidebar-collapsed .sidebar-brand .sidebar-toggle {
-  background: var(--paint-bg-1c3048, #1c3048);
+  background: transparent;
+  color: var(--paint-fg-adbed0, #adbed0);
 }
 
 /* Compact workspaces and configurable dashboard. */

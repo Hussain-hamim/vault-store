@@ -110,7 +110,7 @@ app
     await win.loadFile(path.resolve("dist/client/index.html"));
     await wait('!!document.querySelector(".auth-form")');
     await js(
-      `localStorage.setItem('vault-session',${JSON.stringify(auth.token)});localStorage.setItem('vault-locale','en')`,
+      `sessionStorage.setItem('vault-session',${JSON.stringify(auth.token)});localStorage.setItem('vault-locale','en')`,
     );
     await win.loadFile(path.resolve("dist/client/index.html"));
     await wait('!!document.querySelector(".sidebar")');

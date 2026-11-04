@@ -814,6 +814,7 @@ export const prs: MessageTree = {
     accessories: "لوازم",
     noBrand: "برند / مدل نیست",
     fifoAvg: "میانگین FIFO در دست",
+    latestCost: "آخرین هزینه",
     lastBuy: "آخرین خرید",
     noMatchTitle: "جنس مطابق نیست",
     noMatchText: "جستجوی دیگر را امتحان کنید، یا جنس جدید اضافه کنید.",

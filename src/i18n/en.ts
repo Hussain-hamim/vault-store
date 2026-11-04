@@ -825,6 +825,7 @@ export const en: MessageTree = {
     accessories: "Accessories",
     noBrand: "No brand / model",
     fifoAvg: "FIFO avg on hand",
+    latestCost: "Latest cost",
     lastBuy: "Last buy",
     noMatchTitle: "No matching products",
     noMatchText: "Try a different search, or add a new product.",

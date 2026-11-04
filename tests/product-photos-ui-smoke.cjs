@@ -114,7 +114,7 @@ app
         '!!document.querySelector(".auth-form") || !!document.querySelector(".sidebar")',
       );
       await js(
-        'localStorage.setItem("vault-session",' +
+        'sessionStorage.setItem("vault-session",' +
           JSON.stringify(auth.token) +
           ');localStorage.setItem("vault-locale","en")',
       );

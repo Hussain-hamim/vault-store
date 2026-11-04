@@ -12,7 +12,7 @@ const safe = {
       .map((x) => x ^ 83)
       .toString(),
 };
-test("desktop accounts survive restart, switch independently, and logout retains names only", (t) => {
+test("desktop accounts keep names across restart but drop tokens; logout retains names only", (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "accounts-"));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   let a = new Accounts(dir, safe);
@@ -21,19 +21,27 @@ test("desktop accounts survive restart, switch independently, and logout retains
     { id: "two", username: "employee", name: "Employee" },
     "secret-two",
   );
-  a = new Accounts(dir, safe);
   assert.equal(a.token(), "secret-two");
   assert.equal(a.preferredUsername(), "employee");
   a.select("one");
   assert.equal(a.token(), "secret-one");
-  a.logout("secret-one");
+  // Simulates full app quit / PC restart: a new process must not resume login.
   a = new Accounts(dir, safe);
   assert.equal(a.token(), "");
   assert.equal(a.list()[0].username, "hussain");
   assert.equal(a.list()[0].signedIn, false);
+  assert.equal(a.list()[1].username, "employee");
+  assert.equal(a.list()[1].signedIn, false);
   assert.equal(JSON.stringify(a.list()).includes("secret"), false);
   a.select("two");
+  a.remember(
+    { id: "two", username: "employee", name: "Employee" },
+    "secret-two",
+  );
   assert.equal(a.token(), "secret-two");
+  a.logout("secret-two");
+  assert.equal(a.token(), "");
+  assert.equal(a.list()[1].signedIn, false);
   assert.throws(() => a.select("unknown"));
   assert.equal(fs.readFileSync(a.file).includes("secret-two"), false);
   a.signOutLocal();
